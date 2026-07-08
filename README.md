@@ -1,4 +1,4 @@
-# Dutch! 🂡 card game
+# Dutch! 🂡
 
 Minimal local multiplayer version of Dutch.
 
@@ -9,6 +9,6 @@ npm install
 npm start
 ```
 
-Open `http://localhost:3000` in multiple browser windows or devices on the same network.
+Open `http://localhost:3000` in multiple browser windows or `http://host-ip:3000` on devices on the same network.
 
 

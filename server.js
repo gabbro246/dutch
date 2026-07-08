@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const os = require('os');
 const { Server } = require('socket.io');
 
 const app = express();
@@ -40,6 +41,13 @@ function addLog(text) {
   if (!text) return;
   state.log.unshift(text);
   if (state.log.length > 80) state.log.length = 80;
+}
+
+function hostAddresses() {
+  return Object.values(os.networkInterfaces())
+    .flat()
+    .filter((address) => address && address.family === 'IPv4' && !address.internal)
+    .map((address) => "http://" + address.address + ":" + PORT);
 }
 
 function activePlayers() {
@@ -1029,5 +1037,6 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Dutch! 🂡 server running on http://localhost:${PORT}`);
+  console.log("Dutch! 🂡 server running on http://localhost:" + PORT);
+  for (const address of hostAddresses()) console.log("Dutch! 🂡 network address: " + address);
 });
