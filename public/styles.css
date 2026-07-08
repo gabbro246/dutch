@@ -43,9 +43,6 @@ input, select {
   line-height: 1.1;
 }
 
-.game-title {
-  margin: 0 0 10px;
-}
 
 .waiting-page {
   max-width: 700px;
@@ -73,6 +70,20 @@ input, select {
   flex-wrap: wrap;
 }
 
+.join-row {
+  width: 100%;
+  flex-wrap: nowrap;
+}
+
+.join-row #nameInput {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.join-row button {
+  flex: 0 0 auto;
+}
+
 .waiting-controls {
   display: flex;
   flex-direction: column;
@@ -82,7 +93,6 @@ input, select {
 }
 
 .field-note,
-.waiting-note,
 .repo-link {
   font-size: 12px;
   color: #5f6368;
@@ -235,7 +245,7 @@ input, select {
 
 .own-actions {
   justify-content: center;
-  margin-top: 10px;
+  margin-top: 4px;
 }
 
 .deck-pile-area {
@@ -448,4 +458,7 @@ summary {
   margin-top: 0;
 }
 
-#startBtn { align-self: flex-start; }
+#startBtn {
+  align-self: stretch;
+  width: 100%;
+}

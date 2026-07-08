@@ -63,6 +63,11 @@ function isActivePlayer(playerId) {
   return !!(player && !player.left);
 }
 
+function isProtectedSpecialTarget(playerId) {
+  const round = state.round;
+  return !!(round && round.dutchCallerId && round.dutchCallerId === playerId);
+}
+
 function findActiveIndexFrom(startIndex) {
   if (state.players.length === 0) return -1;
   for (let offset = 0; offset < state.players.length; offset += 1) {
@@ -321,6 +326,7 @@ function buildView(playerId) {
     stage: round.stage,
     currentPlayerId: cp ? cp.id : null,
     currentPlayerName: cp ? cp.name : '',
+    protectedSpecialTargetIds: round.dutchCallerId ? [round.dutchCallerId] : [],
     deckCount: round.deck.length,
     discardCount: round.discard.length,
     discardTop: publicCard(round.discard[round.discard.length - 1], true),
@@ -350,7 +356,7 @@ function buildView(playerId) {
       total: p.total,
       roundPoints: p.roundPoints,
       connected: p.connected,
-      isCurrent: round.stage !== 'peek' && cp && cp.id === p.id,
+      isCurrent: !['peek', 'roundEnd', 'gameEnd'].includes(round.stage) && cp && cp.id === p.id,
       cards: p.cards.map((card) => publicCard(card, canViewerSeeCard(playerId, p.id, card)))
     })),
     controls: controlsFor(playerId)
@@ -376,9 +382,8 @@ function controlsFor(playerId) {
     canQueenPeek: round.stage === 'special' && actorForSpecial && special.type === 'Q',
     canJackSwap: round.stage === 'special' && actorForSpecial && special.type === 'J',
     canAceAdd: round.stage === 'special' && actorForSpecial && special.type === 'A',
-    canSkipSpecial: round.stage === 'special' && actorForSpecial,
     canDutch: round.stage === 'turn' && isCurrent && round.turnComplete && !round.dutchCallerId,
-    canEndTurn: round.stage === 'turn' && isCurrent && round.turnComplete,
+    canEndTurn: (round.stage === 'turn' && isCurrent && round.turnComplete) || (round.stage === 'special' && actorForSpecial),
     canNextRound: round.stage === 'roundEnd',
     canNewGame: round.stage === 'gameEnd'
   };
@@ -908,7 +913,7 @@ io.on('connection', (socket) => {
     if (!player || !round || round.stage !== 'special' || !special) return;
     if (special.actorId !== player.id || special.type !== 'A') return;
     const target = findPlayer(targetId);
-    if (!target) return;
+    if (!target || isProtectedSpecialTarget(target.id)) return;
     const card = drawFromDeck();
     if (card) {
       target.cards.push(card);
@@ -939,7 +944,7 @@ io.on('connection', (socket) => {
     if (!player || !round || round.stage !== 'special' || !special) return;
     if (special.actorId !== player.id || special.type !== 'J') return;
     const target = playerByCardId(cardId);
-    if (!target) return;
+    if (!target || isProtectedSpecialTarget(target.player.id)) return;
     special.selected = special.selected || [];
     if (special.selected.includes(cardId)) return;
     special.selected.push(cardId);
@@ -949,7 +954,7 @@ io.on('connection', (socket) => {
     }
     const a = playerByCardId(special.selected[0]);
     const b = playerByCardId(special.selected[1]);
-    if (a && b && a.card.id !== b.card.id) {
+    if (a && b && !isProtectedSpecialTarget(a.player.id) && !isProtectedSpecialTarget(b.player.id) && a.card.id !== b.card.id) {
       [a.player.cards[a.index], b.player.cards[b.index]] = [b.player.cards[b.index], a.player.cards[a.index]];
       addLog(`${player.name} used Jack swap`);
     }
@@ -957,17 +962,6 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-
-  socket.on('skipSpecial', () => {
-    const player = assertPlayer(socket);
-    const round = state.round;
-    const special = topSpecial();
-    if (!player || !round || round.stage !== 'special' || !special) return;
-    if (special.actorId !== player.id) return;
-    addLog(`${player.name} skipped ${specialName(special.type)}`);
-    finishSpecial();
-    broadcastState();
-  });
 
   socket.on('sayDutch', () => {
     const player = assertPlayer(socket);
@@ -986,10 +980,19 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  socket.on('endTurn', () => {
+  socket.on("endTurn", () => {
     const player = assertPlayer(socket);
     const round = state.round;
-    if (!player || !round || round.stage !== 'turn') return;
+    const special = topSpecial();
+    if (!player || !round) return;
+    if (round.stage === "special" && special && special.actorId === player.id) {
+      addLog(`${player.name} skipped ${specialName(special.type)}`);
+      finishSpecial();
+      if (round.stage === "turn" && round.turnComplete && currentPlayer()?.id === player.id) advanceTurn();
+      broadcastState();
+      return;
+    }
+    if (round.stage !== "turn") return;
     if (currentPlayer()?.id !== player.id || !round.turnComplete) return;
     addLog(`${player.name} ended turn`);
     advanceTurn();
@@ -1026,5 +1029,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Dutch server running on http://localhost:${PORT}`);
+  console.log(`Dutch! 🂡 server running on http://localhost:${PORT}`);
 });

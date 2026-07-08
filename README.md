@@ -1,4 +1,4 @@
-# Dutch card game
+# Dutch! 🂡 card game
 
 Minimal local multiplayer version of Dutch.
 

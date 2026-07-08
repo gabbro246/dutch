@@ -62,14 +62,14 @@ function attrsToText(attrs = {}) {
 }
 
 function repoLink() {
-  return '<p class="repo-link"><a href="https://github.com/gabbro246/dutchonline" target="_blank" rel="noopener">github.com/gabbro246/dutchonline</a></p>';
+  return '<p class="repo-link"><a href="https://github.com/gabbro246/dutch" target="_blank" rel="noopener">github.com/gabbro246/dutch</a></p>';
 }
 
 function render(state) {
   if (!state.joined && state.phase === 'playing') {
     app.innerHTML = `
       <div class="page waiting-page">
-        <h1 class="app-title">Dutch</h1>
+        <h1 class="app-title">Dutch! 🂡</h1>
         <div class="waiting-panel"><p>${escapeHtml(state.waitingMessage)}</p></div>
         ${repoLink()}
       </div>
@@ -88,22 +88,19 @@ function renderWaiting(state) {
   const me = state.players.find((p) => p.id === state.you);
   app.innerHTML = `
     <div class="page waiting-page">
-      <h1 class="app-title">Dutch</h1>
+      <h1 class="app-title">Dutch! 🂡</h1>
       <div class="waiting-panel">
         <div class="waiting-controls">
-          <div class="row">
+          <div class="row join-row">
             <input id="nameInput" placeholder="Name" value="${joined && me ? escapeHtml(me.name) : ''}" ${joined ? 'disabled' : ''}>
             <button id="joinBtn" disabled>Join</button>
             <button id="leaveBtn" ${joined ? '' : 'disabled'}>Leave</button>
           </div>
-          <p class="field-note">2 to 9 players allowed. Names can be anything, including emojis.</p>
           <div class="row">
             <label><input type="radio" name="deckSetting" value="one" ${state.deckSetting === 'one' ? 'checked' : ''} ${state.oneDeckDisabled || !joined ? 'disabled' : ''}> one deck</label>
             <label><input type="radio" name="deckSetting" value="two" ${state.deckSetting === 'two' ? 'checked' : ''} ${!joined ? 'disabled' : ''}> two decks</label>
           </div>
-          <p class="field-note">One deck uses either red or blue card backs. Two decks use both for bigger groups.</p>
           <button id="startBtn" ${state.canStart && joined ? '' : 'disabled'}>Start game</button>
-          <p class="waiting-note">Keep this tab open while playing. If you refresh, lock your screen, or lose connection, reopen within 15 minutes to continue.</p>
         </div>
         <div class="player-list">
           <h2>Players</h2>
@@ -142,8 +139,6 @@ function renderGame(state) {
   app.innerHTML = `
     <div class="main-layout">
       <main class="game-area">
-        <h1 class="app-title game-title">Dutch</h1>
-        ${renderStatus(state)}
         <section class="other-players">
           ${others.map((player) => renderPlayerField(player, state, true)).join('')}
         </section>
@@ -162,7 +157,7 @@ function renderStatus(state) {
   if (r.stage === 'peek') {
     text = 'Start peek: each player must look at exactly two own cards.';
   } else if (r.stage === 'special' && r.special) {
-    text = `${r.special.actorName} may use or skip ${specialLabel(r.special.type)}.`;
+    text = `${r.special.actorName} may use ${specialLabel(r.special.type)} or click Next player.`;
   } else if (r.stage === 'roundEnd') {
     text = 'Round ended. Cards are revealed and points were counted.';
   } else if (r.stage === 'gameEnd') {
@@ -177,7 +172,7 @@ function renderStatus(state) {
   const dutch = r.dutchCallerName ? `<div>${escapeHtml(r.dutchCallerName)} called Dutch. ${r.dutchTurnsRemaining} player turn(s) remaining.</div>` : '';
   const buttons = [
     (r.stage === 'roundEnd' || r.stage === 'gameEnd') ? '' : '<button data-action="endGameForAll">End game for all</button>',
-    r.controls && r.controls.canSkipSpecial ? '<button data-action="skipSpecial">Skip special</button>' : '',
+    '<button data-action="leave">Leave game</button>',
     r.stage === 'roundEnd' ? '<button data-action="nextRound">Next round</button>' : '',
     r.stage === 'gameEnd' ? '<button data-action="newGame">New game</button>' : ''
   ].filter(Boolean).join('');
@@ -241,11 +236,16 @@ function renderOwnArea(player, state) {
       <div class="row own-actions">
         ${renderAceButton(player, state, true)}
         <button data-action="sayDutch" ${r.controls.canDutch ? '' : 'disabled'}>Dutch</button>
-        <button data-action="endTurn" ${r.controls.canEndTurn ? '' : 'disabled'}>Next player</button>
-        <button data-action="leave">Leave game</button>
+        <button data-action="endTurn" ${r.controls.canEndTurn ? "" : "disabled"}>${endTurnLabel(state)}</button>
       </div>
     </section>
   `;
+}
+
+function endTurnLabel(state) {
+  const r = state.round;
+  if (['turn', 'special'].includes(r.stage) && r.dutchCallerId && r.dutchTurnsRemaining === 0 && r.currentPlayerId === state.you) return 'Finish round';
+  return 'Next player';
 }
 
 function playerBadges(state, player) {
@@ -291,7 +291,8 @@ function renderDeckPile(state) {
 }
 
 function renderAceButton(player, state, inline = false) {
-  const enabled = state.round.controls.canAceAdd;
+  const protectedTarget = (state.round.protectedSpecialTargetIds || []).includes(player.id);
+  const enabled = state.round.controls.canAceAdd && !protectedTarget;
   const button = `<button data-action="aceAdd" data-player-id="${escapeHtml(player.id)}" ${enabled ? '' : 'disabled'}>A add card</button>`;
   if (inline) return button;
   return `
@@ -322,6 +323,7 @@ function stackPile(r) {
 
 function renderCardCell(card, ownerId, index, state, compact, own) {
   const r = state.round;
+  const protectedTarget = (r.protectedSpecialTargetIds || []).includes(ownerId);
   const buttons = [];
   if (own) {
     buttons.push(`<button data-action="peekStart" data-card-id="${card.id}" ${r.controls.canPeekStart ? '' : 'disabled'}>Peek</button>`);
@@ -329,7 +331,7 @@ function renderCardCell(card, ownerId, index, state, compact, own) {
     buttons.push(`<button data-action="throwIn" data-card-id="${card.id}" ${r.controls.canThrowIn ? '' : 'disabled'}>Throw in</button>`);
   }
   buttons.push(`<button data-action="queenPeek" data-card-id="${card.id}" ${r.controls.canQueenPeek ? '' : 'disabled'}>Q Peek</button>`);
-  buttons.push(`<button data-action="jackSelect" data-card-id="${card.id}" ${r.controls.canJackSwap ? '' : 'disabled'}>J Swap</button>`);
+  buttons.push("<button data-action=\"jackSelect\" data-card-id=\"" + escapeHtml(card.id) + "\" " + (r.controls.canJackSwap && !protectedTarget ? "" : "disabled") + ">J Swap</button>");
 
   const selected = r.special && r.special.selected && r.special.selected.includes(card.id);
   return `
@@ -368,6 +370,7 @@ function renderSideArea(state) {
   const pointsOpen = state.roundNumber > 1 || r.stage === 'roundEnd' || r.stage === 'gameEnd';
   return `
     <aside class="side-area">
+      ${renderStatus(state)}
       <details>
         <summary>Short instructions</summary>
         ${shortInstructions()}
