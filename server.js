@@ -6,6 +6,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 const PORT = process.env.PORT || 3000;
+const DISCONNECT_GRACE_MS = 15 * 60 * 1000;
 
 app.use(express.static('public'));
 
@@ -41,24 +42,32 @@ function addLog(text) {
   if (state.log.length > 80) state.log.length = 80;
 }
 
-function connectedPlayers() {
-  return state.players.filter((p) => p.connected);
+function activePlayers() {
+  return state.players.filter((p) => !p.left);
 }
 
-function connectedPlayerCount() {
-  return connectedPlayers().length;
+function activePlayerCount() {
+  return activePlayers().length;
 }
 
-function isPlayerConnected(playerId) {
+function playerIdForSocket(socket) {
+  return socket.data.playerId || socket.id;
+}
+
+function normalizePlayerToken(value) {
+  return String(value || '').trim().slice(0, 80);
+}
+
+function isActivePlayer(playerId) {
   const player = findPlayer(playerId);
-  return !!(player && player.connected);
+  return !!(player && !player.left);
 }
 
-function findConnectedIndexFrom(startIndex) {
+function findActiveIndexFrom(startIndex) {
   if (state.players.length === 0) return -1;
   for (let offset = 0; offset < state.players.length; offset += 1) {
     const index = (startIndex + offset + state.players.length) % state.players.length;
-    if (state.players[index] && state.players[index].connected) return index;
+    if (state.players[index] && !state.players[index].left) return index;
   }
   return -1;
 }
@@ -73,7 +82,7 @@ function currentPlayer() {
 }
 
 function clampDeckSetting() {
-  if (state.players.length > 4) state.deckSetting = 'two';
+  if (activePlayerCount() > 4) state.deckSetting = 'two';
 }
 
 function createDeck(deckColor) {
@@ -272,20 +281,20 @@ function publicCard(card, visible) {
   };
 }
 
-function buildView(socketId) {
+function buildView(playerId) {
   removeExpiredReveals();
-  const joined = state.players.some((p) => p.id === socketId);
-  const viewer = findPlayer(socketId);
+  const joined = state.players.some((p) => p.id === playerId && !p.left);
+  const viewer = findPlayer(playerId);
   const base = {
-    you: socketId,
+    you: playerId,
     joined,
     phase: state.phase,
     deckSetting: state.deckSetting,
-    oneDeckDisabled: state.players.length > 4,
-    canJoin: state.phase === 'waiting' && state.players.length < 9 && !joined,
-    canStart: state.phase === 'waiting' && state.players.length >= 2,
+    oneDeckDisabled: activePlayerCount() > 4,
+    canJoin: state.phase === 'waiting' && activePlayerCount() < 9 && !joined,
+    canStart: state.phase === 'waiting' && activePlayerCount() >= 2,
     waitingMessage: state.phase === 'playing' && !joined ? state.waitingMessage : '',
-    players: state.players.map((p) => ({
+    players: activePlayers().map((p) => ({
       id: p.id,
       name: p.name,
       total: p.total,
@@ -318,7 +327,7 @@ function buildView(socketId) {
     deckBack: state.deckSetting === 'one' ? (state.deckColor || 'blue') : 'mixed',
     drawn: round.drawn ? {
       source: round.drawn.source,
-      card: publicCard(round.drawn.card, round.drawn.playerId === socketId)
+      card: publicCard(round.drawn.card, round.drawn.playerId === playerId)
     } : null,
     anyDrawn: !!round.drawn,
     turnComplete: !!round.turnComplete,
@@ -332,29 +341,31 @@ function buildView(socketId) {
     dutchCallerId: round.dutchCallerId,
     dutchCallerName: dutchCaller ? dutchCaller.name : '',
     dutchTurnsRemaining: round.dutchQueue ? round.dutchQueue.length : 0,
+    roundWinnerIds: round.roundWinnerIds || [],
+    winnerId: round.winnerId,
     winnerName: round.winnerId ? nameOf(round.winnerId) : '',
-    players: state.players.map((p) => ({
+    players: activePlayers().map((p) => ({
       id: p.id,
       name: p.name,
       total: p.total,
       roundPoints: p.roundPoints,
       connected: p.connected,
       isCurrent: round.stage !== 'peek' && cp && cp.id === p.id,
-      cards: p.cards.map((card) => publicCard(card, canViewerSeeCard(socketId, p.id, card)))
+      cards: p.cards.map((card) => publicCard(card, canViewerSeeCard(playerId, p.id, card)))
     })),
-    controls: controlsFor(socketId)
+    controls: controlsFor(playerId)
   };
   return base;
 }
 
-function controlsFor(socketId) {
+function controlsFor(playerId) {
   const round = state.round;
-  const player = findPlayer(socketId);
-  if (!round || !player) return {};
+  const player = findPlayer(playerId);
+  if (!round || !player || player.left) return {};
   const cp = currentPlayer();
-  const isCurrent = cp && cp.id === socketId;
+  const isCurrent = cp && cp.id === playerId;
   const special = topSpecial();
-  const actorForSpecial = special && special.actorId === socketId;
+  const actorForSpecial = special && special.actorId === playerId;
   const beforeDraw = round.stage === 'turn' && isCurrent && !round.drawn && !round.turnComplete && !special;
   return {
     canPeekStart: round.stage === 'peek' && !player.startPeekDone,
@@ -375,7 +386,7 @@ function controlsFor(socketId) {
 
 function broadcastState() {
   for (const socket of io.sockets.sockets.values()) {
-    socket.emit('state', buildView(socket.id));
+    socket.emit('state', buildView(playerIdForSocket(socket)));
   }
 }
 
@@ -409,6 +420,7 @@ function startRound() {
     reveals: [],
     dutchCallerId: null,
     dutchQueue: [],
+    roundWinnerIds: [],
     winnerId: null
   };
   state.round = round;
@@ -445,7 +457,7 @@ function createOpeningDiscardAfterPeek() {
 }
 
 function startGame() {
-  if (state.phase !== 'waiting' || state.players.length < 2) return;
+  if (state.phase !== 'waiting' || activePlayerCount() < 2) return;
   state.phase = 'playing';
   state.log = [];
   state.roundNumber = 0;
@@ -459,20 +471,20 @@ function startGame() {
 }
 
 function allPlayersPeeked() {
-  return state.players.every((p) => !p.connected || p.startPeekDone);
+  return state.players.every((p) => p.left || p.startPeekDone);
 }
 
 function beginTurnsIfReady() {
   if (!state.round || state.round.stage !== 'peek') return;
   if (!allPlayersPeeked()) return;
-  const firstConnectedIndex = findConnectedIndexFrom(state.round.currentPlayerIndex);
+  const firstConnectedIndex = findActiveIndexFrom(state.round.currentPlayerIndex);
   if (firstConnectedIndex < 0) return;
   state.round.currentPlayerIndex = firstConnectedIndex;
   createOpeningDiscardAfterPeek();
   state.round.stage = 'turn';
   state.round.turnComplete = false;
   state.round.drawn = null;
-  addLog('all connected players finished peeking');
+  addLog('all active players finished peeking');
   const first = currentPlayer();
   if (first) addLog(`${first.name}'s turn started`);
 }
@@ -481,7 +493,7 @@ function advanceTurn() {
   const round = state.round;
   if (!round || round.stage === 'roundEnd' || round.stage === 'gameEnd') return;
   if (round.specialQueue.length > 0 || round.drawn) return;
-  if (connectedPlayerCount() <= 1) {
+  if (activePlayerCount() <= 1) {
     resetToWaiting(true, 'game ended because fewer than two players remain');
     return;
   }
@@ -492,7 +504,7 @@ function advanceTurn() {
   if (round.dutchCallerId) {
     while (round.dutchQueue.length > 0) {
       const nextId = round.dutchQueue.shift();
-      const nextIndex = state.players.findIndex((p) => p.id === nextId && p.connected);
+      const nextIndex = state.players.findIndex((p) => p.id === nextId && !p.left);
       if (nextIndex >= 0) {
         round.currentPlayerIndex = nextIndex;
         addLog(`${state.players[nextIndex].name}'s final turn started`);
@@ -504,7 +516,7 @@ function advanceTurn() {
   }
 
   const start = (round.currentPlayerIndex + 1) % state.players.length;
-  const nextIndex = findConnectedIndexFrom(start);
+  const nextIndex = findActiveIndexFrom(start);
   if (nextIndex < 0) {
     resetToWaiting(true, 'game ended because fewer than two players remain');
     return;
@@ -522,7 +534,8 @@ function endRound() {
   if (round.throwIn) round.throwIn.open = false;
   round.specialQueue = [];
 
-  const scores = state.players.map((p) => ({
+  const scoringPlayers = activePlayers();
+  const scores = scoringPlayers.map((p) => ({
     player: p,
     raw: p.cards.reduce((sum, card) => sum + cardPoints(card), 0)
   }));
@@ -532,7 +545,7 @@ function endRound() {
   for (const score of scores) {
     let roundScore = score.raw;
     if (callerId && score.player.id === callerId) {
-      roundScore = score.raw === min ? 0 : score.raw * 2;
+      roundScore = score.raw <= 5 && score.raw === min ? 0 : score.raw * 2;
     }
     score.player.roundPoints = roundScore;
     score.player.total += roundScore;
@@ -544,7 +557,7 @@ function endRound() {
 
   state.scoreHistory.push({
     round: state.roundNumber,
-    players: state.players.map((p) => ({
+    players: scoringPlayers.map((p) => ({
       id: p.id,
       name: p.name,
       total: p.total,
@@ -552,10 +565,15 @@ function endRound() {
     }))
   });
 
-  const loser = state.players.find((p) => p.total > 100);
+  const bestRoundScore = Math.min(...scoringPlayers.map((p) => p.roundPoints));
+  round.roundWinnerIds = scoringPlayers
+    .filter((p) => p.roundPoints === bestRoundScore)
+    .map((p) => p.id);
+
+  const loser = scoringPlayers.find((p) => p.total > 100);
   if (loser) {
     round.stage = 'gameEnd';
-    const winner = state.players.slice().sort((a, b) => a.total - b.total)[0];
+    const winner = scoringPlayers.slice().sort((a, b) => a.total - b.total)[0];
     round.winnerId = winner ? winner.id : null;
     addLog(`game ended. ${winner ? winner.name : 'No one'} won`);
   } else {
@@ -569,10 +587,13 @@ function nextRound() {
 }
 
 function resetToWaiting(keepPlayers = true, reason = 'returned to waiting room') {
-  const players = keepPlayers ? state.players.filter((p) => p.connected).map((p) => ({
+  const players = keepPlayers ? state.players.filter((p) => p.connected && !p.left).map((p) => ({
     id: p.id,
     name: p.name,
     connected: true,
+    disconnectedAt: null,
+    socketId: null,
+    left: false,
     total: 0,
     roundPoints: null,
     cards: [],
@@ -590,9 +611,9 @@ function removeDisconnectedSpecials() {
   const round = state.round;
   if (!round) return;
   let removedAny = false;
-  while (round.specialQueue.length > 0 && !isPlayerConnected(round.specialQueue[0].actorId)) {
+  while (round.specialQueue.length > 0 && !isActivePlayer(round.specialQueue[0].actorId)) {
     const special = round.specialQueue.shift();
-    addLog(`${nameOf(special.actorId)} skipped ${specialName(special.type)} because missing`);
+    addLog(`${nameOf(special.actorId)} skipped ${specialName(special.type)} because they left`);
     removedAny = true;
   }
   if (removedAny) updateStageAfterQueue();
@@ -601,12 +622,11 @@ function removeDisconnectedSpecials() {
 function handleMissingPlayers() {
   const round = state.round;
   if (state.phase !== 'playing' || !round) return false;
-  if (connectedPlayerCount() <= 1) {
+  if (activePlayerCount() <= 1) {
     resetToWaiting(true, 'game ended because fewer than two players remain');
     return true;
   }
 
-  round.dutchQueue = (round.dutchQueue || []).filter(isPlayerConnected);
   removeDisconnectedSpecials();
 
   if (round.stage === 'peek') {
@@ -617,9 +637,9 @@ function handleMissingPlayers() {
   if (round.stage !== 'turn') return false;
 
   const cp = currentPlayer();
-  if (cp && cp.connected) return false;
+  if (cp && !cp.left) return false;
 
-  if (cp) addLog(`${cp.name} was skipped because missing`);
+  if (cp) addLog(cp.name + ' left, turn skipped');
   round.drawn = null;
   round.turnComplete = false;
   if (round.throwIn) round.throwIn.open = false;
@@ -627,6 +647,44 @@ function handleMissingPlayers() {
   return false;
 }
 
+
+function purgeExpiredDisconnectedPlayers() {
+  const now = Date.now();
+  const expired = state.players.filter((p) => !p.connected && p.disconnectedAt && now - p.disconnectedAt > DISCONNECT_GRACE_MS);
+  if (expired.length === 0) return false;
+
+  const currentId = currentPlayer() ? currentPlayer().id : null;
+  state.players = state.players.filter((p) => !expired.includes(p));
+  if (state.round) {
+    const remainingIds = new Set(state.players.map((p) => p.id));
+    state.round.dutchQueue = (state.round.dutchQueue || []).filter((id) => remainingIds.has(id));
+    state.round.specialQueue = (state.round.specialQueue || []).filter((special) => remainingIds.has(special.actorId));
+    state.round.roundWinnerIds = (state.round.roundWinnerIds || []).filter((id) => remainingIds.has(id));
+    if (state.round.dutchCallerId && !remainingIds.has(state.round.dutchCallerId)) state.round.dutchCallerId = null;
+    if (state.round.winnerId && !remainingIds.has(state.round.winnerId)) state.round.winnerId = null;
+    if (state.round.drawn && !remainingIds.has(state.round.drawn.playerId)) {
+      state.round.drawn = null;
+      state.round.turnComplete = false;
+    }
+    if (currentId && remainingIds.has(currentId)) {
+      state.round.currentPlayerIndex = state.players.findIndex((p) => p.id === currentId);
+    } else if (state.round.currentPlayerIndex >= state.players.length) {
+      state.round.currentPlayerIndex = 0;
+    }
+  }
+
+  for (const player of expired) addLog(player.name + ' was removed after 15 minutes offline');
+  clampDeckSetting();
+  if (state.phase === 'playing' && activePlayerCount() <= 1) {
+    resetToWaiting(true, 'game ended because fewer than two players remain');
+  } else {
+    handleMissingPlayers();
+  }
+  broadcastState();
+  return true;
+}
+
+setInterval(purgeExpiredDisconnectedPlayers, 60 * 1000);
 
 function setDeckSetting(value) {
   if (state.phase !== 'waiting') return;
@@ -636,13 +694,35 @@ function setDeckSetting(value) {
 }
 
 function assertPlayer(socket) {
-  return findPlayer(socket.id);
+  return findPlayer(playerIdForSocket(socket));
 }
 
 io.on('connection', (socket) => {
-  socket.emit('state', buildView(socket.id));
+  socket.on('identify', (tokenRaw) => {
+    const playerId = normalizePlayerToken(tokenRaw) || socket.id;
+    socket.data.playerId = playerId;
+    const player = findPlayer(playerId);
+    if (player && player.left) {
+      socket.emit('state', buildView(playerId));
+      return;
+    }
+    if (player) {
+      const wasDisconnected = !player.connected;
+      player.connected = true;
+      player.disconnectedAt = null;
+      player.socketId = socket.id;
+      if (wasDisconnected) addLog(player.name + ' reconnected');
+      broadcastState();
+      return;
+    }
+    socket.emit('state', buildView(playerId));
+  });
 
-  socket.on('join', (nameRaw) => {
+  socket.on('join', (joinRaw) => {
+    const nameRaw = joinRaw && typeof joinRaw === 'object' ? joinRaw.name : joinRaw;
+    const tokenRaw = joinRaw && typeof joinRaw === 'object' ? joinRaw.token : '';
+    const joinToken = normalizePlayerToken(tokenRaw);
+    if (joinToken) socket.data.playerId = joinToken;
     const name = String(nameRaw || '').trim().slice(0, 24);
     if (!name) return;
     if (state.phase !== 'waiting') {
@@ -650,12 +730,23 @@ io.on('connection', (socket) => {
       broadcastState();
       return;
     }
-    if (state.players.length >= 9) return;
-    if (findPlayer(socket.id)) return;
+    if (activePlayerCount() >= 9) return;
+    const playerId = playerIdForSocket(socket);
+    const existing = findPlayer(playerId);
+    if (existing) {
+      existing.connected = true;
+      existing.disconnectedAt = null;
+      existing.socketId = socket.id;
+      broadcastState();
+      return;
+    }
     state.players.push({
-      id: socket.id,
+      id: playerId,
       name,
       connected: true,
+      disconnectedAt: null,
+      socketId: socket.id,
+      left: false,
       total: 0,
       roundPoints: null,
       cards: [],
@@ -668,16 +759,37 @@ io.on('connection', (socket) => {
   });
 
   socket.on('leave', () => {
-    const player = findPlayer(socket.id);
+    const player = assertPlayer(socket);
     if (!player) return;
-    if (state.phase !== 'waiting') {
-      socket.emit('notice', 'You can only leave from the waiting room. Use End game for all during an active game.');
+    if (state.phase === 'waiting') {
+      state.players = state.players.filter((p) => p.id !== player.id);
+      clampDeckSetting();
+      addLog(`${player.name} left`);
       broadcastState();
       return;
     }
-    state.players = state.players.filter((p) => p.id !== socket.id);
-    clampDeckSetting();
+
+    player.left = true;
+    player.connected = false;
+    player.disconnectedAt = null;
+    player.socketId = null;
+    const round = state.round;
+    if (round) {
+      round.dutchQueue = (round.dutchQueue || []).filter((id) => id !== player.id);
+      round.specialQueue = (round.specialQueue || []).filter((special) => special.actorId !== player.id);
+      if (round.stage === 'special' && round.specialQueue.length === 0) updateStageAfterQueue();
+      round.roundWinnerIds = (round.roundWinnerIds || []).filter((id) => id !== player.id);
+      if (round.dutchCallerId === player.id) round.dutchCallerId = null;
+      if (round.winnerId === player.id) round.winnerId = null;
+      if (round.drawn && round.drawn.playerId === player.id) {
+        round.drawn = null;
+        round.turnComplete = false;
+      }
+      if (round.throwIn) round.throwIn.open = false;
+    }
     addLog(`${player.name} left`);
+    if (state.phase === 'playing' && activePlayerCount() <= 1) resetToWaiting(true, 'game ended because fewer than two players remain');
+    else handleMissingPlayers();
     broadcastState();
   });
 
@@ -866,7 +978,7 @@ io.on('connection', (socket) => {
     const ordered = [];
     for (let i = 1; i < state.players.length; i += 1) {
       const p = state.players[(round.currentPlayerIndex + i) % state.players.length];
-      if (p.connected && p.id !== player.id) ordered.push(p.id);
+      if (!p.left && p.id !== player.id) ordered.push(p.id);
     }
     round.dutchQueue = ordered;
     addLog(`${player.name} said Dutch`);
@@ -903,17 +1015,12 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    const p = findPlayer(socket.id);
-    if (!p) return;
-    if (state.phase === 'waiting') {
-      state.players = state.players.filter((x) => x.id !== socket.id);
-      clampDeckSetting();
-      addLog(`${p.name} left`);
-    } else {
-      p.connected = false;
-      addLog(`${p.name} disconnected`);
-      handleMissingPlayers();
-    }
+    const p = assertPlayer(socket);
+    if (!p || p.socketId !== socket.id) return;
+    p.connected = false;
+    p.disconnectedAt = Date.now();
+    p.socketId = null;
+    addLog(p.name + ' disconnected');
     broadcastState();
   });
 });

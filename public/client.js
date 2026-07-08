@@ -1,7 +1,27 @@
-const socket = io();
+const socket = io({ autoConnect: false });
 const app = document.getElementById('app');
+const PLAYER_TOKEN_KEY = 'dutchPlayerSessionToken';
+const playerToken = getPlayerToken();
 let lastState = null;
 let hasRenderedGame = false;
+
+function getPlayerToken() {
+  try {
+    const existing = window.sessionStorage.getItem(PLAYER_TOKEN_KEY);
+    if (existing) return existing;
+    const token = window.crypto && window.crypto.randomUUID
+      ? window.crypto.randomUUID()
+      : 'player-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    window.sessionStorage.setItem(PLAYER_TOKEN_KEY, token);
+    return token;
+  } catch (error) {
+    return 'player-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+  }
+}
+
+socket.on('connect', () => {
+  socket.emit('identify', playerToken);
+});
 
 socket.on('state', (state) => {
   const previousState = lastState;
@@ -18,6 +38,8 @@ socket.on('state', (state) => {
 socket.on('notice', (message) => {
   alert(message);
 });
+
+socket.connect();
 
 function emit(event, payload) {
   socket.emit(event, payload);
@@ -39,9 +61,19 @@ function attrsToText(attrs = {}) {
     .join(' ');
 }
 
+function repoLink() {
+  return '<p class="repo-link"><a href="https://github.com/gabbro246/dutchonline" target="_blank" rel="noopener">github.com/gabbro246/dutchonline</a></p>';
+}
+
 function render(state) {
   if (!state.joined && state.phase === 'playing') {
-    app.innerHTML = `<div class="page"><div class="waiting-panel"><h1>Dutch</h1><p>${escapeHtml(state.waitingMessage)}</p></div></div>`;
+    app.innerHTML = `
+      <div class="page waiting-page">
+        <h1 class="app-title">Dutch</h1>
+        <div class="waiting-panel"><p>${escapeHtml(state.waitingMessage)}</p></div>
+        ${repoLink()}
+      </div>
+    `;
     return;
   }
   if (state.phase === 'waiting') renderWaiting(state);
@@ -55,26 +87,30 @@ function renderWaiting(state) {
   const joined = state.joined;
   const me = state.players.find((p) => p.id === state.you);
   app.innerHTML = `
-    <div class="page">
+    <div class="page waiting-page">
+      <h1 class="app-title">Dutch</h1>
       <div class="waiting-panel">
-        <h1>Dutch</h1>
         <div class="waiting-controls">
           <div class="row">
             <input id="nameInput" placeholder="Name" value="${joined && me ? escapeHtml(me.name) : ''}" ${joined ? 'disabled' : ''}>
             <button id="joinBtn" disabled>Join</button>
             <button id="leaveBtn" ${joined ? '' : 'disabled'}>Leave</button>
           </div>
+          <p class="field-note">2 to 9 players allowed. Names can be anything, including emojis.</p>
           <div class="row">
             <label><input type="radio" name="deckSetting" value="one" ${state.deckSetting === 'one' ? 'checked' : ''} ${state.oneDeckDisabled || !joined ? 'disabled' : ''}> one deck</label>
             <label><input type="radio" name="deckSetting" value="two" ${state.deckSetting === 'two' ? 'checked' : ''} ${!joined ? 'disabled' : ''}> two decks</label>
           </div>
+          <p class="field-note">One deck uses either red or blue card backs. Two decks use both for bigger groups.</p>
           <button id="startBtn" ${state.canStart && joined ? '' : 'disabled'}>Start game</button>
+          <p class="waiting-note">Keep this tab open while playing. If you refresh, lock your screen, or lose connection, reopen within 15 minutes to continue.</p>
         </div>
         <div class="player-list">
           <h2>Players</h2>
           ${players || '<p class="hint">No players yet.</p>'}
         </div>
       </div>
+      ${repoLink()}
     </div>
   `;
 
@@ -85,9 +121,9 @@ function renderWaiting(state) {
       joinBtn.disabled = !nameInput.value.trim() || !state.canJoin;
     });
     joinBtn.disabled = joined || !nameInput.value.trim() || !state.canJoin;
-    joinBtn.addEventListener('click', () => emit('join', nameInput.value));
+    joinBtn.addEventListener('click', () => emit('join', { name: nameInput.value, token: playerToken }));
     nameInput.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' && !joinBtn.disabled) emit('join', nameInput.value);
+      if (event.key === 'Enter' && !joinBtn.disabled) emit('join', { name: nameInput.value, token: playerToken });
     });
   }
   const leaveBtn = document.getElementById('leaveBtn');
@@ -106,6 +142,7 @@ function renderGame(state) {
   app.innerHTML = `
     <div class="main-layout">
       <main class="game-area">
+        <h1 class="app-title game-title">Dutch</h1>
         ${renderStatus(state)}
         <section class="other-players">
           ${others.map((player) => renderPlayerField(player, state, true)).join('')}
@@ -166,11 +203,15 @@ function specialLabel(type) {
 
 function renderPlayerField(player, state, compact) {
   const current = player.isCurrent ? ' current' : '';
+  const dutchCaller = state.round.dutchCallerId === player.id ? ' dutch-caller' : '';
+  const roundWinner = (state.round.roundWinnerIds || []).includes(player.id);
+  const gameWinner = state.round.winnerId === player.id;
+  const winner = roundWinner || gameWinner ? ' winner' : '';
   const missing = player.connected ? '' : ' (missing)';
   return `
-    <div class="player-field${current}">
+    <div class="player-field${current}${dutchCaller}${winner}">
       <div class="player-title">
-        <strong>${escapeHtml(player.name)}</strong>${missing}
+        <strong>${escapeHtml(player.name)}</strong>${missing}${playerBadges(state, player)}
         <div class="player-meta">Total: ${player.total}${player.roundPoints === null ? '' : `, round: ${player.roundPoints}`}</div>
       </div>
       <div class="cards-row">
@@ -183,11 +224,15 @@ function renderPlayerField(player, state, compact) {
 
 function renderOwnArea(player, state) {
   const r = state.round;
+  const dutchCaller = r.dutchCallerId === player.id ? ' dutch-caller' : '';
+  const roundWinner = (r.roundWinnerIds || []).includes(player.id);
+  const gameWinner = r.winnerId === player.id;
+  const winner = roundWinner || gameWinner ? ' winner' : '';
   return `
-    <section class="own-area${player.isCurrent ? ' current' : ''}">
+    <section class="own-area${player.isCurrent ? ' current' : ''}${dutchCaller}${winner}">
       <h2>Your cards</h2>
       <div class="player-title">
-        <strong>${escapeHtml(player.name)}</strong>
+        <strong>${escapeHtml(player.name)}</strong>${playerBadges(state, player)}
         <div class="player-meta">Total: ${player.total}${player.roundPoints === null ? '' : `, round: ${player.roundPoints}`}</div>
       </div>
       <div class="cards-row">
@@ -197,9 +242,19 @@ function renderOwnArea(player, state) {
         ${renderAceButton(player, state, true)}
         <button data-action="sayDutch" ${r.controls.canDutch ? '' : 'disabled'}>Dutch</button>
         <button data-action="endTurn" ${r.controls.canEndTurn ? '' : 'disabled'}>Next player</button>
+        <button data-action="leave">Leave game</button>
       </div>
     </section>
   `;
+}
+
+function playerBadges(state, player) {
+  const r = state.round;
+  const badges = [];
+  if (r.dutchCallerId === player.id) badges.push('<span class="player-badge dutch-badge">said Dutch</span>');
+  if ((r.roundWinnerIds || []).includes(player.id)) badges.push('<span class="player-badge round-winner-badge">won this round</span>');
+  if (r.winnerId === player.id) badges.push('<span class="player-badge game-winner-badge">won the game</span>');
+  return badges.join('');
 }
 
 function renderDeckPile(state) {
@@ -329,20 +384,30 @@ function renderSideArea(state) {
         <summary>Game log</summary>
         <ol class="log" reversed start="${state.log.length}">${state.log.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ol>
       </details>
+      ${repoLink()}
     </aside>
   `;
 }
 
 function pointsTable(state) {
-  const players = state.round.players;
   const history = state.scoreHistory || [];
+  const playerMap = new Map();
+  history.forEach((entry) => {
+    entry.players.forEach((player) => {
+      if (!playerMap.has(player.id)) playerMap.set(player.id, { id: player.id, name: player.name });
+    });
+  });
+  state.round.players.forEach((player) => {
+    if (!playerMap.has(player.id)) playerMap.set(player.id, { id: player.id, name: player.name });
+  });
+  const players = Array.from(playerMap.values());
   const historyRows = history.map((entry) => {
     const cells = players.map((p) => {
       const item = entry.players.find((h) => h.id === p.id);
-      return `<td>${item ? item.total : ''}</td>`;
-    }).join('');
+      return `<td>${item ? item.total : ""}</td>`;
+    }).join("");
     return `<tr><th>Round ${entry.round}</th>${cells}</tr>`;
-  }).join('');
+  }).join("");
 
   return `
     <div class="score-scroll">
@@ -356,7 +421,6 @@ function pointsTable(state) {
     <p class="points-note">Values show total points after each round. Number cards count their value. A=1, J=11, Q=12, red K=0, black K=13.</p>
   `;
 }
-
 function shortInstructions() {
   return `
     <p><strong>Goal:</strong> As few points as possible.</p>
@@ -365,7 +429,7 @@ function shortInstructions() {
     <p><strong>Throwing in:</strong> Matching cards may be thrown in immediately unless the top card was itself thrown in. Wrong throw-in: one penalty card, and the top card stays open for another throw-in.</p>
     <p><strong>Points:</strong> Number cards count their value. A=1, J=11, Q=12, ♥♦K=0, ♣♠K=13.</p>
     <p><strong>Special cards:</strong> A may add one card to someone. Q may look at any one card. J may swap any two cards. These actions are optional.</p>
-    <p>Anyone who believes they have under 5 points may say <strong>Dutch</strong>. After that, everyone else gets one more turn. Then reveal and count. The player with the most points in the last round starts the next round.</p>
+    <p>Anyone who believes they have 5 points or less may say <strong>Dutch</strong>. After that, everyone else gets one more turn. Then reveal and count. The player with the most points in the last round starts the next round.</p>
   `;
 }
 
@@ -378,8 +442,8 @@ function fullRules() {
     <p>Ace, Queen, and Jack are special cards as soon as they are placed face up on the discard pile. With an Ace, the player may give any player one face-down card from the draw pile. With a Queen, the player may look at any one card. With a Jack, the player may swap any two face-down cards. These actions are optional.</p>
     <p>If a card is lying face up on the discard pile, a player may immediately throw in by placing exactly one own face-down card onto the discard pile, if it has the same card value. Suit does not matter. Kings may be placed on each other when throwing in. A card that was thrown in cannot be thrown on again. If someone throws in wrongly and takes a penalty card, the same top card stays open for another throw-in until the next playing action.</p>
     <p>Anyone who throws in incorrectly takes their card back and receives one unknown face-down penalty card.</p>
-    <p>If a player believes they have fewer than 5 points, they may say <strong>Dutch</strong> at the end of their turn. After that, every other player gets exactly one more turn. Then everyone reveals their cards and counts the points.</p>
-    <p>If the Dutch caller ties for the fewest points or is the only player with the fewest points, they receive 0 points for that round. If they do not have the fewest points, their points are doubled. All other players receive their normal points.</p>
+    <p>If a player believes they have 5 points or less, they may say <strong>Dutch</strong> at the end of their turn. After that, every other player gets exactly one more turn. Then everyone reveals their cards and counts the points.</p>
+    <p>If the Dutch caller has 5 points or less and nobody has fewer points, they receive 0 points for that round. If they have more than 5 points or another player has fewer points, their points are doubled. All other players receive their normal points.</p>
     <p>After each round, points are added to the total score. If a player reaches exactly 50 or exactly 100 points, their score is halved. The player with the most points in the previous round starts the next round. As soon as a player has more than 100 points after scoring and halving, the game ends. The winner is the player with the fewest total points.</p>
   `;
 }
