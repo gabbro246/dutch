@@ -119,19 +119,20 @@ function renderWaiting(state) {
             <button id="joinBtn" disabled>Join</button>
             <button id="leaveBtn" ${joined ? '' : 'disabled'}>Leave</button>
           </div>
-          <div class="row">
-            <label><input type="radio" name="deckSetting" value="one" ${state.deckSetting === 'one' ? 'checked' : ''} ${state.oneDeckDisabled || !joined ? 'disabled' : ''}> one deck</label>
-            <label><input type="radio" name="deckSetting" value="two" ${state.deckSetting === 'two' ? 'checked' : ''} ${!joined ? 'disabled' : ''}> two decks</label>
-          </div>
-          <div class="row">
-            <label><input type="radio" name="gameTarget" value="50" ${state.gameTarget === 50 ? 'checked' : ''} ${!joined ? 'disabled' : ''}> short game, 50 points</label>
-            <label><input type="radio" name="gameTarget" value="100" ${state.gameTarget === 100 ? 'checked' : ''} ${!joined ? 'disabled' : ''}> full game, 100 points</label>
-          </div>
         </div>
         <div class="player-list">
-          <h2>Players</h2>
           ${players || '<p class="hint">No players yet.</p>'}
           ${players ? playerHint : ''}
+        </div>
+        <div class="waiting-selectors">
+          <select id="gameTargetSelect" ${!joined ? 'disabled' : ''}>
+            <option value="50" ${state.gameTarget === 50 ? 'selected' : ''}>Short game, 50 points</option>
+            <option value="100" ${state.gameTarget === 100 ? 'selected' : ''}>Full game, 100 points</option>
+          </select>
+          <select id="deckSettingSelect" ${!joined ? 'disabled' : ''}>
+            <option value="one" ${state.deckSetting === 'one' ? 'selected' : ''} ${state.oneDeckDisabled ? 'disabled' : ''}>One deck</option>
+            <option value="two" ${state.deckSetting === 'two' ? 'selected' : ''}>Two decks</option>
+          </select>
         </div>
         <button id="startBtn" ${state.canStart && joined ? '' : 'disabled'}>Start game</button>
       </div>
@@ -160,18 +161,20 @@ function renderWaiting(state) {
   }
   const leaveBtn = document.getElementById('leaveBtn');
   if (leaveBtn) leaveBtn.addEventListener('click', () => confirmThen(leaveBtn, 'leave-waiting', 'Confirm leave', () => emit('leave')));
-  document.querySelectorAll('input[name="deckSetting"]').forEach((input) => {
-    input.addEventListener('change', () => {
+  const deckSettingSelect = document.getElementById('deckSettingSelect');
+  if (deckSettingSelect) {
+    deckSettingSelect.addEventListener('change', () => {
       clearPendingConfirm();
-      emit('setDeckSetting', input.value);
+      emit('setDeckSetting', deckSettingSelect.value);
     });
-  });
-  document.querySelectorAll('input[name="gameTarget"]').forEach((input) => {
-    input.addEventListener('change', () => {
+  }
+  const gameTargetSelect = document.getElementById('gameTargetSelect');
+  if (gameTargetSelect) {
+    gameTargetSelect.addEventListener('change', () => {
       clearPendingConfirm();
-      emit('setGameTarget', input.value);
+      emit('setGameTarget', gameTargetSelect.value);
     });
-  });
+  }
   document.querySelectorAll('[data-action="removeWaitingPlayer"]').forEach((button) => {
     button.addEventListener('click', () => {
       confirmThen(button, `remove-${button.dataset.playerId}`, 'Confirm remove', () => emit('removeWaitingPlayer', button.dataset.playerId || ''));

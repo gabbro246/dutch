@@ -482,8 +482,21 @@ summary {
   margin-top: 0;
 }
 
+.waiting-selectors {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.waiting-selectors select {
+  flex: 1 1 220px;
+  min-width: 0;
+  width: 100%;
+}
+
 #startBtn {
   align-self: stretch;
   width: 100%;
-  margin-top: 12px;
+  margin-top: 8px;
 }
