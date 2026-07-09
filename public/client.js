@@ -5,7 +5,8 @@ const playerToken = getPlayerToken();
 let lastState = null;
 let hasRenderedGame = false;
 let pendingConfirm = null;
-const detailPreferences = {};
+let currentDetailsMode = '';
+const detailPreferencesByMode = {};
 
 function getPlayerToken() {
   try {
@@ -96,12 +97,26 @@ function render(state) {
   else renderGame(state);
 }
 
+function botTypeLabel(type) {
+  return {
+    strategic: 'Strategic 🤖',
+    casual: 'Casual 🤖',
+    distracted: 'Distracted 🤖'
+  }[type] || 'Bot';
+}
+
 function renderWaiting(state) {
+  const botTypes = ['strategic', 'casual', 'distracted'];
+  const usedBotTypes = new Set(state.players.filter((p) => p.isBot).map((p) => p.botType));
+  const firstAvailableBot = botTypes.find((type) => !usedBotTypes.has(type));
+  const botOptions = botTypes.map((type) => `
+    <option value="${escapeHtml(type)}" ${usedBotTypes.has(type) ? 'disabled' : ''}>${escapeHtml(botTypeLabel(type))}</option>
+  `).join('');
   const players = state.players.map((p, index) => {
     const isMe = p.id === state.you;
     return `
       <div class="player-line">
-        <span>${index + 1}. ${escapeHtml(p.name)}${isMe ? ' <span class="you-label">(you)</span>' : ''} ${p.connected ? '' : '(missing)'}</span>
+        <span>${index + 1}. ${escapeHtml(p.name)}${p.isBot ? ' <span class="bot-badge">bot</span>' : ''}${isMe ? ' <span class="you-label">(you)</span>' : ''} ${p.connected ? '' : '(missing)'}</span>
         ${isMe ? '' : `<button data-action="removeWaitingPlayer" data-player-id="${escapeHtml(p.id)}">Remove</button>`}
       </div>
     `;
@@ -118,6 +133,12 @@ function renderWaiting(state) {
             <input id="nameInput" placeholder="Name" maxlength="12" value="${joined && me ? escapeHtml(me.name) : ''}" ${joined ? 'disabled' : ''}>
             <button id="joinBtn" disabled>Join</button>
             <button id="leaveBtn" ${joined ? '' : 'disabled'}>Leave</button>
+          </div>
+          <div class="row bot-row">
+            <select id="botTypeSelect" ${!firstAvailableBot || state.players.length >= 9 ? 'disabled' : ''}>
+              ${botOptions}
+            </select>
+            <button id="addBotBtn" ${firstAvailableBot && state.players.length < 9 ? '' : 'disabled'}>Add bot</button>
           </div>
         </div>
         <div class="player-list">
@@ -161,6 +182,16 @@ function renderWaiting(state) {
   }
   const leaveBtn = document.getElementById('leaveBtn');
   if (leaveBtn) leaveBtn.addEventListener('click', () => confirmThen(leaveBtn, 'leave-waiting', 'Confirm leave', () => emit('leave')));
+  const botTypeSelect = document.getElementById('botTypeSelect');
+  const addBotBtn = document.getElementById('addBotBtn');
+  if (botTypeSelect && addBotBtn) {
+    const availableOption = Array.from(botTypeSelect.options).find((option) => !option.disabled);
+    if (availableOption) botTypeSelect.value = availableOption.value;
+    addBotBtn.addEventListener('click', () => {
+      clearPendingConfirm();
+      emit('addBot', botTypeSelect.value);
+    });
+  }
   const deckSettingSelect = document.getElementById('deckSettingSelect');
   if (deckSettingSelect) {
     deckSettingSelect.addEventListener('change', () => {
@@ -229,7 +260,7 @@ function renderStatus(state) {
     '<button data-action="endGameForAll">End game for all</button>',
     '<button data-action="leave">Leave game</button>',
     `<button data-action="nextRound" ${r.stage === 'roundEnd' ? '' : 'disabled'}>Next round</button>`,
-    r.stage === 'gameEnd' ? '<button data-action="newGame">New game</button>' : ''
+    `<button data-action="newGame" ${r.stage === 'gameEnd' ? '' : 'disabled'}>New game</button>`
   ].filter(Boolean).join('');
   return `
     <div class="status">
@@ -306,6 +337,7 @@ function endTurnLabel(state) {
 function playerBadges(state, player) {
   const r = state.round;
   const badges = [];
+  if (player.isBot) badges.push('<span class="bot-badge">bot</span>');
   if (r.dutchCallerId === player.id) badges.push('<span class="player-badge dutch-badge">said Dutch</span>');
   if ((r.roundWinnerIds || []).includes(player.id)) badges.push('<span class="player-badge round-winner-badge">won this round</span>');
   if (r.winnerId === player.id) badges.push('<span class="player-badge game-winner-badge">won the game</span>');
@@ -426,22 +458,29 @@ function cardHtml(card, small, extraAttrs = {}) {
 
 function renderSideArea(state) {
   const r = state.round;
-  const pointsDefaultOpen = state.roundNumber > 1 || r.stage === 'roundEnd' || r.stage === 'gameEnd';
-  const guideDefaultOpen = state.roundNumber <= 1 && !pointsDefaultOpen;
+  const gameFinished = r.stage === 'gameEnd';
+  const firstRoundActive = state.roundNumber <= 1 && !['roundEnd', 'gameEnd'].includes(r.stage);
+  const detailsMode = gameFinished ? 'finished' : firstRoundActive ? 'first-round' : 'scoring';
+  currentDetailsMode = detailsMode;
+  if (!detailPreferencesByMode[detailsMode]) detailPreferencesByMode[detailsMode] = {};
+  const pointsDefaultOpen = gameFinished || !firstRoundActive;
+  const guideDefaultOpen = firstRoundActive;
+  const logDefaultOpen = !gameFinished;
   return `
     <aside class="side-area">
       ${renderStatus(state)}
       ${renderDetails('guide', 'Quick guide', shortInstructions(), guideDefaultOpen)}
       ${renderDetails('rules', 'Complete rules', fullRules(state), false, 'rules-body')}
       ${renderDetails('points', 'Points', pointsTable(state), pointsDefaultOpen)}
-      ${renderDetails('log', 'Game log', renderLog(state), true)}
+      ${renderDetails('log', 'Game log', renderLog(state), logDefaultOpen)}
       ${repoLink(state.version)}
     </aside>
   `;
 }
 
 function renderDetails(key, title, content, defaultOpen, extraClass = '') {
-  const open = detailPreferences[key] === undefined ? defaultOpen : detailPreferences[key];
+  const preferences = detailPreferencesByMode[currentDetailsMode] || {};
+  const open = preferences[key] === undefined ? defaultOpen : preferences[key];
   return `
     <details data-detail-key="${escapeHtml(key)}" class="${escapeHtml(extraClass)}" ${open ? 'open' : ''}>
       <summary>${escapeHtml(title)}</summary>
@@ -519,9 +558,11 @@ function fullRules(state) {
 }
 
 function wireGameButtons() {
+  const detailsMode = currentDetailsMode;
   document.querySelectorAll('details[data-detail-key]').forEach((details) => {
     details.addEventListener('toggle', () => {
-      detailPreferences[details.dataset.detailKey] = details.open;
+      if (!detailPreferencesByMode[detailsMode]) detailPreferencesByMode[detailsMode] = {};
+      detailPreferencesByMode[detailsMode][details.dataset.detailKey] = details.open;
     });
   });
   document.querySelectorAll('[data-action]').forEach((button) => {

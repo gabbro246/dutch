@@ -84,6 +84,19 @@ input, select {
   flex: 0 0 auto;
 }
 
+.bot-row {
+  flex-wrap: nowrap;
+}
+
+.bot-row select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.bot-row button {
+  flex: 0 0 auto;
+}
+
 .waiting-controls {
   display: flex;
   flex-direction: column;
@@ -125,6 +138,17 @@ input, select {
 .player-line span { min-width: 0; overflow-wrap: anywhere; }
 .player-line button { flex: 0 0 auto; }
 .you-label { color: #5f6368; }
+.bot-badge {
+  display: inline-flex;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border: 1px solid #9aa0a6;
+  border-radius: 999px;
+  color: #5f6368;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
 .player-list p { font-size: 12px; color: #5f6368; }
 
 .main-layout {
