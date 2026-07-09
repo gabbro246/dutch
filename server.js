@@ -1,13 +1,19 @@
 const express = require('express');
+const fs = require('fs');
 const http = require('http');
 const os = require('os');
+const path = require('path');
 const { Server } = require('socket.io');
+const packageInfo = require('./package.json');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const DISCONNECT_GRACE_MS = 15 * 60 * 1000;
+const WAITING_ROOM_TIMEOUT_MS = 15 * 60 * 1000;
+const ADMIN_LOG_PATH = path.join(__dirname, 'usage.log');
+const APP_VERSION = packageInfo.version;
 
 app.use(express.static('public'));
 
@@ -24,6 +30,7 @@ function freshState() {
   return {
     phase: 'waiting',
     deckSetting: 'one',
+    gameTarget: 100,
     players: [],
     log: [],
     roundNumber: 0,
@@ -37,10 +44,21 @@ function publicPlayerCount() {
   return state.players.length;
 }
 
-function addLog(text) {
+function addLog(text, kind = 'game') {
   if (!text) return;
-  state.log.unshift(text);
+  state.log.unshift({ text, kind });
   if (state.log.length > 80) state.log.length = 80;
+}
+
+function adminLog(event, data = {}) {
+  const entry = {
+    datetime: new Date().toISOString(),
+    event,
+    ...data
+  };
+  fs.appendFile(ADMIN_LOG_PATH, JSON.stringify(entry) + '\n', (error) => {
+    if (error) console.error('Could not write admin usage log:', error.message);
+  });
 }
 
 function hostAddresses() {
@@ -56,6 +74,14 @@ function activePlayers() {
 
 function activePlayerCount() {
   return activePlayers().length;
+}
+
+function scoreSnapshot() {
+  return activePlayers().map((p) => ({
+    name: p.name,
+    total: p.total,
+    roundPoints: p.roundPoints
+  }));
 }
 
 function playerIdForSocket(socket) {
@@ -297,12 +323,13 @@ function publicCard(card, visible) {
 function buildView(playerId) {
   removeExpiredReveals();
   const joined = state.players.some((p) => p.id === playerId && !p.left);
-  const viewer = findPlayer(playerId);
   const base = {
     you: playerId,
     joined,
     phase: state.phase,
+    version: APP_VERSION,
     deckSetting: state.deckSetting,
+    gameTarget: state.gameTarget,
     oneDeckDisabled: activePlayerCount() > 4,
     canJoin: state.phase === 'waiting' && activePlayerCount() < 9 && !joined,
     canStart: state.phase === 'waiting' && activePlayerCount() >= 2,
@@ -313,6 +340,7 @@ function buildView(playerId) {
       total: p.total,
       roundPoints: p.roundPoints,
       connected: p.connected,
+      joinedAt: p.joinedAt || null,
       startPeekCount: p.startPeekedCardIds ? p.startPeekedCardIds.length : 0,
       startPeekDone: !!p.startPeekDone,
       cardCount: p.cards.length
@@ -479,6 +507,8 @@ function startGame() {
     p.total = 0;
     p.roundPoints = null;
   }
+  const names = activePlayers().map((p) => p.name);
+  adminLog('game_started', { players: names, target: state.gameTarget });
   addLog('game started');
   startRound();
 }
@@ -507,7 +537,7 @@ function advanceTurn() {
   if (!round || round.stage === 'roundEnd' || round.stage === 'gameEnd') return;
   if (round.specialQueue.length > 0 || round.drawn) return;
   if (activePlayerCount() <= 1) {
-    resetToWaiting(true, 'game ended because fewer than two players remain');
+    resetToWaiting(true, 'game ended because fewer than two players remain', { adminEvent: 'game_ended_inactivity' });
     return;
   }
 
@@ -531,7 +561,7 @@ function advanceTurn() {
   const start = (round.currentPlayerIndex + 1) % state.players.length;
   const nextIndex = findActiveIndexFrom(start);
   if (nextIndex < 0) {
-    resetToWaiting(true, 'game ended because fewer than two players remain');
+    resetToWaiting(true, 'game ended because fewer than two players remain', { adminEvent: 'game_ended_inactivity' });
     return;
   }
   round.currentPlayerIndex = nextIndex;
@@ -583,12 +613,13 @@ function endRound() {
     .filter((p) => p.roundPoints === bestRoundScore)
     .map((p) => p.id);
 
-  const loser = scoringPlayers.find((p) => p.total > 100);
+  const loser = scoringPlayers.find((p) => p.total > state.gameTarget);
   if (loser) {
     round.stage = 'gameEnd';
     const winner = scoringPlayers.slice().sort((a, b) => a.total - b.total)[0];
     round.winnerId = winner ? winner.id : null;
     addLog(`game ended. ${winner ? winner.name : 'No one'} won`);
+    adminLog('game_ended_by_score', { target: state.gameTarget, winner: winner ? winner.name : null, scores: scoreSnapshot() });
   } else {
     addLog('round ended');
   }
@@ -599,7 +630,10 @@ function nextRound() {
   startRound();
 }
 
-function resetToWaiting(keepPlayers = true, reason = 'returned to waiting room') {
+function resetToWaiting(keepPlayers = true, reason = 'returned to waiting room', options = {}) {
+  if (state.phase === 'playing' && options.adminEvent) {
+    adminLog(options.adminEvent, { reason, scores: scoreSnapshot() });
+  }
   const players = keepPlayers ? state.players.filter((p) => p.connected && !p.left).map((p) => ({
     id: p.id,
     name: p.name,
@@ -611,12 +645,13 @@ function resetToWaiting(keepPlayers = true, reason = 'returned to waiting room')
     roundPoints: null,
     cards: [],
     startPeekDone: false,
-    startPeekedCardIds: []
+    startPeekedCardIds: [],
+    joinedAt: Date.now()
   })) : [];
   state = freshState();
   state.players = players;
   clampDeckSetting();
-  addLog(reason);
+  addLog(reason, options.logKind || 'system');
 }
 
 
@@ -636,7 +671,7 @@ function handleMissingPlayers() {
   const round = state.round;
   if (state.phase !== 'playing' || !round) return false;
   if (activePlayerCount() <= 1) {
-    resetToWaiting(true, 'game ended because fewer than two players remain');
+    resetToWaiting(true, 'game ended because fewer than two players remain', { adminEvent: 'game_ended_inactivity' });
     return true;
   }
 
@@ -663,6 +698,14 @@ function handleMissingPlayers() {
 
 function purgeExpiredDisconnectedPlayers() {
   const now = Date.now();
+  if (state.phase === 'waiting') {
+    const expiredWaiting = state.players.filter((p) => p.joinedAt && now - p.joinedAt > WAITING_ROOM_TIMEOUT_MS);
+    if (expiredWaiting.length > 0) {
+      for (const player of expiredWaiting) removeWaitingPlayer(player.id, 'left after 15 minutes in the waiting room');
+      broadcastState();
+      return true;
+    }
+  }
   const expired = state.players.filter((p) => !p.connected && p.disconnectedAt && now - p.disconnectedAt > DISCONNECT_GRACE_MS);
   if (expired.length === 0) return false;
 
@@ -686,10 +729,10 @@ function purgeExpiredDisconnectedPlayers() {
     }
   }
 
-  for (const player of expired) addLog(player.name + ' was removed after 15 minutes offline');
+  for (const player of expired) addLog(player.name + ' was removed after 15 minutes offline', 'system');
   clampDeckSetting();
   if (state.phase === 'playing' && activePlayerCount() <= 1) {
-    resetToWaiting(true, 'game ended because fewer than two players remain');
+    resetToWaiting(true, 'game ended because fewer than two players remain', { adminEvent: 'game_ended_inactivity' });
   } else {
     handleMissingPlayers();
   }
@@ -704,6 +747,23 @@ function setDeckSetting(value) {
   if (!['one', 'two'].includes(value)) return;
   state.deckSetting = value;
   clampDeckSetting();
+}
+
+function setGameTarget(value) {
+  if (state.phase !== 'waiting') return;
+  const target = Number(value);
+  if (![50, 100].includes(target)) return;
+  state.gameTarget = target;
+}
+
+function removeWaitingPlayer(playerId, reason = 'removed from waiting room') {
+  if (state.phase !== 'waiting') return false;
+  const player = findPlayer(playerId);
+  if (!player) return false;
+  state.players = state.players.filter((p) => p.id !== playerId);
+  clampDeckSetting();
+  addLog(`${player.name} ${reason}`, 'system');
+  return true;
 }
 
 function assertPlayer(socket) {
@@ -724,7 +784,7 @@ io.on('connection', (socket) => {
       player.connected = true;
       player.disconnectedAt = null;
       player.socketId = socket.id;
-      if (wasDisconnected) addLog(player.name + ' reconnected');
+      if (wasDisconnected) addLog(player.name + ' reconnected', 'system');
       broadcastState();
       return;
     }
@@ -736,7 +796,7 @@ io.on('connection', (socket) => {
     const tokenRaw = joinRaw && typeof joinRaw === 'object' ? joinRaw.token : '';
     const joinToken = normalizePlayerToken(tokenRaw);
     if (joinToken) socket.data.playerId = joinToken;
-    const name = String(nameRaw || '').trim().slice(0, 24);
+    const name = String(nameRaw || '').trim().slice(0, 12);
     if (!name) return;
     if (state.phase !== 'waiting') {
       socket.emit('notice', state.waitingMessage);
@@ -745,6 +805,12 @@ io.on('connection', (socket) => {
     }
     if (activePlayerCount() >= 9) return;
     const playerId = playerIdForSocket(socket);
+    const duplicateName = activePlayers().some((p) => p.id !== playerId && p.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase());
+    if (duplicateName) {
+      socket.emit('notice', 'This name is already in the player list.');
+      broadcastState();
+      return;
+    }
     const existing = findPlayer(playerId);
     if (existing) {
       existing.connected = true;
@@ -764,7 +830,8 @@ io.on('connection', (socket) => {
       roundPoints: null,
       cards: [],
       startPeekDone: false,
-      startPeekedCardIds: []
+      startPeekedCardIds: [],
+      joinedAt: Date.now()
     });
     clampDeckSetting();
     addLog(`${name} joined`);
@@ -775,9 +842,7 @@ io.on('connection', (socket) => {
     const player = assertPlayer(socket);
     if (!player) return;
     if (state.phase === 'waiting') {
-      state.players = state.players.filter((p) => p.id !== player.id);
-      clampDeckSetting();
-      addLog(`${player.name} left`);
+      removeWaitingPlayer(player.id, 'left');
       broadcastState();
       return;
     }
@@ -800,8 +865,8 @@ io.on('connection', (socket) => {
       }
       if (round.throwIn) round.throwIn.open = false;
     }
-    addLog(`${player.name} left`);
-    if (state.phase === 'playing' && activePlayerCount() <= 1) resetToWaiting(true, 'game ended because fewer than two players remain');
+    addLog(`${player.name} left`, 'system');
+    if (state.phase === 'playing' && activePlayerCount() <= 1) resetToWaiting(true, 'game ended because fewer than two players remain', { adminEvent: 'game_ended_inactivity' });
     else handleMissingPlayers();
     broadcastState();
   });
@@ -810,6 +875,16 @@ io.on('connection', (socket) => {
     if (!assertPlayer(socket)) return;
     setDeckSetting(value);
     broadcastState();
+  });
+
+  socket.on('setGameTarget', (value) => {
+    if (!assertPlayer(socket)) return;
+    setGameTarget(value);
+    broadcastState();
+  });
+
+  socket.on('removeWaitingPlayer', (playerId) => {
+    if (removeWaitingPlayer(String(playerId || ''), 'was removed from the waiting room')) broadcastState();
   });
 
   socket.on('startGame', () => {
@@ -1021,7 +1096,7 @@ io.on('connection', (socket) => {
 
   socket.on('endGameForAll', () => {
     if (!assertPlayer(socket)) return;
-    resetToWaiting(true);
+    resetToWaiting(true, 'game cancelled by players', { adminEvent: 'game_cancelled' });
     broadcastState();
   });
 
@@ -1031,7 +1106,7 @@ io.on('connection', (socket) => {
     p.connected = false;
     p.disconnectedAt = Date.now();
     p.socketId = null;
-    addLog(p.name + ' disconnected');
+    addLog(p.name + ' disconnected', 'system');
     broadcastState();
   });
 });

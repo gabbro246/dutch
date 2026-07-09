@@ -4,6 +4,8 @@ const PLAYER_TOKEN_KEY = 'dutchPlayerSessionToken';
 const playerToken = getPlayerToken();
 let lastState = null;
 let hasRenderedGame = false;
+let pendingConfirm = null;
+const detailPreferences = {};
 
 function getPlayerToken() {
   try {
@@ -61,8 +63,22 @@ function attrsToText(attrs = {}) {
     .join(' ');
 }
 
-function repoLink() {
-  return '<p class="repo-link"><a href="https://github.com/gabbro246/dutch" target="_blank" rel="noopener">github.com/gabbro246/dutch</a></p>';
+function repoLink(version = '') {
+  const versionText = version ? ` <span class="version-label">v${escapeHtml(version)}</span>` : '';
+  return `<p class="repo-link"><a href="https://github.com/gabbro246/dutch" target="_blank" rel="noopener">github.com/gabbro246/dutch</a>${versionText}</p>`;
+}
+
+function playerNameTaken(state, name) {
+  const normalized = String(name || '').trim().toLocaleLowerCase();
+  if (!normalized) return false;
+  return state.players.some((player) => player.name.trim().toLocaleLowerCase() === normalized && player.id !== state.you);
+}
+
+function canJoinWithName(state, name) {
+  if (state.joined) return false;
+  if (!state.canJoin) return false;
+  if (!String(name || '').trim()) return false;
+  return !playerNameTaken(state, name);
 }
 
 function render(state) {
@@ -71,7 +87,7 @@ function render(state) {
       <div class="page waiting-page">
         <h1 class="app-title">Dutch! 🂡</h1>
         <div class="waiting-panel"><p>${escapeHtml(state.waitingMessage)}</p></div>
-        ${repoLink()}
+        ${repoLink(state.version)}
       </div>
     `;
     return;
@@ -81,18 +97,25 @@ function render(state) {
 }
 
 function renderWaiting(state) {
-  const players = state.players.map((p, index) => `
-    <div class="player-line">${index + 1}. ${escapeHtml(p.name)} ${p.connected ? '' : '(missing)'}</div>
-  `).join('');
+  const players = state.players.map((p, index) => {
+    const isMe = p.id === state.you;
+    return `
+      <div class="player-line">
+        <span>${index + 1}. ${escapeHtml(p.name)}${isMe ? ' <span class="you-label">(you)</span>' : ''} ${p.connected ? '' : '(missing)'}</span>
+        ${isMe ? '' : `<button data-action="removeWaitingPlayer" data-player-id="${escapeHtml(p.id)}">Remove</button>`}
+      </div>
+    `;
+  }).join('');
   const joined = state.joined;
   const me = state.players.find((p) => p.id === state.you);
+  const playerHint = state.players.length === 1 && !state.canStart ? '<p class="hint">Waiting for more players.</p>' : '';
   app.innerHTML = `
     <div class="page waiting-page">
       <h1 class="app-title">Dutch! 🂡</h1>
       <div class="waiting-panel">
         <div class="waiting-controls">
           <div class="row join-row">
-            <input id="nameInput" placeholder="Name" value="${joined && me ? escapeHtml(me.name) : ''}" ${joined ? 'disabled' : ''}>
+            <input id="nameInput" placeholder="Name" maxlength="12" value="${joined && me ? escapeHtml(me.name) : ''}" ${joined ? 'disabled' : ''}>
             <button id="joinBtn" disabled>Join</button>
             <button id="leaveBtn" ${joined ? '' : 'disabled'}>Leave</button>
           </div>
@@ -100,14 +123,19 @@ function renderWaiting(state) {
             <label><input type="radio" name="deckSetting" value="one" ${state.deckSetting === 'one' ? 'checked' : ''} ${state.oneDeckDisabled || !joined ? 'disabled' : ''}> one deck</label>
             <label><input type="radio" name="deckSetting" value="two" ${state.deckSetting === 'two' ? 'checked' : ''} ${!joined ? 'disabled' : ''}> two decks</label>
           </div>
-          <button id="startBtn" ${state.canStart && joined ? '' : 'disabled'}>Start game</button>
+          <div class="row">
+            <label><input type="radio" name="gameTarget" value="50" ${state.gameTarget === 50 ? 'checked' : ''} ${!joined ? 'disabled' : ''}> short game, 50 points</label>
+            <label><input type="radio" name="gameTarget" value="100" ${state.gameTarget === 100 ? 'checked' : ''} ${!joined ? 'disabled' : ''}> full game, 100 points</label>
+          </div>
         </div>
         <div class="player-list">
           <h2>Players</h2>
           ${players || '<p class="hint">No players yet.</p>'}
+          ${players ? playerHint : ''}
         </div>
+        <button id="startBtn" ${state.canStart && joined ? '' : 'disabled'}>Start game</button>
       </div>
-      ${repoLink()}
+      ${repoLink(state.version)}
     </div>
   `;
 
@@ -115,21 +143,45 @@ function renderWaiting(state) {
   const joinBtn = document.getElementById('joinBtn');
   if (nameInput && joinBtn) {
     nameInput.addEventListener('input', () => {
-      joinBtn.disabled = !nameInput.value.trim() || !state.canJoin;
+      if (nameInput.value.length > 12) nameInput.value = nameInput.value.slice(0, 12);
+      joinBtn.disabled = !canJoinWithName(state, nameInput.value);
     });
-    joinBtn.disabled = joined || !nameInput.value.trim() || !state.canJoin;
-    joinBtn.addEventListener('click', () => emit('join', { name: nameInput.value, token: playerToken }));
+    joinBtn.disabled = !canJoinWithName(state, nameInput.value);
+    joinBtn.addEventListener('click', () => {
+      clearPendingConfirm();
+      emit('join', { name: nameInput.value.slice(0, 12), token: playerToken });
+    });
     nameInput.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' && !joinBtn.disabled) emit('join', { name: nameInput.value, token: playerToken });
+      if (event.key === 'Enter' && !joinBtn.disabled) {
+        clearPendingConfirm();
+        emit('join', { name: nameInput.value.slice(0, 12), token: playerToken });
+      }
     });
   }
   const leaveBtn = document.getElementById('leaveBtn');
-  if (leaveBtn) leaveBtn.addEventListener('click', () => emit('leave'));
+  if (leaveBtn) leaveBtn.addEventListener('click', () => confirmThen(leaveBtn, 'leave-waiting', 'Confirm leave', () => emit('leave')));
   document.querySelectorAll('input[name="deckSetting"]').forEach((input) => {
-    input.addEventListener('change', () => emit('setDeckSetting', input.value));
+    input.addEventListener('change', () => {
+      clearPendingConfirm();
+      emit('setDeckSetting', input.value);
+    });
+  });
+  document.querySelectorAll('input[name="gameTarget"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      clearPendingConfirm();
+      emit('setGameTarget', input.value);
+    });
+  });
+  document.querySelectorAll('[data-action="removeWaitingPlayer"]').forEach((button) => {
+    button.addEventListener('click', () => {
+      confirmThen(button, `remove-${button.dataset.playerId}`, 'Confirm remove', () => emit('removeWaitingPlayer', button.dataset.playerId || ''));
+    });
   });
   const startBtn = document.getElementById('startBtn');
-  if (startBtn) startBtn.addEventListener('click', () => emit('startGame'));
+  if (startBtn) startBtn.addEventListener('click', () => {
+    clearPendingConfirm();
+    emit('startGame');
+  });
 }
 
 function renderGame(state) {
@@ -171,9 +223,9 @@ function renderStatus(state) {
   }
   const dutch = r.dutchCallerName ? `<div>${escapeHtml(r.dutchCallerName)} called Dutch. ${r.dutchTurnsRemaining} player turn(s) remaining.</div>` : '';
   const buttons = [
-    (r.stage === 'roundEnd' || r.stage === 'gameEnd') ? '' : '<button data-action="endGameForAll">End game for all</button>',
+    '<button data-action="endGameForAll">End game for all</button>',
     '<button data-action="leave">Leave game</button>',
-    r.stage === 'roundEnd' ? '<button data-action="nextRound">Next round</button>' : '',
+    `<button data-action="nextRound" ${r.stage === 'roundEnd' ? '' : 'disabled'}>Next round</button>`,
     r.stage === 'gameEnd' ? '<button data-action="newGame">New game</button>' : ''
   ].filter(Boolean).join('');
   return `
@@ -293,7 +345,7 @@ function renderDeckPile(state) {
 function renderAceButton(player, state, inline = false) {
   const protectedTarget = (state.round.protectedSpecialTargetIds || []).includes(player.id);
   const enabled = state.round.controls.canAceAdd && !protectedTarget;
-  const button = `<button data-action="aceAdd" data-player-id="${escapeHtml(player.id)}" ${enabled ? '' : 'disabled'}>A add card</button>`;
+  const button = `<button data-action="aceAdd" data-player-id="${escapeHtml(player.id)}" ${enabled ? '' : 'disabled'}>${cardActionLabel('A', 'add card')}</button>`;
   if (inline) return button;
   return `
     <div class="player-actions">
@@ -330,8 +382,8 @@ function renderCardCell(card, ownerId, index, state, compact, own) {
     buttons.push(`<button data-action="swapDrawn" data-card-id="${card.id}" ${r.controls.canSwapDrawn ? '' : 'disabled'}>Swap</button>`);
     buttons.push(`<button data-action="throwIn" data-card-id="${card.id}" ${r.controls.canThrowIn ? '' : 'disabled'}>Throw in</button>`);
   }
-  buttons.push(`<button data-action="queenPeek" data-card-id="${card.id}" ${r.controls.canQueenPeek ? '' : 'disabled'}>Q Peek</button>`);
-  buttons.push("<button data-action=\"jackSelect\" data-card-id=\"" + escapeHtml(card.id) + "\" " + (r.controls.canJackSwap && !protectedTarget ? "" : "disabled") + ">J Swap</button>");
+  buttons.push(`<button data-action="queenPeek" data-card-id="${card.id}" ${r.controls.canQueenPeek ? '' : 'disabled'}>${cardActionLabel('Q', 'peek')}</button>`);
+  buttons.push("<button data-action=\"jackSelect\" data-card-id=\"" + escapeHtml(card.id) + "\" " + (r.controls.canJackSwap && !protectedTarget ? "" : "disabled") + ">" + cardActionLabel('J', 'swap') + "</button>");
 
   const selected = r.special && r.special.selected && r.special.selected.includes(card.id);
   return `
@@ -340,6 +392,10 @@ function renderCardCell(card, ownerId, index, state, compact, own) {
       <div class="card-buttons">${buttons.join('')}</div>
     </div>
   `;
+}
+
+function cardActionLabel(symbol, text) {
+  return `<span class="card-action-label"><span class="card-symbol">${symbol}</span> <span>${escapeHtml(text)}</span></span>`;
 }
 
 function cardHtml(card, small, extraAttrs = {}) {
@@ -367,29 +423,37 @@ function cardHtml(card, small, extraAttrs = {}) {
 
 function renderSideArea(state) {
   const r = state.round;
-  const pointsOpen = state.roundNumber > 1 || r.stage === 'roundEnd' || r.stage === 'gameEnd';
+  const pointsDefaultOpen = state.roundNumber > 1 || r.stage === 'roundEnd' || r.stage === 'gameEnd';
+  const guideDefaultOpen = state.roundNumber <= 1 && !pointsDefaultOpen;
   return `
     <aside class="side-area">
       ${renderStatus(state)}
-      <details>
-        <summary>Short instructions</summary>
-        ${shortInstructions()}
-      </details>
-      <details>
-        <summary>Full rules</summary>
-        ${fullRules()}
-      </details>
-      <details ${pointsOpen ? 'open' : ''}>
-        <summary>Points</summary>
-        ${pointsTable(state)}
-      </details>
-      <details open>
-        <summary>Game log</summary>
-        <ol class="log" reversed start="${state.log.length}">${state.log.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ol>
-      </details>
-      ${repoLink()}
+      ${renderDetails('guide', 'Quick guide', shortInstructions(), guideDefaultOpen)}
+      ${renderDetails('rules', 'Complete rules', fullRules(state), false, 'rules-body')}
+      ${renderDetails('points', 'Points', pointsTable(state), pointsDefaultOpen)}
+      ${renderDetails('log', 'Game log', renderLog(state), true)}
+      ${repoLink(state.version)}
     </aside>
   `;
+}
+
+function renderDetails(key, title, content, defaultOpen, extraClass = '') {
+  const open = detailPreferences[key] === undefined ? defaultOpen : detailPreferences[key];
+  return `
+    <details data-detail-key="${escapeHtml(key)}" class="${escapeHtml(extraClass)}" ${open ? 'open' : ''}>
+      <summary>${escapeHtml(title)}</summary>
+      ${content}
+    </details>
+  `;
+}
+
+function renderLog(state) {
+  const lines = state.log || [];
+  return `<ol class="log" reversed start="${lines.length}">${lines.map((entry) => {
+    const line = typeof entry === 'string' ? { text: entry, kind: 'game' } : entry;
+    const isSystem = line.kind === 'system';
+    return `<li class="${isSystem ? 'system-log' : ''}">${escapeHtml(line.text)}</li>`;
+  }).join('')}</ol>`;
 }
 
 function pointsTable(state) {
@@ -436,7 +500,7 @@ function shortInstructions() {
   `;
 }
 
-function fullRules() {
+function fullRules(state) {
   return `
     <p>Dutch is a card game in which players try to collect as few points as possible over several rounds. It is played with a normal deck of cards without jokers. With many players, two decks can be shuffled together.</p>
     <p>At the beginning, each player receives four cards face down. Then each player may look at exactly two of their own cards. These cards are then placed face down again. After every player has finished peeking, one card is turned up from the draw pile to start the face-up discard pile. The remaining cards form the face-down draw pile.</p>
@@ -447,23 +511,64 @@ function fullRules() {
     <p>Anyone who throws in incorrectly takes their card back and receives one unknown face-down penalty card.</p>
     <p>If a player believes they have 5 points or less, they may say <strong>Dutch</strong> at the end of their turn. After that, every other player gets exactly one more turn. Then everyone reveals their cards and counts the points.</p>
     <p>If the Dutch caller has 5 points or less and nobody has fewer points, they receive 0 points for that round. If they have more than 5 points or another player has fewer points, their points are doubled. All other players receive their normal points.</p>
-    <p>After each round, points are added to the total score. If a player reaches exactly 50 or exactly 100 points, their score is halved. The player with the most points in the previous round starts the next round. As soon as a player has more than 100 points after scoring and halving, the game ends. The winner is the player with the fewest total points.</p>
+    <p>After each round, points are added to the total score. If a player reaches exactly 50 or exactly 100 points, their score is halved. The player with the most points in the previous round starts the next round. As soon as a player has more than ${state.gameTarget} points after scoring and halving, the game ends. The winner is the player with the fewest total points.</p>
   `;
 }
 
 function wireGameButtons() {
+  document.querySelectorAll('details[data-detail-key]').forEach((details) => {
+    details.addEventListener('toggle', () => {
+      detailPreferences[details.dataset.detailKey] = details.open;
+    });
+  });
   document.querySelectorAll('[data-action]').forEach((button) => {
     button.addEventListener('click', () => {
       const action = button.dataset.action;
       const cardId = button.dataset.cardId;
-      if (action === 'aceAdd') {
-        emit('aceAdd', button.dataset.playerId || '');
+      const run = () => {
+        if (action === 'aceAdd') {
+          emit('aceAdd', button.dataset.playerId || '');
+          return;
+        }
+        if (cardId) emit(action, cardId);
+        else emit(action);
+      };
+      if (action === 'leave') {
+        confirmThen(button, 'leave-game', 'Confirm leave', run);
         return;
       }
-      if (cardId) emit(action, cardId);
-      else emit(action);
+      if (action === 'endGameForAll') {
+        confirmThen(button, 'end-game-for-all', 'Confirm end game', run);
+        return;
+      }
+      clearPendingConfirm();
+      run();
     });
   });
+}
+
+function confirmThen(button, key, label, callback) {
+  if (!button || button.disabled) return;
+  if (pendingConfirm && pendingConfirm.key === key) {
+    clearPendingConfirm();
+    callback();
+    return;
+  }
+  clearPendingConfirm();
+  pendingConfirm = {
+    key,
+    button,
+    label: button.innerHTML,
+    timer: window.setTimeout(clearPendingConfirm, 3500)
+  };
+  button.innerHTML = escapeHtml(label);
+}
+
+function clearPendingConfirm() {
+  if (!pendingConfirm) return;
+  window.clearTimeout(pendingConfirm.timer);
+  if (pendingConfirm.button && pendingConfirm.button.isConnected) pendingConfirm.button.innerHTML = pendingConfirm.label;
+  pendingConfirm = null;
 }
 
 function captureAnimationSnapshot() {

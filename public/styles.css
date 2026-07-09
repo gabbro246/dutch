@@ -111,9 +111,20 @@ input, select {
 }
 
 .repo-link a:hover { text-decoration: underline; }
+.version-label { color: #5f6368; }
 
 .player-list { margin-top: 12px; }
-.player-line { padding: 4px 0; border-bottom: 1px solid #e3e5e8; }
+.player-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  border-bottom: 1px solid #e3e5e8;
+}
+.player-line span { min-width: 0; overflow-wrap: anywhere; }
+.player-line button { flex: 0 0 auto; }
+.you-label { color: #5f6368; }
 .player-list p { font-size: 12px; color: #5f6368; }
 
 .main-layout {
@@ -336,6 +347,13 @@ input, select {
 
 .card-buttons button { padding: 2px 4px; }
 
+.card-action-label { white-space: nowrap; }
+
+.card-symbol {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.95em;
+}
+
 .player-actions {
   margin-top: 8px;
   text-align: center;
@@ -380,6 +398,12 @@ summary {
 }
 
 .log li { margin: 2px 0; }
+.log .system-log { color: #777; }
+
+.rules-body p {
+  font-size: 12px;
+  line-height: 1.3;
+}
 
 .score-scroll {
   overflow-x: auto;
@@ -461,4 +485,5 @@ summary {
 #startBtn {
   align-self: stretch;
   width: 100%;
+  margin-top: 12px;
 }
