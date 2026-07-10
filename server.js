@@ -658,6 +658,29 @@ function topSpecial() {
   return state.round.specialQueue[0] || null;
 }
 
+function canPlayerSayDutch(playerId) {
+  const round = state.round;
+  if (!round || round.dutchCallerId || !round.turnComplete) return false;
+  const cp = currentPlayer();
+  if (!cp || cp.id !== playerId) return false;
+  if (round.stage === 'turn') return true;
+  const special = topSpecial();
+  return !!(round.stage === 'special' && special && special.actorId === playerId);
+}
+
+function setDutchCaller(player) {
+  const round = state.round;
+  if (!round || !player) return;
+  round.dutchCallerId = player.id;
+  const ordered = [];
+  for (let i = 1; i < state.players.length; i += 1) {
+    const p = state.players[(round.currentPlayerIndex + i) % state.players.length];
+    if (!p.left && p.id !== player.id) ordered.push(p.id);
+  }
+  round.dutchQueue = ordered;
+  addLog(`${player.name} said Dutch`);
+}
+
 function specialName(rank) {
   return rank === 'A' ? 'Ace' : rank === 'Q' ? 'Queen' : 'Jack';
 }
@@ -767,6 +790,7 @@ function buildView(playerId) {
   const cp = currentPlayer();
   const special = topSpecial();
   const dutchCaller = round.dutchCallerId ? findPlayer(round.dutchCallerId) : null;
+  const pendingDutchIds = new Set(round.dutchQueue || []);
 
   base.round = {
     stage: round.stage,
@@ -805,6 +829,7 @@ function buildView(playerId) {
       isBot: !!p.isBot,
       botType: p.botType || '',
       isCurrent: !['peek', 'roundEnd', 'gameEnd'].includes(round.stage) && cp && cp.id === p.id,
+      finalTurnDone: !!(round.dutchCallerId && !['roundEnd', 'gameEnd'].includes(round.stage) && p.id !== round.dutchCallerId && !pendingDutchIds.has(p.id) && (!cp || cp.id !== p.id || round.turnComplete)),
       cards: p.cards.map((card) => {
         const view = publicCard(card, canViewerSeeCard(playerId, p.id, card));
         if (view && p.id === playerId && p.startPeekedCardIds && p.startPeekedCardIds.includes(card.id)) view.startPeeked = true;
@@ -834,7 +859,7 @@ function controlsFor(playerId) {
     canQueenPeek: round.stage === 'special' && actorForSpecial && special.type === 'Q',
     canJackSwap: round.stage === 'special' && actorForSpecial && special.type === 'J',
     canAceAdd: round.stage === 'special' && actorForSpecial && special.type === 'A',
-    canDutch: round.stage === 'turn' && isCurrent && round.turnComplete && !round.dutchCallerId,
+    canDutch: canPlayerSayDutch(playerId),
     canEndTurn: (round.stage === 'turn' && isCurrent && round.turnComplete) || (round.stage === 'special' && actorForSpecial),
     canNextRound: round.stage === 'roundEnd',
     canNewGame: round.stage === 'gameEnd'
@@ -1123,14 +1148,7 @@ function botEndTurn(botId) {
   const round = state.round;
   if (!bot || !bot.isBot || !round || currentPlayer()?.id !== bot.id) return;
   if (round.stage === 'turn' && round.turnComplete && !round.dutchCallerId && botShouldCallDutch(bot)) {
-    round.dutchCallerId = bot.id;
-    const ordered = [];
-    for (let i = 1; i < state.players.length; i += 1) {
-      const p = state.players[(round.currentPlayerIndex + i) % state.players.length];
-      if (!p.left && p.id !== bot.id) ordered.push(p.id);
-    }
-    round.dutchQueue = ordered;
-    addLog(`${bot.name} said Dutch`);
+    setDutchCaller(bot);
     advanceTurn();
     broadcastState();
     return;
@@ -1867,16 +1885,13 @@ io.on('connection', (socket) => {
   socket.on('sayDutch', () => {
     const player = assertPlayer(socket);
     const round = state.round;
-    if (!player || !round || round.stage !== 'turn') return;
-    if (currentPlayer()?.id !== player.id || !round.turnComplete || round.dutchCallerId) return;
-    round.dutchCallerId = player.id;
-    const ordered = [];
-    for (let i = 1; i < state.players.length; i += 1) {
-      const p = state.players[(round.currentPlayerIndex + i) % state.players.length];
-      if (!p.left && p.id !== player.id) ordered.push(p.id);
+    const special = topSpecial();
+    if (!player || !round || !canPlayerSayDutch(player.id)) return;
+    if (round.stage === 'special' && special && special.actorId === player.id) {
+      addLog(`${player.name} skipped ${specialName(special.type)}`);
+      finishSpecial();
     }
-    round.dutchQueue = ordered;
-    addLog(`${player.name} said Dutch`);
+    setDutchCaller(player);
     advanceTurn();
     broadcastState();
   });

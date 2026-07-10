@@ -6,6 +6,7 @@
   --control-height: 30px;
   --control-padding-x: 9px;
   --badge-height: 20px;
+  --accent-color: #4239c8;
 }
 
 body {
@@ -31,8 +32,8 @@ button {
 }
 
 button.expected-action:not(:disabled) {
-  border-color: #4239c8;
-  background: #4239c8;
+  border-color: var(--accent-color);
+  background: var(--accent-color);
   color: #fff;
 }
 
@@ -236,6 +237,19 @@ input, select {
   background: linear-gradient(180deg, #e9fbf7 0%, #eef4ff 100%);
 }
 
+.player-field.final-turn-done,
+.own-area.final-turn-done {
+  border-color: #9aa0a6;
+  background: #eceff1;
+  color: #5f6368;
+  box-shadow: 0 0 0 2px rgba(95, 99, 104, 0.14);
+}
+
+.player-field.current.final-turn-done,
+.own-area.current.final-turn-done {
+  background: linear-gradient(180deg, #eceff1 0%, #eef4ff 100%);
+}
+
 .player-field.winner,
 .own-area.winner {
   border-color: #d28b00;
@@ -304,16 +318,17 @@ input, select {
 
 .deck-pile-area {
   margin-top: 16px;
-  display: flex;
-  gap: 28px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, 82px);
+  gap: 10px;
   align-items: flex-start;
   justify-content: center;
 }
 
 .stack-area,
 .drawn-area {
-  min-width: 100px;
+  min-width: 0;
+  width: 82px;
   text-align: center;
   background: transparent;
   border: 0;
@@ -376,7 +391,22 @@ input, select {
 .card.red { color: #b00000; }
 .card.black { color: #111; }
 .card.empty-card { color: #777; background: #fafafa; }
-.card[data-selected="true"] { background: #fff7d6; }
+.drawn-placeholder,
+.drawn-label-spacer,
+.drawn-button-spacer {
+  visibility: hidden;
+}
+
+.drawn-button-spacer { pointer-events: none; }
+.card[data-selected="true"] {
+  background: #fff7d6;
+}
+
+.card[data-drawn-card="true"] {
+  border-color: #d28b00;
+  background: #fff8e6;
+  box-shadow: 0 0 0 2px rgba(210, 139, 0, 0.14);
+}
 .card .rank { font-size: 20px; line-height: 1.1; }
 .card.small .rank { font-size: 15px; }
 .card .points { font-size: 12px; margin-top: 4px; }
@@ -542,4 +572,16 @@ summary {
   align-self: stretch;
   width: 100%;
   margin-top: 8px;
+}
+
+@media (max-width: 420px) {
+  .deck-pile-area {
+    grid-template-columns: repeat(3, 82px);
+    gap: 10px;
+  }
+
+  .stack-area,
+  .drawn-area {
+    min-width: 0;
+  }
 }

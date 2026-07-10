@@ -263,7 +263,7 @@ function renderStatus(state) {
     '<button data-action="endGameForAll">End game for all</button>',
     '<button data-action="leave">Leave game</button>',
     `<button data-action="nextRound" class="expected-action" ${r.stage === 'roundEnd' ? '' : 'disabled'}>Next round</button>`,
-    `<button data-action="newGame" ${r.stage === 'gameEnd' ? '' : 'disabled'}>New game</button>`
+    `<button data-action="newGame" class="expected-action" ${r.stage === 'gameEnd' ? '' : 'disabled'}>New game</button>`
   ].filter(Boolean).join('');
   return `
     <div class="status">
@@ -288,12 +288,13 @@ function specialLabel(type) {
 function renderPlayerField(player, state, compact) {
   const current = player.isCurrent ? ' current' : '';
   const dutchCaller = state.round.dutchCallerId === player.id ? ' dutch-caller' : '';
+  const finalTurnDone = player.finalTurnDone ? ' final-turn-done' : '';
   const roundWinner = (state.round.roundWinnerIds || []).includes(player.id);
   const gameWinner = state.round.winnerId === player.id;
   const winner = roundWinner || gameWinner ? ' winner' : '';
   const missing = player.connected ? '' : ' (missing)';
   return `
-    <div class="player-field${current}${dutchCaller}${winner}">
+    <div class="player-field${current}${dutchCaller}${finalTurnDone}${winner}">
       <div class="player-title">
         <strong>${escapeHtml(player.name)}</strong>${missing}${playerBadges(state, player)}
         <div class="player-meta">Total: ${player.total}${player.roundPoints === null ? '' : `, round: ${player.roundPoints}`}</div>
@@ -309,11 +310,12 @@ function renderPlayerField(player, state, compact) {
 function renderOwnArea(player, state) {
   const r = state.round;
   const dutchCaller = r.dutchCallerId === player.id ? ' dutch-caller' : '';
+  const finalTurnDone = player.finalTurnDone ? ' final-turn-done' : '';
   const roundWinner = (r.roundWinnerIds || []).includes(player.id);
   const gameWinner = r.winnerId === player.id;
   const winner = roundWinner || gameWinner ? ' winner' : '';
   return `
-    <section class="own-area${player.isCurrent ? ' current' : ''}${dutchCaller}${winner}">
+    <section class="own-area${player.isCurrent ? ' current' : ''}${dutchCaller}${finalTurnDone}${winner}">
       <h2>Your cards</h2>
       <div class="player-title">
         <strong>${escapeHtml(player.name)}</strong>${playerBadges(state, player)}
@@ -349,15 +351,13 @@ function playerBadges(state, player) {
 
 function renderDeckPile(state) {
   const r = state.round;
-  const drawn = r.drawn ? `
-    <div class="drawn-area">
-      <div>Drawn</div>
-      <div class="drawn-card-slot">
-        ${cardHtml(r.drawn.card, false, { 'data-anim-role': 'drawn', 'data-location-key': 'drawn', 'data-selected': r.drawn.source === 'pile' ? 'true' : '' })}
-      </div>
-      <button data-action="discardDrawn" ${r.controls.canDiscardDrawn ? '' : 'disabled'}>Discard</button>
-    </div>
-  ` : '';
+  const drawnCard = r.drawn
+    ? cardHtml(r.drawn.card, false, { 'data-anim-role': 'drawn', 'data-location-key': 'drawn', 'data-drawn-card': 'true' })
+    : '<div class="card empty-card drawn-placeholder">empty</div>';
+  const drawnLabel = r.drawn ? '<div>Drawn</div>' : '<div class="drawn-label-spacer" aria-hidden="true">Drawn</div>';
+  const discardButton = r.drawn
+    ? `<button data-action="discardDrawn" ${r.controls.canDiscardDrawn ? '' : 'disabled'}>Discard</button>`
+    : '<button class="drawn-button-spacer" disabled aria-hidden="true" tabindex="-1">Discard</button>';
 
   return `
     <section class="deck-pile-area">
@@ -366,16 +366,22 @@ function renderDeckPile(state) {
         <div class="stack" data-stack="deck">
           ${stackBacks(r.deckCount, r.deckBack)}
         </div>
-        <button data-action="takeDeck" ${r.controls.canTake ? '' : 'disabled'}>Take</button>
+        <button data-action="takeDeck" class="expected-action" ${r.controls.canTake ? '' : 'disabled'}>Take</button>
+      </div>
+      <div class="drawn-area">
+        ${drawnLabel}
+        <div class="drawn-card-slot">
+          ${drawnCard}
+        </div>
+        ${discardButton}
       </div>
       <div class="stack-area">
         <div>Pile (${r.discardCount})</div>
         <div class="stack" data-stack="pile">
           ${stackPile(r)}
         </div>
-        <button data-action="takePile" ${r.controls.canTake && r.discardCount > 0 ? '' : 'disabled'}>Take</button>
+        <button data-action="takePile" class="expected-action" ${r.controls.canTake && r.discardCount > 0 ? '' : 'disabled'}>Take</button>
       </div>
-      ${drawn}
     </section>
   `;
 }
