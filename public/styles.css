@@ -77,6 +77,12 @@ input, select {
   background: #fff;
 }
 
+.waiting-description {
+  margin: 0 0 12px;
+  color: #5f6368;
+  font-size: 14px;
+}
+
 .row {
   display: flex;
   gap: 8px;

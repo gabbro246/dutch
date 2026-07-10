@@ -143,6 +143,14 @@ function activePlayerCount() {
   return activePlayers().length;
 }
 
+function activeHumanCount() {
+  return activePlayers().filter((p) => !p.isBot).length;
+}
+
+function hasPlayableHumanGame() {
+  return activeHumanCount() >= 1 && activePlayerCount() >= 2;
+}
+
 function scoreSnapshot() {
   return activePlayers().map((p) => ({
     name: p.name,
@@ -732,7 +740,7 @@ function buildView(playerId) {
     gameTarget: state.gameTarget,
     oneDeckDisabled: activePlayerCount() > 4,
     canJoin: state.phase === 'waiting' && activePlayerCount() < 9 && !joined,
-    canStart: state.phase === 'waiting' && activePlayerCount() >= 2,
+    canStart: state.phase === 'waiting' && hasPlayableHumanGame(),
     waitingMessage: state.phase === 'playing' && !joined ? state.waitingMessage : '',
     players: activePlayers().map((p) => ({
       id: p.id,
@@ -1250,7 +1258,7 @@ function createOpeningDiscardAfterPeek() {
 }
 
 function startGame() {
-  if (state.phase !== 'waiting' || activePlayerCount() < 2) return;
+  if (state.phase !== 'waiting' || !hasPlayableHumanGame()) return;
   state.phase = 'playing';
   state.log = [];
   state.roundNumber = 0;
@@ -1288,8 +1296,8 @@ function advanceTurn() {
   const round = state.round;
   if (!round || round.stage === 'roundEnd' || round.stage === 'gameEnd') return;
   if (round.specialQueue.length > 0 || round.drawn) return;
-  if (activePlayerCount() <= 1) {
-    resetToWaiting(true, 'game ended because fewer than two players remain', { adminEvent: 'game_ended_inactivity' });
+  if (!hasPlayableHumanGame()) {
+    resetToWaiting(true, 'game ended because no human-playable table remains', { adminEvent: 'game_ended_inactivity' });
     return;
   }
 
@@ -1313,7 +1321,7 @@ function advanceTurn() {
   const start = (round.currentPlayerIndex + 1) % state.players.length;
   const nextIndex = findActiveIndexFrom(start);
   if (nextIndex < 0) {
-    resetToWaiting(true, 'game ended because fewer than two players remain', { adminEvent: 'game_ended_inactivity' });
+    resetToWaiting(true, 'game ended because no human-playable table remains', { adminEvent: 'game_ended_inactivity' });
     return;
   }
   round.currentPlayerIndex = nextIndex;
@@ -1426,8 +1434,8 @@ function removeDisconnectedSpecials() {
 function handleMissingPlayers() {
   const round = state.round;
   if (state.phase !== 'playing' || !round) return false;
-  if (activePlayerCount() <= 1) {
-    resetToWaiting(true, 'game ended because fewer than two players remain', { adminEvent: 'game_ended_inactivity' });
+  if (!hasPlayableHumanGame()) {
+    resetToWaiting(true, 'game ended because no human-playable table remains', { adminEvent: 'game_ended_inactivity' });
     return true;
   }
 
@@ -1487,8 +1495,8 @@ function purgeExpiredDisconnectedPlayers() {
 
   for (const player of expired) addLog(player.name + ' was removed after 15 minutes offline', 'system');
   clampDeckSetting();
-  if (state.phase === 'playing' && activePlayerCount() <= 1) {
-    resetToWaiting(true, 'game ended because fewer than two players remain', { adminEvent: 'game_ended_inactivity' });
+  if (state.phase === 'playing' && !hasPlayableHumanGame()) {
+    resetToWaiting(true, 'game ended because no human-playable table remains', { adminEvent: 'game_ended_inactivity' });
   } else {
     handleMissingPlayers();
   }
@@ -1523,8 +1531,9 @@ function removeWaitingPlayer(playerId, reason = 'removed from waiting room') {
 }
 
 
-function addBotPlayer(type) {
+function addBotPlayer(type, requesterId = '') {
   if (state.phase !== 'waiting') return { ok: false, message: 'Bots can only be added in the waiting room.' };
+  if (!isActivePlayer(requesterId)) return { ok: false, message: 'Join the waiting room before adding bots.' };
   if (!BOT_PROFILES[type]) return { ok: false, message: 'Unknown bot type.' };
   if (activePlayerCount() >= 9) return { ok: false, message: 'The player list is full.' };
   if (activePlayers().some((p) => p.isBot && p.botType === type)) return { ok: false, message: 'That bot is already in the player list.' };
@@ -1654,7 +1663,7 @@ io.on('connection', (socket) => {
       if (round.throwIn) round.throwIn.open = false;
     }
     addLog(`${player.name} left`, 'system');
-    if (state.phase === 'playing' && activePlayerCount() <= 1) resetToWaiting(true, 'game ended because fewer than two players remain', { adminEvent: 'game_ended_inactivity' });
+    if (state.phase === 'playing' && !hasPlayableHumanGame()) resetToWaiting(true, 'game ended because no human-playable table remains', { adminEvent: 'game_ended_inactivity' });
     else handleMissingPlayers();
     broadcastState();
   });
@@ -1676,7 +1685,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('addBot', (typeRaw) => {
-    const result = addBotPlayer(String(typeRaw || ''));
+    const player = assertPlayer(socket);
+    const result = addBotPlayer(String(typeRaw || ''), player ? player.id : '');
     if (!result.ok && result.message) socket.emit('notice', result.message);
     broadcastState();
   });

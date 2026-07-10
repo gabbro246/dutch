@@ -123,11 +123,14 @@ function renderWaiting(state) {
   }).join('');
   const joined = state.joined;
   const me = state.players.find((p) => p.id === state.you);
-  const playerHint = state.players.length === 1 && !state.canStart ? '<p class="hint">Waiting for more players.</p>' : '';
+  const humanCount = state.players.filter((p) => !p.isBot).length;
+  const playerHintText = humanCount === 0 ? 'Waiting for a human player.' : 'Waiting for another human or a bot.';
+  const playerHint = state.players.length > 0 && !state.canStart ? `<p class="hint">${playerHintText}</p>` : '';
   app.innerHTML = `
     <div class="page waiting-page">
       <h1 class="app-title">Dutch! 🂡</h1>
       <div class="waiting-panel">
+        <p class="waiting-description">A quick online Dutch card game for people who join the room, bots, or a mix of both.</p>
         <div class="waiting-controls">
           <div class="row join-row">
             <input id="nameInput" placeholder="Name" maxlength="12" value="${joined && me ? escapeHtml(me.name) : ''}" ${joined ? 'disabled' : ''}>
@@ -135,14 +138,14 @@ function renderWaiting(state) {
             <button id="leaveBtn" ${joined ? '' : 'disabled'}>Leave</button>
           </div>
           <div class="row bot-row">
-            <select id="botTypeSelect" ${!firstAvailableBot || state.players.length >= 9 ? 'disabled' : ''}>
+            <select id="botTypeSelect" ${joined && firstAvailableBot && state.players.length < 9 ? '' : 'disabled'}>
               ${botOptions}
             </select>
-            <button id="addBotBtn" ${firstAvailableBot && state.players.length < 9 ? '' : 'disabled'}>Add bot</button>
+            <button id="addBotBtn" ${joined && firstAvailableBot && state.players.length < 9 ? '' : 'disabled'}>Add bot</button>
           </div>
         </div>
         <div class="player-list">
-          ${players || '<p class="hint">No players yet.</p>'}
+          ${players || '<p class="hint">No players yet. Join to choose settings and add bots.</p>'}
           ${players ? playerHint : ''}
         </div>
         <div class="waiting-selectors">
