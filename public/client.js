@@ -155,7 +155,7 @@ function renderWaiting(state) {
             <option value="two" ${state.deckSetting === 'two' ? 'selected' : ''}>Two decks</option>
           </select>
         </div>
-        <button id="startBtn" ${state.canStart && joined ? '' : 'disabled'}>Start game</button>
+        <button id="startBtn" class="expected-action" ${state.canStart && joined ? '' : 'disabled'}>Start game</button>
       </div>
       ${repoLink(state.version)}
     </div>
@@ -259,7 +259,7 @@ function renderStatus(state) {
   const buttons = [
     '<button data-action="endGameForAll">End game for all</button>',
     '<button data-action="leave">Leave game</button>',
-    `<button data-action="nextRound" ${r.stage === 'roundEnd' ? '' : 'disabled'}>Next round</button>`,
+    `<button data-action="nextRound" class="expected-action" ${r.stage === 'roundEnd' ? '' : 'disabled'}>Next round</button>`,
     `<button data-action="newGame" ${r.stage === 'gameEnd' ? '' : 'disabled'}>New game</button>`
   ].filter(Boolean).join('');
   return `
@@ -321,8 +321,8 @@ function renderOwnArea(player, state) {
       </div>
       <div class="row own-actions">
         ${renderAceButton(player, state, true)}
-        <button data-action="sayDutch" ${r.controls.canDutch ? '' : 'disabled'}>Dutch</button>
-        <button data-action="endTurn" ${r.controls.canEndTurn ? "" : "disabled"}>${endTurnLabel(state)}</button>
+        <button data-action="sayDutch" class="expected-action" ${r.controls.canDutch ? '' : 'disabled'}>Dutch</button>
+        <button data-action="endTurn" class="expected-action" ${r.controls.canEndTurn ? "" : "disabled"}>${endTurnLabel(state)}</button>
       </div>
     </section>
   `;
@@ -412,8 +412,9 @@ function renderCardCell(card, ownerId, index, state, compact, own) {
   const r = state.round;
   const protectedTarget = (r.protectedSpecialTargetIds || []).includes(ownerId);
   const buttons = [];
+  const startPeekDisabled = !r.controls.canPeekStart || !!card.startPeeked;
   if (own) {
-    buttons.push(`<button data-action="peekStart" data-card-id="${card.id}" ${r.controls.canPeekStart ? '' : 'disabled'}>Peek</button>`);
+    buttons.push(`<button data-action="peekStart" class="expected-action" data-card-id="${card.id}" ${startPeekDisabled ? 'disabled' : ''}>Peek</button>`);
     buttons.push(`<button data-action="swapDrawn" data-card-id="${card.id}" ${r.controls.canSwapDrawn ? '' : 'disabled'}>Swap</button>`);
     buttons.push(`<button data-action="throwIn" data-card-id="${card.id}" ${r.controls.canThrowIn ? '' : 'disabled'}>Throw in</button>`);
   }

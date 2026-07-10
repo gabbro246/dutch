@@ -30,6 +30,12 @@ button {
   cursor: pointer;
 }
 
+button.expected-action:not(:disabled) {
+  border-color: #4239c8;
+  background: #4239c8;
+  color: #fff;
+}
+
 button:disabled, select:disabled, input:disabled {
   opacity: 0.45;
   cursor: default;

@@ -26,56 +26,62 @@ const BOT_PROFILES = {
   strategic: {
     name: 'Strategic 🤖',
     label: 'strategic',
-    cautious: 0.78,
-    aggressive: 0.32,
-    forgetful: 0.10,
-    fast: 0.42,
-    slow: 0.35,
-    spiteful: 0.32,
-    opportunistic: 0.82,
-    mistake: 0.04,
-    throwConfidence: 0.88,
-    throwMiss: 0.10,
-    pileMargin: 1.2,
-    swapMargin: 0.6,
-    dutchMargin: 0.6,
-    queenOwnBias: 0.68
+    cautious: 0.92,
+    aggressive: 0.46,
+    forgetful: 0.035,
+    fast: 0.95,
+    slow: 0.05,
+    spiteful: 0.52,
+    opportunistic: 0.94,
+    mistake: 0.008,
+    throwConfidence: 0.68,
+    throwMiss: 0.005,
+    pileMargin: 0.35,
+    swapMargin: -0.15,
+    dutchMargin: 1.05,
+    queenOwnBias: 0.82,
+    unknownOwnPenalty: 2.25,
+    knownCardUtility: 1.05
   },
   casual: {
     name: 'Casual 🤖',
     label: 'casual',
-    cautious: 0.52,
-    aggressive: 0.50,
-    forgetful: 0.24,
-    fast: 0.55,
+    cautious: 0.60,
+    aggressive: 0.48,
+    forgetful: 0.20,
+    fast: 0.56,
     slow: 0.45,
-    spiteful: 0.42,
-    opportunistic: 0.55,
-    mistake: 0.10,
-    throwConfidence: 0.80,
-    throwMiss: 0.20,
-    pileMargin: 0.7,
-    swapMargin: 0.2,
-    dutchMargin: 0.1,
-    queenOwnBias: 0.50
+    spiteful: 0.45,
+    opportunistic: 0.58,
+    mistake: 0.075,
+    throwConfidence: 0.76,
+    throwMiss: 0.12,
+    pileMargin: 0.35,
+    swapMargin: 0.0,
+    dutchMargin: 0.25,
+    queenOwnBias: 0.58,
+    unknownOwnPenalty: 1.35,
+    knownCardUtility: 0.60
   },
   distracted: {
     name: 'Distracted 🤖',
     label: 'distracted',
     cautious: 0.38,
-    aggressive: 0.58,
-    forgetful: 0.46,
+    aggressive: 0.50,
+    forgetful: 0.42,
     fast: 0.28,
-    slow: 0.80,
-    spiteful: 0.24,
-    opportunistic: 0.35,
-    mistake: 0.18,
-    throwConfidence: 0.70,
-    throwMiss: 0.38,
-    pileMargin: -0.1,
-    swapMargin: -0.5,
-    dutchMargin: -0.5,
-    queenOwnBias: 0.72
+    slow: 0.78,
+    spiteful: 0.28,
+    opportunistic: 0.34,
+    mistake: 0.17,
+    throwConfidence: 0.72,
+    throwMiss: 0.34,
+    pileMargin: 0.05,
+    swapMargin: -0.25,
+    dutchMargin: -0.15,
+    queenOwnBias: 0.62,
+    unknownOwnPenalty: 0.75,
+    knownCardUtility: 0.32
   }
 };
 
@@ -392,8 +398,47 @@ function effectiveMemory(bot, entry) {
   return { ...entry, state: confidence > 0.65 ? 'known' : 'guessed', confidence };
 }
 
-function unknownExpectedPoints() {
-  return 6.4;
+function unknownExpectedPoints(bot = null) {
+  if (!bot || !state.round) return 6.4;
+  const memory = ensureBotMemory(bot);
+  if (!memory) return 6.4;
+  const decks = state.deckSetting === 'two' ? 2 : 1;
+  const seen = new Map();
+  const addSeen = (card) => {
+    if (!card || !card.rank || !card.suit) return;
+    const key = card.rank + ':' + card.suit;
+    seen.set(key, Math.min(decks, (seen.get(key) || 0) + 1));
+  };
+  for (const discard of memory.discards || []) addSeen(discard.card);
+  for (const slots of Object.values(memory.slots || {})) {
+    for (const entry of slots) {
+      const effective = effectiveMemory(bot, entry);
+      if (effective.card) addSeen(effective.card);
+    }
+  }
+  let remainingPoints = 0;
+  let remainingCards = 0;
+  for (const suit of SUITS) {
+    for (const rank of RANKS) {
+      const key = rank + ':' + suit;
+      const remaining = Math.max(0, decks - (seen.get(key) || 0));
+      remainingCards += remaining;
+      remainingPoints += remaining * cardPoints({ rank, suit });
+    }
+  }
+  return remainingCards > 0 ? remainingPoints / remainingCards : 6.4;
+}
+
+function knownOwnCardUtility(bot, effective) {
+  if (!effective || !effective.card) return 0;
+  const profile = botProfile(bot);
+  const points = effective.card.points;
+  const confidence = effective.confidence || 0;
+  let utility = profile.knownCardUtility * confidence;
+  if (points >= 8) utility += Math.min(1.35, (points - 6) * 0.18) * confidence;
+  if (SPECIALS.has(effective.card.rank)) utility += specialActionValue(bot, effective.card) * 0.22 * confidence;
+  if (effective.card.rank === 'K' && effective.card.red) utility += 0.6 * confidence;
+  return utility;
 }
 
 function specialActionValue(bot, card) {
@@ -407,12 +452,14 @@ function specialActionValue(bot, card) {
 
 function expectedEntryPoints(bot, entry, options = {}) {
   const effective = effectiveMemory(bot, entry);
-  const unknown = unknownExpectedPoints();
-  if (!effective.card) return unknown;
+  const unknown = unknownExpectedPoints(bot);
+  const profile = botProfile(bot);
+  if (!effective.card) return unknown + (options.ownDecision ? profile.unknownOwnPenalty : 0);
   let known = effective.card.points;
   if (effective.card.rank === 'K' && effective.card.red) known -= 0.7;
   if (effective.card.rank === 'K' && !effective.card.red) known += 0.7;
   if (options.countSpecialUtility) known -= specialActionValue(bot, effective.card) * 0.35;
+  if (options.ownDecision) known -= knownOwnCardUtility(bot, effective);
   return effective.confidence * known + (1 - effective.confidence) * unknown;
 }
 
@@ -427,7 +474,7 @@ function botExpectedScore(bot, player) {
 }
 
 function botBestOwnSlot(bot, mode = 'highest') {
-  const slots = botOwnSlots(bot).map((slot) => ({ ...slot, expected: expectedEntryPoints(bot, slot.memory, { countSpecialUtility: true }) }));
+  const slots = botOwnSlots(bot).map((slot) => ({ ...slot, expected: expectedEntryPoints(bot, slot.memory, { countSpecialUtility: true, ownDecision: true }) }));
   if (slots.length === 0) return null;
   slots.sort((a, b) => mode === 'lowest' ? a.expected - b.expected : b.expected - a.expected);
   if (Math.random() < botProfile(bot).mistake && slots.length > 1) return slots[Math.min(slots.length - 1, 1 + Math.floor(Math.random() * (slots.length - 1)))];
@@ -436,15 +483,20 @@ function botBestOwnSlot(bot, mode = 'highest') {
 
 function botLowOpponentSlot(bot) {
   const candidates = [];
+  const profile = botProfile(bot);
   for (const player of activePlayers()) {
     if (player.id === bot.id || isProtectedSpecialTarget(player.id)) continue;
     player.cards.forEach((card, index) => {
       const memory = botMemoryEntry(bot, player.id, index);
-      candidates.push({ player, index, expected: expectedEntryPoints(bot, memory), memory });
+      const effective = effectiveMemory(bot, memory);
+      const expected = expectedEntryPoints(bot, memory);
+      if (effective.card || Math.random() < profile.mistake * 0.8) {
+        candidates.push({ player, index, expected, confidence: effective.confidence || 0, memory });
+      }
     });
   }
   if (candidates.length === 0) return null;
-  candidates.sort((a, b) => a.expected - b.expected);
+  candidates.sort((a, b) => a.expected - b.expected || b.confidence - a.confidence);
   return candidates[0];
 }
 
@@ -474,7 +526,7 @@ function shouldBotTakePile(bot) {
   let pileValue = cardPoints(top);
   if (top.rank === 'K' && isRedSuit(top.suit)) pileValue -= 0.8;
   if (top.rank === 'K' && !isRedSuit(top.suit)) pileValue += 0.8;
-  if (SPECIALS.has(top.rank)) pileValue += 0.4;
+  if (SPECIALS.has(top.rank)) pileValue -= specialActionValue(bot, publicMemoryCard(top)) * 0.22;
   let margin = best.expected - pileValue;
   if (botRiskMode(bot) === 'behind') margin += profile.aggressive * 0.8;
   if (botRiskMode(bot) === 'ahead') margin -= profile.cautious * 0.8;
@@ -745,7 +797,11 @@ function buildView(playerId) {
       isBot: !!p.isBot,
       botType: p.botType || '',
       isCurrent: !['peek', 'roundEnd', 'gameEnd'].includes(round.stage) && cp && cp.id === p.id,
-      cards: p.cards.map((card) => publicCard(card, canViewerSeeCard(playerId, p.id, card)))
+      cards: p.cards.map((card) => {
+        const view = publicCard(card, canViewerSeeCard(playerId, p.id, card));
+        if (view && p.id === playerId && p.startPeekedCardIds && p.startPeekedCardIds.includes(card.id)) view.startPeeked = true;
+        return view;
+      })
     })),
     controls: controlsFor(playerId)
   };
@@ -918,9 +974,13 @@ function botSwapDrawn(bot, index) {
   round.turnComplete = true;
   const memory = ensureBotMemory(bot);
   if (memory) memory.drawn = null;
-  rememberSlotForBot(bot, bot.id, index, newCard, source === 'pile' ? 'pile observation' : 'deck draw', source === 'pile' ? 0.95 : 1);
-  if (source === 'pile') rememberSlotForAllBots(bot.id, index, newCard, 'pile observation', 0.9);
-  else forgetSlotForAllBots(bot.id, index, 'deck swap');
+  if (source === 'pile') {
+    rememberSlotForAllBots(bot.id, index, newCard, 'pile observation', 0.9);
+    rememberSlotForBot(bot, bot.id, index, newCard, 'pile observation', 0.98);
+  } else {
+    forgetSlotForAllBots(bot.id, index, 'deck swap');
+    rememberSlotForBot(bot, bot.id, index, newCard, 'deck draw', 1);
+  }
   observeDiscardForAllBots(oldCard, 'swap discard', bot.id);
   pushDiscard(oldCard, bot.id, source === 'pile' ? 'replaced with pile card and discarded' : 'replaced a card and discarded');
   broadcastState();
@@ -952,7 +1012,7 @@ function botUseAce(bot) {
   if (targets.length === 0) return botSkipSpecial(bot);
   let target = targets[0];
   if (botProfile(bot).spiteful > 0.4) target = targets.slice().sort((a, b) => a.total - b.total || a.expected - b.expected)[0];
-  if (target.expected > unknownExpectedPoints() * Math.max(2, target.player.cards.length - 1) && Math.random() > botProfile(bot).aggressive) return botSkipSpecial(bot);
+  if (target.expected > unknownExpectedPoints(bot) * Math.max(2, target.player.cards.length - 1) && Math.random() > botProfile(bot).aggressive) return botSkipSpecial(bot);
   const card = drawFromDeck();
   if (card) {
     target.player.cards.push(card);
@@ -965,15 +1025,26 @@ function botUseAce(bot) {
 
 function botQueenTargets(bot) {
   const ownUnknown = bot.cards
-    .map((card, index) => ({ player: bot, index, memory: effectiveMemory(bot, botMemoryEntry(bot, bot.id, index)) }))
+    .map((card, index) => {
+      const rawMemory = botMemoryEntry(bot, bot.id, index);
+      return {
+        player: bot,
+        index,
+        score: expectedEntryPoints(bot, rawMemory, { countSpecialUtility: true, ownDecision: true }),
+        memory: effectiveMemory(bot, rawMemory)
+      };
+    })
     .filter((slot) => !slot.memory.card || slot.memory.state === 'stale');
   const opponentUnknown = [];
   for (const estimate of botOpponentEstimates(bot)) {
     estimate.player.cards.forEach((card, index) => {
-      const memory = effectiveMemory(bot, botMemoryEntry(bot, estimate.player.id, index));
-      if (!memory.card || memory.state === 'stale') opponentUnknown.push({ player: estimate.player, index, memory, estimate: estimate.expected });
+      const rawMemory = botMemoryEntry(bot, estimate.player.id, index);
+      const memory = effectiveMemory(bot, rawMemory);
+      if (!memory.card || memory.state === 'stale') opponentUnknown.push({ player: estimate.player, index, memory, estimate: estimate.expected, total: estimate.total });
     });
   }
+  ownUnknown.sort((a, b) => b.score - a.score);
+  opponentUnknown.sort((a, b) => a.estimate - b.estimate || a.total - b.total);
   return { ownUnknown, opponentUnknown };
 }
 
@@ -982,7 +1053,7 @@ function botUseQueen(bot) {
   const profile = botProfile(bot);
   let target = null;
   if (targets.ownUnknown.length > 0 && (state.roundNumber <= 1 || Math.random() < profile.queenOwnBias)) {
-    target = targets.ownUnknown[Math.floor(Math.random() * targets.ownUnknown.length)];
+    target = targets.ownUnknown[0];
   } else if (targets.opponentUnknown.length > 0) {
     target = targets.opponentUnknown[0];
   } else if (targets.ownUnknown.length > 0) {
@@ -999,12 +1070,14 @@ function botUseQueen(bot) {
 
 function botUseJack(bot) {
   const ownHigh = botOwnSlots(bot)
-    .map((slot) => ({ ...slot, expected: expectedEntryPoints(bot, slot.memory) }))
+    .map((slot) => ({ ...slot, expected: expectedEntryPoints(bot, slot.memory, { ownDecision: true }) }))
     .sort((a, b) => b.expected - a.expected)[0];
   const lowOpponent = botLowOpponentSlot(bot);
   if (!ownHigh || !lowOpponent) return botSkipSpecial(bot);
   const improvement = ownHigh.expected - lowOpponent.expected;
-  if (improvement < 2.0 - botProfile(bot).opportunistic && Math.random() > botProfile(bot).aggressive) return botSkipSpecial(bot);
+  const profile = botProfile(bot);
+  const requiredImprovement = 1.9 - profile.opportunistic * 0.75 + Math.max(0, 0.62 - lowOpponent.confidence);
+  if (improvement < requiredImprovement && Math.random() > profile.aggressive) return botSkipSpecial(bot);
   const a = { player: bot, index: ownHigh.index, card: bot.cards[ownHigh.index] };
   const b = { player: lowOpponent.player, index: lowOpponent.index, card: lowOpponent.player.cards[lowOpponent.index] };
   if (!a.card || !b.card || isProtectedSpecialTarget(b.player.id)) return botSkipSpecial(bot);
@@ -1019,13 +1092,21 @@ function botShouldCallDutch(bot) {
   const expected = botExpectedScore(bot, bot);
   const profile = botProfile(bot);
   const opponents = botOpponentEstimates(bot);
+  const bestOpponent = opponents[0] || null;
   const likelyLower = opponents.some((entry) => entry.expected < expected - 0.5);
-  let threshold = 5 - profile.cautious * 1.2 + profile.aggressive * 0.7 + profile.dutchMargin;
-  if (state.gameTarget === 50) threshold -= 0.3;
-  if (botRiskMode(bot) === 'behind') threshold += 0.8;
-  if (botRiskMode(bot) === 'ahead') threshold -= 0.6;
-  if (likelyLower) threshold -= 1.4 + profile.cautious;
-  if (Math.random() < profile.mistake * 0.5) threshold += randomBetween(0.8, 2.0);
+  const unknownOwn = botOwnSlots(bot).filter((slot) => !effectiveMemory(bot, slot.memory).card).length;
+  const risk = botRiskMode(bot);
+  let threshold = 5 - profile.cautious * 0.55 + profile.aggressive * 0.35 + profile.dutchMargin;
+  if (state.gameTarget === 50) threshold -= 0.2;
+  if (risk === 'behind') threshold += 0.35 + profile.aggressive * 0.35;
+  if (risk === 'ahead') threshold -= 0.35 + profile.cautious * 0.25;
+  if (unknownOwn === 0) threshold += 0.25 + profile.cautious * 0.25;
+  else threshold -= unknownOwn * (0.35 + profile.cautious * 0.18);
+  if (bestOpponent && expected < bestOpponent.expected - 1.5) threshold += profile.cautious * 0.35;
+  if (likelyLower) threshold -= 1.2 + profile.cautious * 0.8;
+  const cap = unknownOwn === 0 ? 5.35 + (risk === 'behind' ? 0.25 : 0) : 5 - unknownOwn * 0.22;
+  threshold = Math.min(threshold, cap);
+  if (Math.random() < profile.mistake * 0.5) threshold += randomBetween(0.4, 1.4);
   return expected <= threshold;
 }
 
@@ -1067,8 +1148,8 @@ function botThrowInCandidate(bot) {
     else if (rank === round.throwIn.rank && confidence >= threshold - 0.18 && Math.random() < botProfile(bot).mistake) candidates.push({ index, confidence, expected: 99 });
   });
   if (candidates.length === 0) return null;
+  candidates.sort((a, b) => b.expected - a.expected);
   if (Math.random() < botProfile(bot).throwMiss * (1.1 - candidates[0].confidence)) return null;
-  candidates.sort((a, b) => a.expected - b.expected);
   return candidates[0];
 }
 
