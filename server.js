@@ -1746,6 +1746,13 @@ function advanceTurn() {
   round.currentPlayerIndex = nextIndex;
 }
 
+function pointChangeText(player, delta) {
+  const amount = Math.abs(delta);
+  const verb = delta < 0 ? 'lost' : 'gained';
+  const noun = amount === 1 ? 'point' : 'points';
+  return player.name + ' ' + verb + ' ' + amount + ' ' + noun;
+}
+
 function endRound() {
   const round = state.round;
   if (!round) return;
@@ -1762,8 +1769,10 @@ function endRound() {
   }));
   const min = Math.min(...scores.map((s) => s.raw));
   const callerId = round.dutchCallerId;
+  const roundPointChanges = [];
 
   for (const score of scores) {
+    const totalBefore = score.player.total;
     let roundScore = score.raw;
     if (callerId && score.player.id === callerId) {
       roundScore = score.raw <= 5 && score.raw === min ? 0 : score.raw * 2;
@@ -1772,8 +1781,9 @@ function endRound() {
     score.player.total += roundScore;
     if (score.player.total === 50 || score.player.total === 100) {
       score.player.total = Math.floor(score.player.total / 2);
-      addLog(`${score.player.name}'s total was halved`);
+      addLog(score.player.name + "'s total was halved");
     }
+    roundPointChanges.push(pointChangeText(score.player, score.player.total - totalBefore));
   }
 
   state.scoreHistory.push({
@@ -1791,6 +1801,8 @@ function endRound() {
     .filter((p) => p.roundPoints === bestRoundScore)
     .map((p) => p.id);
 
+  addLog('round ended. ' + roundPointChanges.join(', '));
+
   const loser = scoringPlayers.find((p) => p.total > state.gameTarget);
   if (loser) {
     round.stage = 'gameEnd';
@@ -1798,8 +1810,6 @@ function endRound() {
     round.winnerId = winner ? winner.id : null;
     addLog(`game ended. ${winner ? winner.name : 'No one'} won`);
     adminLog('game_ended_by_score', { target: state.gameTarget, winner: winner ? winner.name : null, scores: scoreSnapshot() });
-  } else {
-    addLog('round ended');
   }
 }
 
