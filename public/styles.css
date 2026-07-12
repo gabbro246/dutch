@@ -516,7 +516,21 @@ summary {
   padding-left: 18px;
   font-size: 12px;
   line-height: 1.25;
+  margin-bottom: 2px;
 }
+
+.log-toggle {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #1a73e8;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.log-toggle:hover { text-decoration: underline; }
 
 .log li { margin: 2px 0; }
 .log .system-log { color: #777; }

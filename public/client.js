@@ -6,6 +6,7 @@ let lastState = null;
 let hasRenderedGame = false;
 let pendingConfirm = null;
 let currentDetailsMode = '';
+let logExpanded = false;
 const detailPreferencesByMode = {};
 const PLAYER_NAME_MAX_LENGTH = 16;
 const GAME_DESCRIPTION = 'Play the card game Dutch against other people or bots.';
@@ -620,11 +621,17 @@ function renderDetails(key, title, content, defaultOpen, extraClass = '') {
 
 function renderLog(state) {
   const lines = state.log || [];
-  return `<ol class="log" reversed start="${lines.length}">${lines.map((entry) => {
-    const line = typeof entry === 'string' ? { text: entry, kind: 'game' } : entry;
-    const isSystem = line.kind === 'system';
-    return `<li class="${isSystem ? 'system-log' : ''}">${escapeHtml(line.text)}</li>`;
-  }).join('')}</ol>`;
+  const visibleLines = logExpanded ? lines : lines.slice(0, 8);
+  const items = visibleLines.map((entry, index) => {
+    const line = typeof entry === "string" ? { text: entry, kind: "game" } : entry;
+    const isSystem = line.kind === "system";
+    const moveNumber = lines.length - index;
+    return '<li value="' + moveNumber + '" class="' + (isSystem ? 'system-log' : '') + '">' + escapeHtml(line.text) + '</li>';
+  }).join("");
+  const toggle = lines.length > 8
+    ? '<button type="button" class="log-toggle" data-action="toggleLog">' + (logExpanded ? 'Show less' : 'Show more') + '</button>'
+    : "";
+  return '<ol class="log">' + items + '</ol>' + toggle;
 }
 
 function pointsTable(state) {
@@ -697,6 +704,11 @@ function wireGameButtons() {
   document.querySelectorAll('[data-action]').forEach((button) => {
     button.addEventListener('click', () => {
       const action = button.dataset.action;
+      if (action === "toggleLog") {
+        logExpanded = !logExpanded;
+        if (lastState) render(lastState);
+        return;
+      }
       const cardId = button.dataset.cardId;
       const run = () => {
         if (action === 'aceAdd') {

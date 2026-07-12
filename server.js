@@ -158,7 +158,6 @@ function addLog(text, kind = 'game') {
   if (kind === 'game') markGameActivity();
   if (state.round && kind === 'game') state.round.botTick = (state.round.botTick || 0) + 1;
   state.log.unshift({ text, kind });
-  if (state.log.length > 80) state.log.length = 80;
 }
 
 function adminLog(event, data = {}) {
