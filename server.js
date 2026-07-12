@@ -855,6 +855,14 @@ function drawFromDeck() {
   return state.round.deck.pop();
 }
 
+function discardLogText(actorId, card, reason = "") {
+  const action = reason
+    ? (reason.includes("{card}") ? reason.replace(/\{card\}/g, label(card)) : `${reason} ${label(card)}`)
+    : `placed ${label(card)}`;
+  const special = SPECIALS.has(card.rank) ? ` and may use ${specialName(card.rank)}` : "";
+  return `${nameOf(actorId)} ${action}${special}`;
+}
+
 function pushDiscard(card, actorId, reason, options = {}) {
   const round = state.round;
   if (!round || !card) return;
@@ -872,10 +880,8 @@ function pushDiscard(card, actorId, reason, options = {}) {
   }
   if (SPECIALS.has(card.rank)) {
     round.specialQueue.push({ type: card.rank, actorId, selected: [] });
-    addLog(`${nameOf(actorId)} placed ${label(card)} and may use ${specialName(card.rank)}`);
-  } else if (reason) {
-    addLog(`${nameOf(actorId)} ${reason} ${label(card)}`);
   }
+  if (reason || SPECIALS.has(card.rank)) addLog(discardLogText(actorId, card, reason));
   updateStageAfterQueue();
 }
 
@@ -1238,7 +1244,6 @@ function botTakeDeck(bot) {
   round.drawn = { playerId: bot.id, source: 'deck', card };
   const memory = ensureBotMemory(bot);
   if (memory) memory.drawn = cardMemory(card, 'deck draw', 1);
-  addLog(`${bot.name} drew from deck`);
   broadcastState();
 }
 
@@ -1251,7 +1256,6 @@ function botTakePile(bot) {
   observePileTakeForAllBots(bot.id, card);
   const memory = ensureBotMemory(bot);
   if (memory) memory.drawn = cardMemory(card, 'pile observation', 1);
-  addLog(`${bot.name} took pile`);
   broadcastState();
 }
 
@@ -1275,7 +1279,7 @@ function botDiscardDrawn(bot) {
   const memory = ensureBotMemory(bot);
   if (memory) memory.drawn = null;
   observeDiscardForAllBots(card, 'discarded', bot.id);
-  pushDiscard(card, bot.id, 'discarded');
+  pushDiscard(card, bot.id, 'drew {card} from deck but discarded it');
   broadcastState();
 }
 
@@ -1299,7 +1303,7 @@ function botSwapDrawn(bot, index) {
     rememberSlotForBot(bot, bot.id, index, newCard, 'deck draw', 1);
   }
   observeDiscardForAllBots(oldCard, 'swap discard', bot.id);
-  pushDiscard(oldCard, bot.id, source === 'pile' ? 'replaced with pile card and discarded' : 'replaced a card and discarded');
+  pushDiscard(oldCard, bot.id, source === 'pile' ? `drew ${label(newCard)} from pile and discarded {card}` : 'drew from deck and discarded {card}');
   broadcastState();
 }
 
@@ -2129,7 +2133,6 @@ io.on('connection', (socket) => {
     const card = drawFromDeck();
     if (!card) return;
     round.drawn = { playerId: player.id, source: 'deck', card };
-    addLog(`${player.name} drew from deck`);
     broadcastState();
   });
 
@@ -2143,7 +2146,6 @@ io.on('connection', (socket) => {
     const card = round.discard.pop();
     round.drawn = { playerId: player.id, source: 'pile', card };
     observePileTakeForAllBots(player.id, card);
-    addLog(`${player.name} took pile`);
     broadcastState();
   });
 
@@ -2156,7 +2158,7 @@ io.on('connection', (socket) => {
     round.drawn = null;
     round.turnComplete = true;
     observeDiscardForAllBots(card, 'discarded', player.id);
-    pushDiscard(card, player.id, 'discarded');
+    pushDiscard(card, player.id, 'drew {card} from deck but discarded it');
     broadcastState();
   });
 
@@ -2176,7 +2178,7 @@ io.on('connection', (socket) => {
     if (source === 'pile') rememberSlotForAllBots(player.id, index, newCard, 'pile observation', 0.9);
     else forgetSlotForAllBots(player.id, index, 'deck swap');
     observeDiscardForAllBots(oldCard, 'swap discard', player.id);
-    pushDiscard(oldCard, player.id, source === 'pile' ? 'replaced with pile card and discarded' : 'replaced a card and discarded');
+    pushDiscard(oldCard, player.id, source === 'pile' ? `drew ${label(newCard)} from pile and discarded {card}` : 'drew from deck and discarded {card}');
     broadcastState();
   });
 
