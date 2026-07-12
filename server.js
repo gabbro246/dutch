@@ -1082,7 +1082,7 @@ function buildView(playerId) {
     deckBack: state.deckSetting === 'one' ? (state.deckColor || 'blue') : 'mixed',
     drawn: round.drawn ? {
       source: round.drawn.source,
-      card: publicCard(round.drawn.card, round.drawn.playerId === playerId)
+      card: publicCard(round.drawn.card, round.drawn.playerId === playerId || round.drawn.source === 'pile')
     } : null,
     anyDrawn: !!round.drawn,
     turnComplete: !!round.turnComplete,
@@ -1537,7 +1537,6 @@ function botEndTurn(botId) {
     return;
   }
   if (round.stage === 'turn' && round.turnComplete) {
-    addLog(`${bot.name} ended turn`);
     advanceTurn();
     broadcastState();
   }
@@ -1692,8 +1691,6 @@ function beginTurnsIfReady() {
   state.round.turnComplete = false;
   state.round.drawn = null;
   addLog('all active players finished peeking');
-  const first = currentPlayer();
-  if (first) addLog(`${first.name}'s turn started`);
 }
 
 function advanceTurn() {
@@ -1714,7 +1711,6 @@ function advanceTurn() {
       const nextIndex = state.players.findIndex((p) => p.id === nextId && !p.left);
       if (nextIndex >= 0) {
         round.currentPlayerIndex = nextIndex;
-        addLog(`${state.players[nextIndex].name}'s final turn started`);
         return;
       }
     }
@@ -1729,7 +1725,6 @@ function advanceTurn() {
     return;
   }
   round.currentPlayerIndex = nextIndex;
-  addLog(`${currentPlayer().name}'s turn started`);
 }
 
 function endRound() {
@@ -2297,7 +2292,6 @@ io.on('connection', (socket) => {
     }
     if (round.stage !== "turn") return;
     if (currentPlayer()?.id !== player.id || !round.turnComplete) return;
-    addLog(`${player.name} ended turn`);
     advanceTurn();
     broadcastState();
   });
