@@ -667,27 +667,62 @@ function topSpecial() {
   return state.round.specialQueue[0] || null;
 }
 
+function isJackSwapInProgress() {
+  const round = state.round;
+  const special = topSpecial();
+  return !!(round && round.stage === 'special' && special && special.type === 'J' && (special.selected || []).length === 1);
+}
+
 function canPlayerSayDutch(playerId) {
   const round = state.round;
-  if (!round || round.dutchCallerId || !round.turnComplete) return false;
+  const player = findPlayer(playerId);
+  if (!round || !player || player.left || round.dutchCallerId) return false;
   const cp = currentPlayer();
+  const noCards = player.cards.length === 0;
+  if (noCards && !round.drawn) {
+    if (!cp || cp.id !== playerId) return false;
+    if (round.stage === 'turn') return true;
+    const special = topSpecial();
+    return !!(round.stage === 'special' && special && special.actorId === playerId);
+  }
+  if (!round.turnComplete) return false;
   if (!cp || cp.id !== playerId) return false;
   if (round.stage === 'turn') return true;
   const special = topSpecial();
   return !!(round.stage === 'special' && special && special.actorId === playerId);
 }
 
+function mustPlayerSayDutch(playerId) {
+  const player = findPlayer(playerId);
+  return !!(player && player.cards.length === 0 && canPlayerSayDutch(playerId));
+}
+
 function setDutchCaller(player) {
   const round = state.round;
   if (!round || !player) return;
   round.dutchCallerId = player.id;
+  const callerIndex = state.players.findIndex((p) => p.id === player.id);
+  const startIndex = callerIndex >= 0 ? callerIndex : round.currentPlayerIndex;
   const ordered = [];
   for (let i = 1; i < state.players.length; i += 1) {
-    const p = state.players[(round.currentPlayerIndex + i) % state.players.length];
+    const p = state.players[(startIndex + i) % state.players.length];
     if (!p.left && p.id !== player.id) ordered.push(p.id);
   }
   round.dutchQueue = ordered;
   addLog(`${player.name} said Dutch`);
+}
+
+function callDutchForPlayer(player) {
+  const round = state.round;
+  const special = topSpecial();
+  if (!round || !player || !canPlayerSayDutch(player.id)) return false;
+  if (round.stage === 'special' && special && special.actorId === player.id) {
+    addLog(`${player.name} skipped ${specialName(special.type)}`);
+    finishSpecial();
+  }
+  setDutchCaller(player);
+  advanceTurn();
+  return true;
 }
 
 function specialName(rank) {
@@ -858,18 +893,20 @@ function controlsFor(playerId) {
   const isCurrent = cp && cp.id === playerId;
   const special = topSpecial();
   const actorForSpecial = special && special.actorId === playerId;
-  const beforeDraw = round.stage === 'turn' && isCurrent && !round.drawn && !round.turnComplete && !special;
+  const mustDutch = mustPlayerSayDutch(playerId);
+  const jackSwapInProgress = isJackSwapInProgress();
+  const beforeDraw = round.stage === 'turn' && isCurrent && !round.drawn && !round.turnComplete && !special && !mustDutch;
   return {
     canPeekStart: round.stage === 'peek' && !player.startPeekDone,
     canTake: beforeDraw,
-    canDiscardDrawn: round.stage === 'turn' && isCurrent && round.drawn && round.drawn.source === 'deck',
-    canSwapDrawn: round.stage === 'turn' && isCurrent && !!round.drawn,
-    canThrowIn: !!(round.throwIn && round.throwIn.open) && round.stage !== 'roundEnd' && round.stage !== 'gameEnd',
-    canQueenPeek: round.stage === 'special' && actorForSpecial && special.type === 'Q',
-    canJackSwap: round.stage === 'special' && actorForSpecial && special.type === 'J',
-    canAceAdd: round.stage === 'special' && actorForSpecial && special.type === 'A',
+    canDiscardDrawn: round.stage === 'turn' && isCurrent && round.drawn && round.drawn.source === 'deck' && !mustDutch,
+    canSwapDrawn: round.stage === 'turn' && isCurrent && !!round.drawn && !mustDutch,
+    canThrowIn: !!(round.throwIn && round.throwIn.open) && round.stage !== 'roundEnd' && round.stage !== 'gameEnd' && !jackSwapInProgress,
+    canQueenPeek: round.stage === 'special' && actorForSpecial && special.type === 'Q' && !mustDutch,
+    canJackSwap: round.stage === 'special' && actorForSpecial && special.type === 'J' && !mustDutch,
+    canAceAdd: round.stage === 'special' && actorForSpecial && special.type === 'A' && !mustDutch,
     canDutch: canPlayerSayDutch(playerId),
-    canEndTurn: (round.stage === 'turn' && isCurrent && round.turnComplete) || (round.stage === 'special' && actorForSpecial),
+    canEndTurn: !mustDutch && ((round.stage === 'turn' && isCurrent && round.turnComplete) || (round.stage === 'special' && actorForSpecial)),
     canNextRound: round.stage === 'roundEnd',
     canNewGame: round.stage === 'gameEnd'
   };
@@ -905,7 +942,9 @@ function scheduleBotAutomation() {
 
   const current = currentPlayer();
   if (round.stage === 'turn' && current && current.isBot) {
-    if (!round.drawn && !round.turnComplete && !special) {
+    if (mustPlayerSayDutch(current.id)) {
+      scheduleBotTimer(botScheduleKey(['dutch', state.roundNumber, current.id, round.botTick || 0]), randomBetween(650, 1200), () => botEndTurn(current.id));
+    } else if (!round.drawn && !round.turnComplete && !special) {
       scheduleBotTimer(botScheduleKey(['turn', state.roundNumber, current.id, round.botTick || 0]), randomBetween(700, 1800), () => botTakeTurnAction(current.id));
     } else if (round.drawn && round.drawn.playerId === current.id) {
       scheduleBotTimer(botScheduleKey(['drawn', state.roundNumber, current.id, round.drawn.card.id]), randomBetween(650, 1700), () => botResolveDrawn(current.id));
@@ -919,7 +958,7 @@ function scheduleBotAutomation() {
 
 function scheduleBotThrowIns() {
   const round = state.round;
-  if (!round || !round.throwIn || !round.throwIn.open) return;
+  if (!round || !round.throwIn || !round.throwIn.open || isJackSwapInProgress()) return;
   for (const bot of activeBots()) {
     const candidate = botThrowInCandidate(bot);
     if (!candidate) continue;
@@ -950,13 +989,14 @@ function botTakeTurnAction(botId) {
   const bot = findPlayer(botId);
   const round = state.round;
   if (!bot || !bot.isBot || !round || round.stage !== 'turn') return;
-  if (currentPlayer()?.id !== bot.id || round.drawn || round.turnComplete || topSpecial()) return;
+  if (currentPlayer()?.id !== bot.id || round.drawn || round.turnComplete || topSpecial() || mustPlayerSayDutch(bot.id)) return;
   if (shouldBotTakePile(bot)) botTakePile(bot);
   else botTakeDeck(bot);
 }
 
 function botTakeDeck(bot) {
   const round = state.round;
+  if (!round || mustPlayerSayDutch(bot.id)) return;
   closeThrowInBecauseOfPlayingAction();
   const card = drawFromDeck();
   if (!card) return;
@@ -969,7 +1009,7 @@ function botTakeDeck(bot) {
 
 function botTakePile(bot) {
   const round = state.round;
-  if (!round || round.discard.length === 0) return;
+  if (!round || round.discard.length === 0 || mustPlayerSayDutch(bot.id)) return;
   closeThrowInBecauseOfPlayingAction();
   const card = round.discard.pop();
   round.drawn = { playerId: bot.id, source: 'pile', card };
@@ -1156,9 +1196,8 @@ function botEndTurn(botId) {
   const bot = findPlayer(botId);
   const round = state.round;
   if (!bot || !bot.isBot || !round || currentPlayer()?.id !== bot.id) return;
-  if (round.stage === 'turn' && round.turnComplete && !round.dutchCallerId && botShouldCallDutch(bot)) {
-    setDutchCaller(bot);
-    advanceTurn();
+  if (canPlayerSayDutch(bot.id) && (bot.cards.length === 0 || botShouldCallDutch(bot))) {
+    callDutchForPlayer(bot);
     broadcastState();
     return;
   }
@@ -1191,7 +1230,7 @@ function botThrowInCandidate(bot) {
 function botDoThrowIn(botId, index, token) {
   const bot = findPlayer(botId);
   const round = state.round;
-  if (!bot || !bot.isBot || !round || !round.throwIn || !round.throwIn.open || round.throwIn.token !== token) return;
+  if (!bot || !bot.isBot || !round || !round.throwIn || !round.throwIn.open || round.throwIn.token !== token || isJackSwapInProgress()) return;
   if (round.stage === 'roundEnd' || round.stage === 'gameEnd') return;
   if (index < 0 || index >= bot.cards.length) return;
   const card = bot.cards[index];
@@ -1756,7 +1795,7 @@ io.on('connection', (socket) => {
     const player = assertPlayer(socket);
     const round = state.round;
     if (!player || !round || round.stage !== 'turn') return;
-    if (currentPlayer()?.id !== player.id || round.drawn || round.turnComplete || topSpecial()) return;
+    if (currentPlayer()?.id !== player.id || round.drawn || round.turnComplete || topSpecial() || mustPlayerSayDutch(player.id)) return;
     closeThrowInBecauseOfPlayingAction();
     const card = drawFromDeck();
     if (!card) return;
@@ -1769,7 +1808,7 @@ io.on('connection', (socket) => {
     const player = assertPlayer(socket);
     const round = state.round;
     if (!player || !round || round.stage !== 'turn') return;
-    if (currentPlayer()?.id !== player.id || round.drawn || round.turnComplete || topSpecial()) return;
+    if (currentPlayer()?.id !== player.id || round.drawn || round.turnComplete || topSpecial() || mustPlayerSayDutch(player.id)) return;
     if (round.discard.length === 0) return;
     closeThrowInBecauseOfPlayingAction();
     const card = round.discard.pop();
@@ -1817,7 +1856,7 @@ io.on('connection', (socket) => {
     const round = state.round;
     if (!player || !round) return;
     if (!round.throwIn || !round.throwIn.open) return;
-    if (round.stage === 'roundEnd' || round.stage === 'gameEnd') return;
+    if (round.stage === 'roundEnd' || round.stage === 'gameEnd' || isJackSwapInProgress()) return;
     const index = player.cards.findIndex((c) => c.id === cardId);
     if (index < 0) return;
     const card = player.cards[index];
@@ -1901,17 +1940,11 @@ io.on('connection', (socket) => {
   });
 
 
-  socket.on('sayDutch', () => {
+  socket.on("sayDutch", () => {
     const player = assertPlayer(socket);
     const round = state.round;
-    const special = topSpecial();
-    if (!player || !round || !canPlayerSayDutch(player.id)) return;
-    if (round.stage === 'special' && special && special.actorId === player.id) {
-      addLog(`${player.name} skipped ${specialName(special.type)}`);
-      finishSpecial();
-    }
-    setDutchCaller(player);
-    advanceTurn();
+    if (!player || !round) return;
+    if (!callDutchForPlayer(player)) return;
     broadcastState();
   });
 
