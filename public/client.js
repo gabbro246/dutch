@@ -7,6 +7,8 @@ let hasRenderedGame = false;
 let pendingConfirm = null;
 let currentDetailsMode = '';
 const detailPreferencesByMode = {};
+const PLAYER_NAME_MAX_LENGTH = 10;
+const GAME_DESCRIPTION = 'Play the card game Dutch against other people or bots.';
 
 function getPlayerToken() {
   try {
@@ -69,6 +71,16 @@ function repoLink(version = '') {
   return `<p class="repo-link"><a href="https://github.com/gabbro246/dutch" target="_blank" rel="noopener">github.com/gabbro246/dutch</a>${versionText}</p>`;
 }
 
+function gameStartedText(startedAt) {
+  if (!startedAt) return '';
+  const started = new Date(startedAt);
+  if (Number.isNaN(started.getTime())) return '';
+  const minutes = Math.max(0, Math.floor((Date.now() - started.getTime()) / 60000));
+  const elapsed = minutes === 0 ? 'just now' : minutes === 1 ? '1 min ago' : minutes + ' min ago';
+  const time = started.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return '<p class="hint">Started ' + escapeHtml(time) + ' (' + escapeHtml(elapsed) + ')</p>';
+}
+
 function playerNameTaken(state, name) {
   const normalized = String(name || '').trim().toLocaleLowerCase();
   if (!normalized) return false;
@@ -84,10 +96,15 @@ function canJoinWithName(state, name) {
 
 function render(state) {
   if (!state.joined && state.phase === 'playing') {
+    const gameStarted = gameStartedText(state.gameStartedAt);
     app.innerHTML = `
       <div class="page waiting-page">
         <h1 class="app-title">Dutch! 🂡</h1>
-        <div class="waiting-panel"><p>${escapeHtml(state.waitingMessage)}</p></div>
+        <div class="waiting-panel">
+          <p class="waiting-description">${escapeHtml(GAME_DESCRIPTION)}</p>
+          <p>${escapeHtml(state.waitingMessage)}</p>
+          ${gameStarted}
+        </div>
         ${repoLink(state.version)}
       </div>
     `;
@@ -130,10 +147,10 @@ function renderWaiting(state) {
     <div class="page waiting-page">
       <h1 class="app-title">Dutch! 🂡</h1>
       <div class="waiting-panel">
-        <p class="waiting-description">A quick online Dutch card game for people who join the room, bots, or a mix of both.</p>
+        <p class="waiting-description">${escapeHtml(GAME_DESCRIPTION)}</p>
         <div class="waiting-controls">
           <div class="row join-row">
-            <input id="nameInput" placeholder="Name" maxlength="12" value="${joined && me ? escapeHtml(me.name) : ''}" ${joined ? 'disabled' : ''}>
+            <input id="nameInput" placeholder="Name" maxlength="${PLAYER_NAME_MAX_LENGTH}" value="${joined && me ? escapeHtml(me.name) : ''}" ${joined ? 'disabled' : ''}>
             <button id="joinBtn" disabled>Join</button>
             <button id="leaveBtn" ${joined ? '' : 'disabled'}>Leave</button>
           </div>
@@ -168,18 +185,18 @@ function renderWaiting(state) {
   const joinBtn = document.getElementById('joinBtn');
   if (nameInput && joinBtn) {
     nameInput.addEventListener('input', () => {
-      if (nameInput.value.length > 12) nameInput.value = nameInput.value.slice(0, 12);
+      if (nameInput.value.length > PLAYER_NAME_MAX_LENGTH) nameInput.value = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
       joinBtn.disabled = !canJoinWithName(state, nameInput.value);
     });
     joinBtn.disabled = !canJoinWithName(state, nameInput.value);
     joinBtn.addEventListener('click', () => {
       clearPendingConfirm();
-      emit('join', { name: nameInput.value.slice(0, 12), token: playerToken });
+      emit('join', { name: nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH), token: playerToken });
     });
     nameInput.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !joinBtn.disabled) {
         clearPendingConfirm();
-        emit('join', { name: nameInput.value.slice(0, 12), token: playerToken });
+        emit('join', { name: nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH), token: playerToken });
       }
     });
   }
@@ -302,7 +319,7 @@ function renderPlayerField(player, state, compact) {
       <div class="cards-row">
         ${player.cards.map((card, index) => renderCardCell(card, player.id, index, state, compact, false)).join('')}
       </div>
-      ${renderAceButton(player, state)}
+      ${renderAceActionRow(player, state)}
     </div>
   `;
 }
@@ -324,8 +341,8 @@ function renderOwnArea(player, state) {
       <div class="cards-row">
         ${player.cards.map((card, index) => renderCardCell(card, player.id, index, state, false, true)).join('')}
       </div>
+      ${renderAceActionRow(player, state)}
       <div class="row own-actions">
-        ${renderAceButton(player, state, true)}
         <button data-action="sayDutch" class="expected-action" ${r.controls.canDutch ? '' : 'disabled'}>Dutch</button>
         <button data-action="endTurn" class="expected-action" ${r.controls.canEndTurn ? "" : "disabled"}>${endTurnLabel(state)}</button>
       </div>
@@ -386,14 +403,15 @@ function renderDeckPile(state) {
   `;
 }
 
-function renderAceButton(player, state, inline = false) {
+function renderAceActionRow(player, state) {
   const protectedTarget = (state.round.protectedSpecialTargetIds || []).includes(player.id);
   const enabled = state.round.controls.canAceAdd && !protectedTarget;
-  const button = `<button data-action="aceAdd" data-player-id="${escapeHtml(player.id)}" ${enabled ? '' : 'disabled'}>${cardActionLabel('A', 'add card')}</button>`;
-  if (inline) return button;
+  if (!enabled) return '';
+  const cardCount = Math.max(player.cards.length, 1);
+  const actionWidth = (cardCount * 86) + ((cardCount - 1) * 6);
   return `
-    <div class="player-actions">
-      ${button}
+    <div class="ace-action-row" style="width: ${actionWidth}px">
+      <button data-action="aceAdd" data-player-id="${escapeHtml(player.id)}">${cardActionLabel('A', 'add card')}</button>
     </div>
   `;
 }
@@ -419,16 +437,18 @@ function stackPile(r) {
 
 function renderCardCell(card, ownerId, index, state, compact, own) {
   const r = state.round;
-  const protectedTarget = (r.protectedSpecialTargetIds || []).includes(ownerId);
   const buttons = [];
+  const showingStartPeek = own && r.stage === "peek" && r.controls.canPeekStart;
   const startPeekDisabled = !r.controls.canPeekStart || !!card.startPeeked;
-  if (own) {
-    buttons.push(`<button data-action="peekStart" class="expected-action" data-card-id="${card.id}" ${startPeekDisabled ? 'disabled' : ''}>Peek</button>`);
-    buttons.push(`<button data-action="swapDrawn" data-card-id="${card.id}" ${r.controls.canSwapDrawn ? '' : 'disabled'}>Swap</button>`);
-    buttons.push(`<button data-action="throwIn" data-card-id="${card.id}" ${r.controls.canThrowIn ? '' : 'disabled'}>Throw in</button>`);
+  if (showingStartPeek) {
+    buttons.push(`<button data-action="peekStart" class="expected-action" data-card-id="${card.id}" ${startPeekDisabled ? "disabled" : ""}>Peek</button>`);
   }
-  buttons.push(`<button data-action="queenPeek" data-card-id="${card.id}" ${r.controls.canQueenPeek ? '' : 'disabled'}>${cardActionLabel('Q', 'peek')}</button>`);
-  buttons.push("<button data-action=\"jackSelect\" data-card-id=\"" + escapeHtml(card.id) + "\" " + (r.controls.canJackSwap && !protectedTarget ? "" : "disabled") + ">" + cardActionLabel('J', 'swap') + "</button>");
+  if (own) {
+    buttons.push(`<button data-action="swapDrawn" data-card-id="${card.id}" ${r.controls.canSwapDrawn ? "" : "disabled"}>Swap</button>`);
+    buttons.push(`<button data-action="throwIn" data-card-id="${card.id}" ${r.controls.canThrowIn ? "" : "disabled"}>Throw in</button>`);
+  }
+  const specialAction = showingStartPeek ? "" : renderCardSpecialAction(card, ownerId, r);
+  if (specialAction) buttons.push(specialAction);
 
   const selected = r.special && r.special.selected && r.special.selected.includes(card.id);
   return `
@@ -437,6 +457,18 @@ function renderCardCell(card, ownerId, index, state, compact, own) {
       <div class="card-buttons">${buttons.join('')}</div>
     </div>
   `;
+}
+
+function renderCardSpecialAction(card, ownerId, r) {
+  const protectedTarget = (r.protectedSpecialTargetIds || []).includes(ownerId);
+  if (r.controls.canAceAdd) return '';
+  if (r.controls.canQueenPeek) {
+    return '<button data-action="queenPeek" data-card-id="' + escapeHtml(card.id) + '">' + cardActionLabel('Q', 'peek') + '</button>';
+  }
+  if (r.controls.canJackSwap && !protectedTarget) {
+    return '<button data-action="jackSelect" data-card-id="' + escapeHtml(card.id) + '">' + cardActionLabel('J', 'swap') + '</button>';
+  }
+  return '<button class="special-action-placeholder" disabled>Action</button>';
 }
 
 function cardActionLabel(symbol, text) {

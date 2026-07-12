@@ -423,6 +423,15 @@ input, select {
   white-space: nowrap;
 }
 
+.ace-action-row {
+  max-width: 100%;
+  margin: 4px auto 0;
+}
+
+.ace-action-row button {
+  width: 100%;
+}
+
 .card-action-label { white-space: nowrap; }
 
 .card-symbol {

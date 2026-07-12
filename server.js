@@ -12,6 +12,7 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const DISCONNECT_GRACE_MS = 15 * 60 * 1000;
 const WAITING_ROOM_TIMEOUT_MS = 15 * 60 * 1000;
+const PLAYER_NAME_MAX_LENGTH = 10;
 const ADMIN_LOG_PATH = path.join(__dirname, 'usage.log');
 const APP_VERSION = packageInfo.version;
 
@@ -102,7 +103,8 @@ function freshState() {
     roundNumber: 0,
     scoreHistory: [],
     round: null,
-    waitingMessage: 'A game is already active. Join after the game ends.'
+    waitingMessage: 'A game is already active. Join after the game ends.',
+    gameStartedAt: null
   };
 }
 
@@ -765,6 +767,7 @@ function buildView(playerId) {
     canJoin: state.phase === 'waiting' && activePlayerCount() < 9 && !joined,
     canStart: state.phase === 'waiting' && hasPlayableHumanGame(),
     waitingMessage: state.phase === 'playing' && !joined ? state.waitingMessage : '',
+    gameStartedAt: state.gameStartedAt,
     players: activePlayers().map((p) => ({
       id: p.id,
       name: p.name,
@@ -1278,6 +1281,7 @@ function createOpeningDiscardAfterPeek() {
 function startGame() {
   if (state.phase !== 'waiting' || !hasPlayableHumanGame()) return;
   state.phase = 'playing';
+  state.gameStartedAt = Date.now();
   state.log = [];
   state.roundNumber = 0;
   state.scoreHistory = [];
@@ -1611,7 +1615,7 @@ io.on('connection', (socket) => {
     const tokenRaw = joinRaw && typeof joinRaw === 'object' ? joinRaw.token : '';
     const joinToken = normalizePlayerToken(tokenRaw);
     if (joinToken) socket.data.playerId = joinToken;
-    const name = String(nameRaw || '').trim().slice(0, 12);
+    const name = String(nameRaw || '').trim().slice(0, PLAYER_NAME_MAX_LENGTH);
     if (!name) return;
     if (state.phase !== 'waiting') {
       socket.emit('notice', state.waitingMessage);
