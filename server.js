@@ -16,6 +16,21 @@ const GAME_INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 const PLAYER_NAME_MAX_LENGTH = 16;
 const ADMIN_LOG_PATH = path.join(__dirname, 'usage.log');
 const APP_VERSION = packageInfo.version;
+const INDEX_PATH = path.join(__dirname, 'public', 'index.html');
+
+app.get('/', (req, res) => {
+  fs.readFile(INDEX_PATH, 'utf8', (error, html) => {
+    if (error) {
+      res.status(500).send('Could not load app.');
+      return;
+    }
+    const versionedHtml = html
+      .replace('href="styles.css"', 'href="styles.css?v=' + APP_VERSION + '"')
+      .replace('src="client.js"', 'src="client.js?v=' + APP_VERSION + '"');
+    res.set('Cache-Control', 'no-cache');
+    res.type('html').send(versionedHtml);
+  });
+});
 
 app.use(express.static('public'));
 

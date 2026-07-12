@@ -420,7 +420,6 @@ function renderPlayerField(player, state, compact) {
       <div class="cards-row">
         ${player.cards.map((card, index) => renderCardCell(card, player.id, index, state, compact, false)).join('')}
       </div>
-      ${renderAceActionRow(player, state)}
     </div>
   `;
 }
@@ -442,7 +441,6 @@ function renderOwnArea(player, state) {
       <div class="cards-row">
         ${player.cards.map((card, index) => renderCardCell(card, player.id, index, state, false, true)).join('')}
       </div>
-      ${renderAceActionRow(player, state)}
       <div class="row own-actions">
         <button data-action="sayDutch" class="expected-action" ${r.controls.canDutch ? '' : 'disabled'}>Dutch</button>
         <button data-action="endTurn" class="expected-action" ${r.controls.canEndTurn ? "" : "disabled"}>${endTurnLabel(state)}</button>
@@ -503,20 +501,6 @@ function renderDeckPile(state) {
     </section>
   `;
 }
-
-function renderAceActionRow(player, state) {
-  const protectedTarget = (state.round.protectedSpecialTargetIds || []).includes(player.id);
-  const enabled = state.round.controls.canAceAdd && !protectedTarget;
-  if (!enabled) return '';
-  const cardCount = Math.max(player.cards.length, 1);
-  const actionWidth = (cardCount * 86) + ((cardCount - 1) * 6);
-  return `
-    <div class="ace-action-row" style="width: ${actionWidth}px">
-      <button data-action="aceAdd" data-player-id="${escapeHtml(player.id)}">${cardActionLabel('A', 'add card')}</button>
-    </div>
-  `;
-}
-
 function stackBacks(count, color) {
   if (count <= 0) return '<div class="card empty-card">empty</div>';
   const shown = Math.min(3, count);
@@ -562,7 +546,9 @@ function renderCardCell(card, ownerId, index, state, compact, own) {
 
 function renderCardSpecialAction(card, ownerId, r) {
   const protectedTarget = (r.protectedSpecialTargetIds || []).includes(ownerId);
-  if (r.controls.canAceAdd) return '';
+  if (r.controls.canAceAdd && !protectedTarget) {
+    return '<button data-action="aceAdd" data-player-id="' + escapeHtml(ownerId) + '">' + cardActionLabel('A', 'add') + '</button>';
+  }
   if (r.controls.canQueenPeek) {
     return '<button data-action="queenPeek" data-card-id="' + escapeHtml(card.id) + '">' + cardActionLabel('Q', 'peek') + '</button>';
   }
