@@ -12,6 +12,7 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const DISCONNECT_GRACE_MS = 15 * 60 * 1000;
 const WAITING_ROOM_TIMEOUT_MS = 15 * 60 * 1000;
+const GAME_INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 const PLAYER_NAME_MAX_LENGTH = 10;
 const ADMIN_LOG_PATH = path.join(__dirname, 'usage.log');
 const APP_VERSION = packageInfo.version;
@@ -104,7 +105,8 @@ function freshState() {
     scoreHistory: [],
     round: null,
     waitingMessage: 'A game is already active. Join after the game ends.',
-    gameStartedAt: null
+    gameStartedAt: null,
+    lastGameActivityAt: null
   };
 }
 
@@ -112,8 +114,13 @@ function publicPlayerCount() {
   return state.players.length;
 }
 
+function markGameActivity() {
+  if (state.phase === 'playing') state.lastGameActivityAt = Date.now();
+}
+
 function addLog(text, kind = 'game') {
   if (!text) return;
+  if (kind === 'game') markGameActivity();
   if (state.round && kind === 'game') state.round.botTick = (state.round.botTick || 0) + 1;
   state.log.unshift({ text, kind });
   if (state.log.length > 80) state.log.length = 80;
@@ -714,7 +721,6 @@ function removeExpiredReveals() {
   const now = Date.now();
   state.round.reveals = state.round.reveals.filter((r) => r.until > now);
 }
-
 function revealCardTo(playerId, cardId, ms = 3000) {
   if (!state.round) return;
   state.round.reveals.push({ viewerId: playerId, cardId, until: Date.now() + ms });
@@ -1281,7 +1287,9 @@ function createOpeningDiscardAfterPeek() {
 function startGame() {
   if (state.phase !== 'waiting' || !hasPlayableHumanGame()) return;
   state.phase = 'playing';
-  state.gameStartedAt = Date.now();
+  const now = Date.now();
+  state.gameStartedAt = now;
+  state.lastGameActivityAt = now;
   state.log = [];
   state.roundNumber = 0;
   state.scoreHistory = [];
@@ -1484,6 +1492,11 @@ function handleMissingPlayers() {
 
 function purgeExpiredDisconnectedPlayers() {
   const now = Date.now();
+  if (state.phase === 'playing' && state.lastGameActivityAt && now - state.lastGameActivityAt > GAME_INACTIVITY_TIMEOUT_MS) {
+    resetToWaiting(true, 'game ended after 15 minutes without activity', { adminEvent: 'game_ended_inactivity_timeout' });
+    broadcastState();
+    return true;
+  }
   if (state.phase === 'waiting') {
     const expiredWaiting = state.players.filter((p) => !p.isBot && p.joinedAt && now - p.joinedAt > WAITING_ROOM_TIMEOUT_MS);
     if (expiredWaiting.length > 0) {
@@ -1729,6 +1742,7 @@ io.on('connection', (socket) => {
     if (player.startPeekedCardIds.includes(cardId)) return;
     if (player.startPeekedCardIds.length >= 2) return;
     player.startPeekedCardIds.push(cardId);
+    markGameActivity();
     revealCardTo(player.id, cardId, 3000);
     if (player.startPeekedCardIds.length === 2) {
       player.startPeekDone = true;
@@ -1870,6 +1884,7 @@ io.on('connection', (socket) => {
     special.selected = special.selected || [];
     if (special.selected.includes(cardId)) return;
     special.selected.push(cardId);
+    markGameActivity();
     if (special.selected.length < 2) {
       broadcastState();
       return;
