@@ -26,7 +26,7 @@ const RED_SUITS = new Set(['hearts', 'diamonds']);
 
 const BOT_PROFILES = {
   strategic: {
-    name: 'Strategic 🤖',
+    name: '🦉 Athena',
     label: 'strategic',
     cautious: 0.92,
     aggressive: 0.46,
@@ -46,7 +46,7 @@ const BOT_PROFILES = {
     knownCardUtility: 1.05
   },
   casual: {
-    name: 'Casual 🤖',
+    name: '🐑 Norman',
     label: 'casual',
     cautious: 0.60,
     aggressive: 0.48,
@@ -66,7 +66,7 @@ const BOT_PROFILES = {
     knownCardUtility: 0.60
   },
   distracted: {
-    name: 'Distracted 🤖',
+    name: '🐠 Dory',
     label: 'distracted',
     cautious: 0.38,
     aggressive: 0.50,

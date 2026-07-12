@@ -11,7 +11,7 @@ const PLAYER_NAME_MAX_LENGTH = 10;
 const GAME_DESCRIPTION = 'Play the card game Dutch against other people or bots.';
 const BOT_PERSONALITIES = {
   strategic: {
-    summary: 'Tracks cards carefully and waits for strong swaps.',
+    summary: 'Tracks cards carefully, waits for strong swaps, and rarely moves without a reason.',
     stats: [
       ['Memory', 9],
       ['Tempo', 8],
@@ -21,7 +21,7 @@ const BOT_PERSONALITIES = {
     ]
   },
   casual: {
-    summary: 'Balanced choices with a relaxed read of the table.',
+    summary: 'Makes balanced choices with a relaxed read of the table and a steady sense of timing.',
     stats: [
       ['Memory', 6],
       ['Tempo', 5],
@@ -31,7 +31,7 @@ const BOT_PERSONALITIES = {
     ]
   },
   distracted: {
-    summary: 'Erratic and bold, with loose card tracking.',
+    summary: 'Plays erratically and boldly, with loose card tracking and a weakness for tempting moves.',
     stats: [
       ['Memory', 3],
       ['Tempo', 3],
@@ -148,9 +148,9 @@ function render(state) {
 
 function botTypeLabel(type) {
   return {
-    strategic: 'Strategic 🤖',
-    casual: 'Casual 🤖',
-    distracted: 'Distracted 🤖'
+    strategic: '🦉 Athena',
+    casual: '🐑 Norman',
+    distracted: '🐠 Dory'
   }[type] || 'Bot';
 }
 
@@ -165,7 +165,6 @@ function renderBotPersonality(type) {
     "</div>"
   )).join("");
   return "<div id=\"botPersonality\" class=\"bot-personality\">" +
-    "<div class=\"bot-personality-title\">" + escapeHtml(botTypeLabel(type)) + "</div>" +
     "<p>" + escapeHtml(personality.summary) + "</p>" +
     "<div class=\"bot-stats\">" + stats + "</div>" +
   "</div>";
