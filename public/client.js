@@ -9,6 +9,38 @@ let currentDetailsMode = '';
 const detailPreferencesByMode = {};
 const PLAYER_NAME_MAX_LENGTH = 10;
 const GAME_DESCRIPTION = 'Play the card game Dutch against other people or bots.';
+const BOT_PERSONALITIES = {
+  strategic: {
+    summary: 'Tracks cards carefully and waits for strong swaps.',
+    stats: [
+      ['Memory', 9],
+      ['Tempo', 8],
+      ['Risk', 4],
+      ['Pressure', 7],
+      ['Discipline', 9]
+    ]
+  },
+  casual: {
+    summary: 'Balanced choices with a relaxed read of the table.',
+    stats: [
+      ['Memory', 6],
+      ['Tempo', 5],
+      ['Risk', 5],
+      ['Pressure', 5],
+      ['Discipline', 5]
+    ]
+  },
+  distracted: {
+    summary: 'Erratic and bold, with loose card tracking.',
+    stats: [
+      ['Memory', 3],
+      ['Tempo', 3],
+      ['Risk', 8],
+      ['Pressure', 3],
+      ['Discipline', 2]
+    ]
+  }
+};
 
 function getPlayerToken() {
   try {
@@ -122,11 +154,28 @@ function botTypeLabel(type) {
   }[type] || 'Bot';
 }
 
+function renderBotPersonality(type) {
+  const personality = BOT_PERSONALITIES[type];
+  if (!personality) return "";
+  const stats = personality.stats.map(([label, value]) => (
+    "<div class=\"bot-stat\">" +
+      "<span class=\"bot-stat-name\">" + escapeHtml(label) + "</span>" +
+      "<span class=\"bot-stat-bar\" aria-hidden=\"true\"><span style=\"width: " + (value * 10) + "%\"></span></span>" +
+      "<span class=\"bot-stat-value\">" + escapeHtml(value + "/10") + "</span>" +
+    "</div>"
+  )).join("");
+  return "<div id=\"botPersonality\" class=\"bot-personality\">" +
+    "<div class=\"bot-personality-title\">" + escapeHtml(botTypeLabel(type)) + "</div>" +
+    "<p>" + escapeHtml(personality.summary) + "</p>" +
+    "<div class=\"bot-stats\">" + stats + "</div>" +
+  "</div>";
+}
+
 function renderWaiting(state) {
   const botTypes = ['strategic', 'casual', 'distracted'];
   const usedBotTypes = new Set(state.players.filter((p) => p.isBot).map((p) => p.botType));
   const firstAvailableBot = botTypes.find((type) => !usedBotTypes.has(type));
-  const botOptions = botTypes.map((type) => `
+  const botOptions = '<option value="" selected>Choose bot...</option>' + botTypes.map((type) => `
     <option value="${escapeHtml(type)}" ${usedBotTypes.has(type) ? 'disabled' : ''}>${escapeHtml(botTypeLabel(type))}</option>
   `).join('');
   const players = state.players.map((p, index) => {
@@ -158,8 +207,9 @@ function renderWaiting(state) {
             <select id="botTypeSelect" ${joined && firstAvailableBot && state.players.length < 9 ? '' : 'disabled'}>
               ${botOptions}
             </select>
-            <button id="addBotBtn" ${joined && firstAvailableBot && state.players.length < 9 ? '' : 'disabled'}>Add bot</button>
+            <button id="addBotBtn" disabled>Add bot</button>
           </div>
+          <div id="botPersonalitySlot"></div>
         </div>
         <div class="player-list">
           ${players || '<p class="hint">No players yet. Join to choose settings and add bots.</p>'}
@@ -205,8 +255,15 @@ function renderWaiting(state) {
   const botTypeSelect = document.getElementById('botTypeSelect');
   const addBotBtn = document.getElementById('addBotBtn');
   if (botTypeSelect && addBotBtn) {
-    const availableOption = Array.from(botTypeSelect.options).find((option) => !option.disabled);
-    if (availableOption) botTypeSelect.value = availableOption.value;
+    const botPersonalitySlot = document.getElementById('botPersonalitySlot');
+    const updateBotPersonality = () => {
+      const selectedOption = botTypeSelect.selectedOptions[0];
+      const type = selectedOption && !selectedOption.disabled ? botTypeSelect.value : '';
+      if (botPersonalitySlot) botPersonalitySlot.innerHTML = renderBotPersonality(type);
+      addBotBtn.disabled = !type || !joined || state.players.length >= 9;
+    };
+    updateBotPersonality();
+    botTypeSelect.addEventListener('change', updateBotPersonality);
     addBotBtn.addEventListener('click', () => {
       clearPendingConfirm();
       emit('addBot', botTypeSelect.value);

@@ -118,6 +118,62 @@ input, select {
   flex: 0 0 auto;
 }
 
+.bot-personality {
+  border: 1px solid #e3e5e8;
+  border-radius: 8px;
+  padding: 9px;
+  background: #fafbfc;
+}
+
+.bot-personality-title {
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.bot-personality p {
+  margin: 0 0 8px;
+  color: #5f6368;
+  font-size: 12px;
+}
+
+.bot-stats {
+  display: grid;
+  gap: 5px;
+}
+
+.bot-stat {
+  display: grid;
+  grid-template-columns: 72px minmax(70px, 1fr) 38px;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.bot-stat-name,
+.bot-stat-value {
+  color: #3c4043;
+  white-space: nowrap;
+}
+
+.bot-stat-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.bot-stat-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: #e3e5e8;
+  overflow: hidden;
+}
+
+.bot-stat-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-color);
+}
+
 .waiting-controls {
   display: flex;
   flex-direction: column;
