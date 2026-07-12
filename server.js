@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 const DISCONNECT_GRACE_MS = 15 * 60 * 1000;
 const WAITING_ROOM_TIMEOUT_MS = 15 * 60 * 1000;
 const GAME_INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
-const PLAYER_NAME_MAX_LENGTH = 10;
+const PLAYER_NAME_MAX_LENGTH = 16;
 const ADMIN_LOG_PATH = path.join(__dirname, 'usage.log');
 const APP_VERSION = packageInfo.version;
 
@@ -162,6 +162,45 @@ function hostAddresses() {
     .flat()
     .filter((address) => address && address.family === 'IPv4' && !address.internal)
     .map((address) => "http://" + address.address + ":" + PORT);
+}
+
+function nameGraphemes(value) {
+  const text = String(value || '').trim();
+  if (!text) return [];
+  if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+    return Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text), (part) => part.segment);
+  }
+  return Array.from(text);
+}
+
+function isEmojiGrapheme(value) {
+  return Array.from(String(value || '')).some((char) => {
+    const code = char.codePointAt(0);
+    return (code >= 0x1F000 && code <= 0x1FAFF) ||
+      (code >= 0x1F1E6 && code <= 0x1F1FF) ||
+      (code >= 0x2600 && code <= 0x27BF) ||
+      (code >= 0x2300 && code <= 0x23FF);
+  });
+}
+
+function shortPlayerName(name) {
+  const graphemes = nameGraphemes(name);
+  if (graphemes.length === 0) return '';
+  if (isEmojiGrapheme(graphemes[0])) return graphemes[0];
+  if (graphemes.length > 5) return graphemes.slice(0, 4).join('') + '.';
+  return graphemes.join('');
+}
+
+function normalizedShortPlayerName(name) {
+  return shortPlayerName(name).toLocaleLowerCase();
+}
+
+function playerShortNameTaken(name, ignoredId = '', ignoredBotType = '') {
+  const normalized = normalizedShortPlayerName(name);
+  if (!normalized) return false;
+  const reservedByBot = BOT_TYPES.some((type) => type !== ignoredBotType && normalizedShortPlayerName(BOT_PROFILES[type].name) === normalized);
+  if (reservedByBot) return true;
+  return activePlayers().some((player) => player.id !== ignoredId && normalizedShortPlayerName(player.name) === normalized);
 }
 
 function activePlayers() {
@@ -1908,8 +1947,8 @@ function addBotPlayer(type, requesterId = '') {
   if (activePlayerCount() >= 9) return { ok: false, message: 'The player list is full.' };
   if (activePlayers().some((p) => p.isBot && p.botType === type)) return { ok: false, message: 'That bot is already in the player list.' };
   const profile = BOT_PROFILES[type];
-  if (activePlayers().some((p) => p.name.trim().toLocaleLowerCase() === profile.name.toLocaleLowerCase())) {
-    return { ok: false, message: `${profile.name} cannot be added because that name is already used.` };
+  if (playerShortNameTaken(profile.name, `bot-${type}`, type)) {
+    return { ok: false, message: `${profile.name} cannot be added because that table name is already used.` };
   }
   state.players.push({
     id: `bot-${type}`,
@@ -1972,9 +2011,8 @@ io.on('connection', (socket) => {
     }
     if (activePlayerCount() >= 9) return;
     const playerId = playerIdForSocket(socket);
-    const duplicateName = activePlayers().some((p) => p.id !== playerId && p.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase());
-    if (duplicateName) {
-      socket.emit('notice', 'This name is already in the player list.');
+    const duplicateShortName = playerShortNameTaken(name, playerId);
+    if (duplicateShortName) {
       broadcastState();
       return;
     }

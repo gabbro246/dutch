@@ -7,8 +7,15 @@ let hasRenderedGame = false;
 let pendingConfirm = null;
 let currentDetailsMode = '';
 const detailPreferencesByMode = {};
-const PLAYER_NAME_MAX_LENGTH = 10;
+const PLAYER_NAME_MAX_LENGTH = 16;
 const GAME_DESCRIPTION = 'Play the card game Dutch against other people or bots.';
+const BOT_LABELS = {
+  strategic: '🦉 Athena',
+  roswell: '👽 Roswell',
+  casual: '🐑 Norman',
+  distracted: '🐠 Dory'
+};
+const BOT_NAMES = Object.values(BOT_LABELS);
 const BOT_PERSONALITIES = {
   strategic: {
     summary: 'Tracks cards carefully, waits for strong swaps, and rarely moves without a reason.',
@@ -113,6 +120,37 @@ function repoLink(version = '') {
   return `<p class="repo-link"><a href="https://github.com/gabbro246/dutch" target="_blank" rel="noopener">github.com/gabbro246/dutch</a>${versionText}</p>`;
 }
 
+function nameGraphemes(value) {
+  const text = String(value || '').trim();
+  if (!text) return [];
+  if (window.Intl && Intl.Segmenter) {
+    return Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text), (part) => part.segment);
+  }
+  return Array.from(text);
+}
+
+function isEmojiGrapheme(value) {
+  return Array.from(String(value || '')).some((char) => {
+    const code = char.codePointAt(0);
+    return (code >= 0x1F000 && code <= 0x1FAFF) ||
+      (code >= 0x1F1E6 && code <= 0x1F1FF) ||
+      (code >= 0x2600 && code <= 0x27BF) ||
+      (code >= 0x2300 && code <= 0x23FF);
+  });
+}
+
+function shortPlayerName(name) {
+  const graphemes = nameGraphemes(name);
+  if (graphemes.length === 0) return '';
+  if (isEmojiGrapheme(graphemes[0])) return graphemes[0];
+  if (graphemes.length > 5) return graphemes.slice(0, 4).join('') + '.';
+  return graphemes.join('');
+}
+
+function normalizedShortPlayerName(name) {
+  return shortPlayerName(name).toLocaleLowerCase();
+}
+
 function gameStartedText(startedAt) {
   if (!startedAt) return '';
   const started = new Date(startedAt);
@@ -124,9 +162,10 @@ function gameStartedText(startedAt) {
 }
 
 function playerNameTaken(state, name) {
-  const normalized = String(name || '').trim().toLocaleLowerCase();
+  const normalized = normalizedShortPlayerName(name);
   if (!normalized) return false;
-  return state.players.some((player) => player.name.trim().toLocaleLowerCase() === normalized && player.id !== state.you);
+  if (BOT_NAMES.some((botName) => normalizedShortPlayerName(botName) === normalized)) return true;
+  return state.players.some((player) => normalizedShortPlayerName(player.name) === normalized && player.id !== state.you);
 }
 
 function canJoinWithName(state, name) {
@@ -157,12 +196,7 @@ function render(state) {
 }
 
 function botTypeLabel(type) {
-  return {
-    strategic: '🦉 Athena',
-    roswell: '👽 Roswell',
-    casual: '🐑 Norman',
-    distracted: '🐠 Dory'
-  }[type] || 'Bot';
+  return BOT_LABELS[type] || 'Bot';
 }
 
 function renderBotPersonality(type) {
@@ -630,7 +664,7 @@ function pointsTable(state) {
   return `
     <div class="score-scroll">
       <table class="score-table">
-        <thead><tr><th>Round</th>${players.map((p) => `<th>${escapeHtml(p.name)}</th>`).join('')}</tr></thead>
+        <thead><tr><th>Round</th>${players.map((p) => `<th title="${escapeHtml(p.name)}">${escapeHtml(shortPlayerName(p.name))}</th>`).join('')}</tr></thead>
         <tbody>
           ${historyRows || '<tr><th>Round</th><td colspan="99">No completed rounds yet.</td></tr>'}
         </tbody>
