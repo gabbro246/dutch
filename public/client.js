@@ -20,6 +20,16 @@ const BOT_PERSONALITIES = {
       ['Discipline', 9]
     ]
   },
+  roswell: {
+    summary: 'Reads the table relentlessly, exploits exact-score tricks, and almost never gives away value.',
+    stats: [
+      ['Memory', 10],
+      ['Tempo', 10],
+      ['Risk', 5],
+      ['Pressure', 10],
+      ['Discipline', 10]
+    ]
+  },
   casual: {
     summary: 'Makes balanced choices with a relaxed read of the table and a steady sense of timing.',
     stats: [
@@ -149,6 +159,7 @@ function render(state) {
 function botTypeLabel(type) {
   return {
     strategic: '🦉 Athena',
+    roswell: '👽 Roswell',
     casual: '🐑 Norman',
     distracted: '🐠 Dory'
   }[type] || 'Bot';
@@ -171,7 +182,7 @@ function renderBotPersonality(type) {
 }
 
 function renderWaiting(state) {
-  const botTypes = ['strategic', 'casual', 'distracted'];
+  const botTypes = ['strategic', 'roswell', 'casual', 'distracted'];
   const usedBotTypes = new Set(state.players.filter((p) => p.isBot).map((p) => p.botType));
   const firstAvailableBot = botTypes.find((type) => !usedBotTypes.has(type));
   const botOptions = '<option value="" selected>Choose bot...</option>' + botTypes.map((type) => `
