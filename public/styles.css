@@ -519,6 +519,13 @@ summary {
   margin-bottom: 2px;
 }
 
+.log-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
 .log-toggle {
   appearance: none;
   border: 0;
@@ -554,8 +561,13 @@ summary {
 .score-table td {
   border-bottom: 1px solid #e3e5e8;
   padding: 5px 6px;
-  text-align: left;
+  text-align: center;
   white-space: nowrap;
+}
+
+.score-table th:first-child,
+.score-table td:first-child {
+  text-align: left;
 }
 
 .score-table th {

@@ -628,10 +628,116 @@ function renderLog(state) {
     const moveNumber = lines.length - index;
     return '<li value="' + moveNumber + '" class="' + (isSystem ? 'system-log' : '') + '">' + escapeHtml(line.text) + '</li>';
   }).join("");
-  const toggle = lines.length > 8
-    ? '<button type="button" class="log-toggle" data-action="toggleLog">' + (logExpanded ? 'Show less' : 'Show more') + '</button>'
+  const controls = lines.length > 8
+    ? '<div class="log-controls">' +
+        (logExpanded ? '<button type="button" class="log-toggle" data-action="downloadLog">Download game logs</button>' : '') +
+        '<button type="button" class="log-toggle" data-action="toggleLog">' + (logExpanded ? 'Show less' : 'Show more') + '</button>' +
+      '</div>'
     : "";
-  return '<ol class="log">' + items + '</ol>' + toggle;
+  return '<ol class="log">' + items + '</ol>' + controls;
+}
+
+function logTimestamp(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return date.getFullYear() + '-' +
+    pad(date.getMonth() + 1) + '-' +
+    pad(date.getDate()) + '_' +
+    pad(date.getHours()) + '-' +
+    pad(date.getMinutes()) + '-' +
+    pad(date.getSeconds());
+}
+
+function logEntryTimeMs(entry) {
+  if (!entry || typeof entry === "string") return null;
+  const ms = Date.parse(entry.at || "");
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function logRelativeBaseMs(lines) {
+  const times = lines.map(logEntryTimeMs).filter(Number.isFinite);
+  return times.length ? Math.min(...times) : null;
+}
+
+function formatRelativeLogTime(ms, baseMs) {
+  if (!Number.isFinite(ms) || !Number.isFinite(baseMs)) return "+--:--.---";
+  const elapsed = Math.max(0, ms - baseMs);
+  const milliseconds = elapsed % 1000;
+  const totalSeconds = Math.floor(elapsed / 1000);
+  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const minutes = totalMinutes % 60;
+  const hours = Math.floor(totalMinutes / 60);
+  const pad = (value, size = 2) => String(value).padStart(size, "0");
+  const clock = hours > 0
+    ? hours + ":" + pad(minutes) + ":" + pad(seconds)
+    : pad(minutes) + ":" + pad(seconds);
+  return "+" + clock + "." + pad(milliseconds, 3);
+}
+
+function logLinesForDownload(state) {
+  const lines = state && Array.isArray(state.log) ? state.log : [];
+  const relativeBaseMs = logRelativeBaseMs(lines);
+  const orderedLines = lines.slice().reverse();
+  return orderedLines.map((entry, index) => {
+    const line = typeof entry === "string" ? { text: entry, kind: "game" } : entry;
+    const moveNumber = index + 1;
+    const kind = line.kind && line.kind !== "game" ? " [" + line.kind + "]" : "";
+    return formatRelativeLogTime(logEntryTimeMs(line), relativeBaseMs) + " " + moveNumber + "." + kind + " " + String(line.text || "");
+  });
+}
+
+function scoreHistoryForDownload(state) {
+  const history = state && Array.isArray(state.scoreHistory) ? state.scoreHistory : [];
+  if (history.length === 0) return ["No completed rounds yet."];
+  const playerNames = [];
+  for (const entry of history) {
+    for (const player of entry.players || []) {
+      if (!playerNames.includes(player.name)) playerNames.push(player.name);
+    }
+  }
+  const rows = ["Round | " + playerNames.join(" | ")];
+  rows.push(["---", ...playerNames.map(() => "---")].join(" | "));
+  for (const entry of history) {
+    rows.push([
+      "Round " + entry.round,
+      ...playerNames.map((name) => {
+        const player = (entry.players || []).find((item) => item.name === name);
+        return player ? String(player.total) : "";
+      })
+    ].join(" | "));
+  }
+  return rows;
+}
+
+function gameStartedLogTimestamp(state, fallbackDate = new Date()) {
+  if (!state || !state.gameStartedAt) return logTimestamp(fallbackDate);
+  const startedAt = new Date(state.gameStartedAt);
+  return Number.isNaN(startedAt.getTime()) ? logTimestamp(fallbackDate) : logTimestamp(startedAt);
+}
+
+function downloadLogFile(state) {
+  const exportedTimestamp = logTimestamp();
+  const startedTimestamp = gameStartedLogTimestamp(state);
+  const title = "Dutch game log " + startedTimestamp;
+  const body = [
+    title,
+    "Exported: " + exportedTimestamp,
+    "",
+    "Points table:",
+    ...scoreHistoryForDownload(state),
+    "",
+    "Game log:",
+    ...logLinesForDownload(state)
+  ].join("\n") + "\n";
+  const blob = new Blob([body], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "dutch-game-log-" + startedTimestamp + ".txt";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function pointsTable(state) {
@@ -707,6 +813,10 @@ function wireGameButtons() {
       if (action === "toggleLog") {
         logExpanded = !logExpanded;
         if (lastState) render(lastState);
+        return;
+      }
+      if (action === "downloadLog") {
+        downloadLogFile(lastState);
         return;
       }
       const cardId = button.dataset.cardId;

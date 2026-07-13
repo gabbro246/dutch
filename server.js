@@ -15,6 +15,7 @@ const WAITING_ROOM_TIMEOUT_MS = 15 * 60 * 1000;
 const GAME_INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 const PLAYER_NAME_MAX_LENGTH = 16;
 const ADMIN_LOG_PATH = path.join(__dirname, 'usage.log');
+const GAME_LOG_DIR = path.join(__dirname, 'game-logs');
 const APP_VERSION = packageInfo.version;
 const INDEX_PATH = path.join(__dirname, 'public', 'index.html');
 
@@ -157,7 +158,7 @@ function addLog(text, kind = 'game') {
   if (!text) return;
   if (kind === 'game') markGameActivity();
   if (state.round && kind === 'game') state.round.botTick = (state.round.botTick || 0) + 1;
-  state.log.unshift({ text, kind });
+  state.log.unshift({ text, kind, at: new Date().toISOString() });
 }
 
 function adminLog(event, data = {}) {
@@ -168,6 +169,118 @@ function adminLog(event, data = {}) {
   };
   fs.appendFile(ADMIN_LOG_PATH, JSON.stringify(entry) + '\n', (error) => {
     if (error) console.error('Could not write admin usage log:', error.message);
+  });
+}
+
+function gameLogTimestamp(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return date.getFullYear() + "-" +
+    pad(date.getMonth() + 1) + "-" +
+    pad(date.getDate()) + "_" +
+    pad(date.getHours()) + "-" +
+    pad(date.getMinutes()) + "-" +
+    pad(date.getSeconds());
+}
+
+function gameLogStartDate(fallbackDate = new Date()) {
+  if (!state.gameStartedAt) return fallbackDate;
+  const startedAt = new Date(state.gameStartedAt);
+  return Number.isNaN(startedAt.getTime()) ? fallbackDate : startedAt;
+}
+
+function logEntryTimeMs(entry) {
+  if (!entry || typeof entry === "string") return null;
+  const ms = Date.parse(entry.at || "");
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function logRelativeBaseMs(lines) {
+  const times = lines.map(logEntryTimeMs).filter(Number.isFinite);
+  return times.length ? Math.min(...times) : null;
+}
+
+function formatRelativeLogTime(ms, baseMs) {
+  if (!Number.isFinite(ms) || !Number.isFinite(baseMs)) return "+--:--.---";
+  const elapsed = Math.max(0, ms - baseMs);
+  const milliseconds = elapsed % 1000;
+  const totalSeconds = Math.floor(elapsed / 1000);
+  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const minutes = totalMinutes % 60;
+  const hours = Math.floor(totalMinutes / 60);
+  const pad = (value, size = 2) => String(value).padStart(size, "0");
+  const clock = hours > 0
+    ? hours + ":" + pad(minutes) + ":" + pad(seconds)
+    : pad(minutes) + ":" + pad(seconds);
+  return "+" + clock + "." + pad(milliseconds, 3);
+}
+
+function gameLogLineText(entry, index, baseMs) {
+  const line = typeof entry === "string" ? { text: entry, kind: "game" } : entry;
+  const moveNumber = index + 1;
+  const kind = line.kind && line.kind !== "game" ? " [" + line.kind + "]" : "";
+  return formatRelativeLogTime(logEntryTimeMs(line), baseMs) + " " + moveNumber + "." + kind + " " + String(line.text || "");
+}
+
+function scoreHistoryForLog() {
+  const history = state.scoreHistory || [];
+  if (history.length === 0) return ["No completed rounds yet."];
+  const playerNames = [];
+  for (const entry of history) {
+    for (const player of entry.players || []) {
+      if (!playerNames.includes(player.name)) playerNames.push(player.name);
+    }
+  }
+  const rows = ["Round | " + playerNames.join(" | ")];
+  rows.push(["---", ...playerNames.map(() => "---")].join(" | "));
+  for (const entry of history) {
+    rows.push([
+      "Round " + entry.round,
+      ...playerNames.map((name) => {
+        const player = (entry.players || []).find((item) => item.name === name);
+        return player ? String(player.total) : "";
+      })
+    ].join(" | "));
+  }
+  return rows;
+}
+
+function finishedGameLogText(savedAt, winnerName) {
+  const startedTimestamp = gameLogTimestamp(gameLogStartDate(savedAt));
+  const exportedTimestamp = gameLogTimestamp(savedAt);
+  const title = "Dutch game log " + startedTimestamp;
+  const lines = state.log || [];
+  const relativeBaseMs = logRelativeBaseMs(lines);
+  const orderedLines = lines.slice().reverse();
+  return [
+    title,
+    "Exported: " + exportedTimestamp,
+    "Winner: " + (winnerName || "No one"),
+    "Target: " + state.gameTarget,
+    "Rounds: " + state.roundNumber,
+    "",
+    "Points table:",
+    ...scoreHistoryForLog(),
+    "",
+    "Game log:",
+    ...orderedLines.map((entry, index) => gameLogLineText(entry, index, relativeBaseMs))
+  ].join("\n") + "\n";
+}
+
+function saveFinishedGameLog(winnerName) {
+  const savedAt = new Date();
+  const timestamp = gameLogTimestamp(gameLogStartDate(savedAt));
+  const filename = "dutch-game-log-" + timestamp + ".txt";
+  const filePath = path.join(GAME_LOG_DIR, filename);
+  const content = finishedGameLogText(savedAt, winnerName);
+  fs.mkdir(GAME_LOG_DIR, { recursive: true }, (dirError) => {
+    if (dirError) {
+      console.error("Could not create game log directory:", dirError.message);
+      return;
+    }
+    fs.writeFile(filePath, content, "utf8", (writeError) => {
+      if (writeError) console.error("Could not write finished game log:", writeError.message);
+    });
   });
 }
 
@@ -1657,7 +1770,7 @@ function startRound() {
   }
 
   syncBotMemories();
-  addLog(`round ${state.roundNumber} started`);
+  addLog(`round ${state.roundNumber} started`, "system");
 }
 
 function createOpeningDiscardAfterPeek() {
@@ -1690,7 +1803,7 @@ function startGame() {
   }
   const names = activePlayers().map((p) => p.name);
   adminLog('game_started', { players: names, target: state.gameTarget });
-  addLog('game started');
+  addLog('game started', 'system');
   startRound();
 }
 
@@ -1800,15 +1913,16 @@ function endRound() {
     .filter((p) => p.roundPoints === bestRoundScore)
     .map((p) => p.id);
 
-  addLog('round ended. ' + roundPointChanges.join(', '));
+  addLog('round ended. ' + roundPointChanges.join(', '), 'system');
 
   const loser = scoringPlayers.find((p) => p.total > state.gameTarget);
   if (loser) {
     round.stage = 'gameEnd';
     const winner = scoringPlayers.slice().sort((a, b) => a.total - b.total)[0];
     round.winnerId = winner ? winner.id : null;
-    addLog(`game ended. ${winner ? winner.name : 'No one'} won`);
+    addLog(`game ended. ${winner ? winner.name : 'No one'} won`, 'system');
     adminLog('game_ended_by_score', { target: state.gameTarget, winner: winner ? winner.name : null, scores: scoreSnapshot() });
+    saveFinishedGameLog(winner ? winner.name : null);
   }
 }
 
