@@ -4,61 +4,37 @@ const PLAYER_TOKEN_KEY = 'dutchPlayerSessionToken';
 const playerToken = getPlayerToken();
 let lastState = null;
 let hasRenderedGame = false;
-let pendingConfirm = null;
 let currentDetailsMode = '';
 let logExpanded = false;
 const detailPreferencesByMode = {};
-const PLAYER_NAME_MAX_LENGTH = 16;
-const GAME_DESCRIPTION = 'Play the card game Dutch against other people or bots.';
-const BOT_LABELS = {
-  strategic: '🦉 Athena',
-  roswell: '👽 Roswell',
-  casual: '🐑 Norman',
-  distracted: '🐠 Dory'
-};
+const {
+  PLAYER_NAME_MAX_LENGTH,
+  GAME_DESCRIPTION,
+  BOT_LABELS,
+  BOT_PERSONALITIES,
+  normalizedShortPlayerName,
+  shortPlayerName,
+  specialLabel,
+  logTimestamp,
+  logEntryTimeMs,
+  logRelativeBaseMs,
+  formatRelativeLogTime,
+  scoreHistoryRows,
+  quickRulesHtml,
+  fullRulesHtml
+} = window.DutchShared;
 const BOT_NAMES = Object.values(BOT_LABELS);
-const BOT_PERSONALITIES = {
-  strategic: {
-    summary: 'Tracks cards carefully, waits for strong swaps, and rarely moves without a reason.',
-    stats: [
-      ['Memory', 9],
-      ['Tempo', 8],
-      ['Risk', 4],
-      ['Pressure', 7],
-      ['Discipline', 9]
-    ]
-  },
-  roswell: {
-    summary: 'Reads the table relentlessly, exploits exact-score tricks, and almost never gives away value.',
-    stats: [
-      ['Memory', 10],
-      ['Tempo', 10],
-      ['Risk', 5],
-      ['Pressure', 10],
-      ['Discipline', 10]
-    ]
-  },
-  casual: {
-    summary: 'Makes balanced choices with a relaxed read of the table and a steady sense of timing.',
-    stats: [
-      ['Memory', 6],
-      ['Tempo', 5],
-      ['Risk', 5],
-      ['Pressure', 5],
-      ['Discipline', 5]
-    ]
-  },
-  distracted: {
-    summary: 'Plays erratically and boldly, with loose card tracking and a weakness for tempting moves.',
-    stats: [
-      ['Memory', 3],
-      ['Tempo', 3],
-      ['Risk', 8],
-      ['Pressure', 3],
-      ['Discipline', 2]
-    ]
-  }
-};
+const clientActions = window.DutchClientActions.create({
+  emit,
+  render,
+  escapeHtml,
+  downloadLogFile,
+  detailPreferencesByMode,
+  getDetailsMode: () => currentDetailsMode,
+  getLastState: () => lastState,
+  getLogExpanded: () => logExpanded,
+  setLogExpanded: (value) => { logExpanded = value; }
+});
 
 function getPlayerToken() {
   try {
@@ -119,37 +95,6 @@ function attrsToText(attrs = {}) {
 function repoLink(version = '') {
   const versionText = version ? ` <span class="version-label">v${escapeHtml(version)}</span>` : '';
   return `<p class="repo-link"><a href="https://github.com/gabbro246/dutch" target="_blank" rel="noopener">github.com/gabbro246/dutch</a>${versionText}</p>`;
-}
-
-function nameGraphemes(value) {
-  const text = String(value || '').trim();
-  if (!text) return [];
-  if (window.Intl && Intl.Segmenter) {
-    return Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text), (part) => part.segment);
-  }
-  return Array.from(text);
-}
-
-function isEmojiGrapheme(value) {
-  return Array.from(String(value || '')).some((char) => {
-    const code = char.codePointAt(0);
-    return (code >= 0x1F000 && code <= 0x1FAFF) ||
-      (code >= 0x1F1E6 && code <= 0x1F1FF) ||
-      (code >= 0x2600 && code <= 0x27BF) ||
-      (code >= 0x2300 && code <= 0x23FF);
-  });
-}
-
-function shortPlayerName(name) {
-  const graphemes = nameGraphemes(name);
-  if (graphemes.length === 0) return '';
-  if (isEmojiGrapheme(graphemes[0])) return graphemes[0];
-  if (graphemes.length > 5) return graphemes.slice(0, 4).join('') + '.';
-  return graphemes.join('');
-}
-
-function normalizedShortPlayerName(name) {
-  return shortPlayerName(name).toLocaleLowerCase();
 }
 
 function gameStartedText(startedAt) {
@@ -220,6 +165,7 @@ function renderWaiting(state) {
   const botTypes = ['strategic', 'roswell', 'casual', 'distracted'];
   const usedBotTypes = new Set(state.players.filter((p) => p.isBot).map((p) => p.botType));
   const firstAvailableBot = botTypes.find((type) => !usedBotTypes.has(type));
+  const startDisabled = state.canStart === false || state.joined === false;
   const botOptions = '<option value="" selected>Choose bot...</option>' + botTypes.map((type) => `
     <option value="${escapeHtml(type)}" ${usedBotTypes.has(type) ? 'disabled' : ''}>${escapeHtml(botTypeLabel(type))}</option>
   `).join('');
@@ -252,7 +198,7 @@ function renderWaiting(state) {
             <select id="botTypeSelect" ${joined && firstAvailableBot && state.players.length < 9 ? '' : 'disabled'}>
               ${botOptions}
             </select>
-            <button id="addBotBtn" disabled>Add bot</button>
+            <button id="addBotBtn" class="expected-action" disabled>Add bot</button>
           </div>
           <div id="botPersonalitySlot"></div>
         </div>
@@ -270,7 +216,7 @@ function renderWaiting(state) {
             <option value="two" ${state.deckSetting === 'two' ? 'selected' : ''}>Two decks</option>
           </select>
         </div>
-        <button id="startBtn" class="expected-action" ${state.canStart && joined ? '' : 'disabled'}>Start game</button>
+        <button id="startBtn" class="expected-action" ${startDisabled ? 'disabled' : ''}>Start game</button>
       </div>
       ${repoLink(state.version)}
     </div>
@@ -285,18 +231,18 @@ function renderWaiting(state) {
     });
     joinBtn.disabled = !canJoinWithName(state, nameInput.value);
     joinBtn.addEventListener('click', () => {
-      clearPendingConfirm();
+      clientActions.clearPendingConfirm();
       emit('join', { name: nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH), token: playerToken });
     });
     nameInput.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !joinBtn.disabled) {
-        clearPendingConfirm();
+        clientActions.clearPendingConfirm();
         emit('join', { name: nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH), token: playerToken });
       }
     });
   }
   const leaveBtn = document.getElementById('leaveBtn');
-  if (leaveBtn) leaveBtn.addEventListener('click', () => confirmThen(leaveBtn, 'leave-waiting', 'Confirm leave', () => emit('leave')));
+  if (leaveBtn) leaveBtn.addEventListener('click', () => clientActions.confirmThen(leaveBtn, 'leave-waiting', 'Confirm leave', () => emit('leave')));
   const botTypeSelect = document.getElementById('botTypeSelect');
   const addBotBtn = document.getElementById('addBotBtn');
   if (botTypeSelect && addBotBtn) {
@@ -306,36 +252,38 @@ function renderWaiting(state) {
       const type = selectedOption && !selectedOption.disabled ? botTypeSelect.value : '';
       if (botPersonalitySlot) botPersonalitySlot.innerHTML = renderBotPersonality(type);
       addBotBtn.disabled = !type || !joined || state.players.length >= 9;
+      const startButton = document.getElementById('startBtn');
+      if (startButton) startButton.disabled = !state.canStart || !joined || !!type;
     };
     updateBotPersonality();
     botTypeSelect.addEventListener('change', updateBotPersonality);
     addBotBtn.addEventListener('click', () => {
-      clearPendingConfirm();
+      clientActions.clearPendingConfirm();
       emit('addBot', botTypeSelect.value);
     });
   }
   const deckSettingSelect = document.getElementById('deckSettingSelect');
   if (deckSettingSelect) {
     deckSettingSelect.addEventListener('change', () => {
-      clearPendingConfirm();
+      clientActions.clearPendingConfirm();
       emit('setDeckSetting', deckSettingSelect.value);
     });
   }
   const gameTargetSelect = document.getElementById('gameTargetSelect');
   if (gameTargetSelect) {
     gameTargetSelect.addEventListener('change', () => {
-      clearPendingConfirm();
+      clientActions.clearPendingConfirm();
       emit('setGameTarget', gameTargetSelect.value);
     });
   }
   document.querySelectorAll('[data-action="removeWaitingPlayer"]').forEach((button) => {
     button.addEventListener('click', () => {
-      confirmThen(button, `remove-${button.dataset.playerId}`, 'Confirm remove', () => emit('removeWaitingPlayer', button.dataset.playerId || ''));
+      clientActions.confirmThen(button, `remove-${button.dataset.playerId}`, 'Confirm remove', () => emit('removeWaitingPlayer', button.dataset.playerId || ''));
     });
   });
   const startBtn = document.getElementById('startBtn');
   if (startBtn) startBtn.addEventListener('click', () => {
-    clearPendingConfirm();
+    clientActions.clearPendingConfirm();
     emit('startGame');
   });
 }
@@ -356,7 +304,7 @@ function renderGame(state) {
       ${renderSideArea(state)}
     </div>
   `;
-  wireGameButtons(state);
+  clientActions.wireGameButtons();
 }
 
 function renderStatus(state) {
@@ -395,13 +343,6 @@ function renderStatus(state) {
       </div>
     </div>
   `;
-}
-
-function specialLabel(type) {
-  if (type === 'A') return 'Ace add card';
-  if (type === 'Q') return 'Queen peek';
-  if (type === 'J') return 'Jack swap';
-  return type;
 }
 
 function renderPlayerField(player, state, compact) {
@@ -637,43 +578,6 @@ function renderLog(state) {
   return '<ol class="log">' + items + '</ol>' + controls;
 }
 
-function logTimestamp(date = new Date()) {
-  const pad = (value) => String(value).padStart(2, '0');
-  return date.getFullYear() + '-' +
-    pad(date.getMonth() + 1) + '-' +
-    pad(date.getDate()) + '_' +
-    pad(date.getHours()) + '-' +
-    pad(date.getMinutes()) + '-' +
-    pad(date.getSeconds());
-}
-
-function logEntryTimeMs(entry) {
-  if (!entry || typeof entry === "string") return null;
-  const ms = Date.parse(entry.at || "");
-  return Number.isFinite(ms) ? ms : null;
-}
-
-function logRelativeBaseMs(lines) {
-  const times = lines.map(logEntryTimeMs).filter(Number.isFinite);
-  return times.length ? Math.min(...times) : null;
-}
-
-function formatRelativeLogTime(ms, baseMs) {
-  if (!Number.isFinite(ms) || !Number.isFinite(baseMs)) return "+--:--.---";
-  const elapsed = Math.max(0, ms - baseMs);
-  const milliseconds = elapsed % 1000;
-  const totalSeconds = Math.floor(elapsed / 1000);
-  const seconds = totalSeconds % 60;
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  const minutes = totalMinutes % 60;
-  const hours = Math.floor(totalMinutes / 60);
-  const pad = (value, size = 2) => String(value).padStart(size, "0");
-  const clock = hours > 0
-    ? hours + ":" + pad(minutes) + ":" + pad(seconds)
-    : pad(minutes) + ":" + pad(seconds);
-  return "+" + clock + "." + pad(milliseconds, 3);
-}
-
 function logLinesForDownload(state) {
   const lines = state && Array.isArray(state.log) ? state.log : [];
   const relativeBaseMs = logRelativeBaseMs(lines);
@@ -688,25 +592,7 @@ function logLinesForDownload(state) {
 
 function scoreHistoryForDownload(state) {
   const history = state && Array.isArray(state.scoreHistory) ? state.scoreHistory : [];
-  if (history.length === 0) return ["No completed rounds yet."];
-  const playerNames = [];
-  for (const entry of history) {
-    for (const player of entry.players || []) {
-      if (!playerNames.includes(player.name)) playerNames.push(player.name);
-    }
-  }
-  const rows = ["Round | " + playerNames.join(" | ")];
-  rows.push(["---", ...playerNames.map(() => "---")].join(" | "));
-  for (const entry of history) {
-    rows.push([
-      "Round " + entry.round,
-      ...playerNames.map((name) => {
-        const player = (entry.players || []).find((item) => item.name === name);
-        return player ? String(player.total) : "";
-      })
-    ].join(" | "));
-  }
-  return rows;
+  return scoreHistoryRows(history);
 }
 
 function gameStartedLogTimestamp(state, fallbackDate = new Date()) {
@@ -773,97 +659,11 @@ function pointsTable(state) {
   `;
 }
 function shortInstructions() {
-  return `
-    <p><strong>Goal:</strong> As few points as possible.</p>
-    <p><strong>Start:</strong> Each player gets 4 cards face down and may look at 2 of them. The first discard card is turned up only after everyone has finished peeking.</p>
-    <p><strong>Turn:</strong> Draw one card. Either swap it with one of your own cards or discard it again.</p>
-    <p><strong>Throwing in:</strong> Matching cards may be thrown in immediately unless the top card was itself thrown in. Wrong throw-in: one penalty card, and the top card stays open for another throw-in.</p>
-    <p><strong>Points:</strong> Number cards count their value. A=1, J=11, Q=12, ♥♦K=0, ♣♠K=13.</p>
-    <p><strong>Special cards:</strong> A may add one card to someone. Q may look at any one card. J may swap any two cards. These actions are optional.</p>
-    <p>Anyone who believes they have 5 points or less may say <strong>Dutch</strong>. After that, everyone else gets one more turn. Then reveal and count. The player with the most points in the last round starts the next round.</p>
-  `;
+  return quickRulesHtml();
 }
 
 function fullRules(state) {
-  return `
-    <p>Dutch is a card game in which players try to collect as few points as possible over several rounds. It is played with a normal deck of cards without jokers. With many players, two decks can be shuffled together.</p>
-    <p>At the beginning, each player receives four cards face down. Then each player may look at exactly two of their own cards. These cards are then placed face down again. After every player has finished peeking, one card is turned up from the draw pile to start the face-up discard pile. The remaining cards form the face-down draw pile.</p>
-    <p>Play goes in turn order. The player whose turn it is draws one card, either from the draw pile or from the discard pile. If the player takes the card from the discard pile, they must swap it with one of their own cards. If the player takes a card from the draw pile, they may either swap it with one of their own cards or place it directly face up on the discard pile. If one of their own cards is replaced, that card goes face up onto the discard pile.</p>
-    <p>Number cards count their value. Ace counts 1 point. Jack counts 11 points. Queen counts 12 points. Heart King and Diamond King count 0 points. Club King and Spade King count 13 points.</p>
-    <p>Ace, Queen, and Jack are special cards as soon as they are placed face up on the discard pile. With an Ace, the player may give any player one face-down card from the draw pile. With a Queen, the player may look at any one card. With a Jack, the player may swap any two face-down cards. These actions are optional.</p>
-    <p>If a card is lying face up on the discard pile, a player may immediately throw in by placing exactly one own face-down card onto the discard pile, if it has the same card value. Suit does not matter. Kings may be placed on each other when throwing in. A card that was thrown in cannot be thrown on again. If someone throws in wrongly and takes a penalty card, the same top card stays open for another throw-in until the next playing action.</p>
-    <p>Anyone who throws in incorrectly takes their card back and receives one unknown face-down penalty card.</p>
-    <p>If a player believes they have 5 points or less, they may say <strong>Dutch</strong> at the end of their turn. After that, every other player gets exactly one more turn. Then everyone reveals their cards and counts the points.</p>
-    <p>If the Dutch caller has 5 points or less and nobody has fewer points, they receive 0 points for that round. If they have more than 5 points or another player has fewer points, their points are doubled. All other players receive their normal points.</p>
-    <p>After each round, points are added to the total score. If a player reaches exactly 50 or exactly 100 points, their score is halved. The player with the most points in the previous round starts the next round. As soon as a player has more than ${state.gameTarget} points after scoring and halving, the game ends. The winner is the player with the fewest total points.</p>
-  `;
-}
-
-function wireGameButtons() {
-  const detailsMode = currentDetailsMode;
-  document.querySelectorAll('details[data-detail-key]').forEach((details) => {
-    details.addEventListener('toggle', () => {
-      if (!detailPreferencesByMode[detailsMode]) detailPreferencesByMode[detailsMode] = {};
-      detailPreferencesByMode[detailsMode][details.dataset.detailKey] = details.open;
-    });
-  });
-  document.querySelectorAll('[data-action]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const action = button.dataset.action;
-      if (action === "toggleLog") {
-        logExpanded = !logExpanded;
-        if (lastState) render(lastState);
-        return;
-      }
-      if (action === "downloadLog") {
-        downloadLogFile(lastState);
-        return;
-      }
-      const cardId = button.dataset.cardId;
-      const run = () => {
-        if (action === 'aceAdd') {
-          emit('aceAdd', button.dataset.playerId || '');
-          return;
-        }
-        if (cardId) emit(action, cardId);
-        else emit(action);
-      };
-      if (action === 'leave') {
-        confirmThen(button, 'leave-game', 'Confirm leave', run);
-        return;
-      }
-      if (action === 'endGameForAll') {
-        confirmThen(button, 'end-game-for-all', 'Confirm end game', run);
-        return;
-      }
-      clearPendingConfirm();
-      run();
-    });
-  });
-}
-
-function confirmThen(button, key, label, callback) {
-  if (!button || button.disabled) return;
-  if (pendingConfirm && pendingConfirm.key === key) {
-    clearPendingConfirm();
-    callback();
-    return;
-  }
-  clearPendingConfirm();
-  pendingConfirm = {
-    key,
-    button,
-    label: button.innerHTML,
-    timer: window.setTimeout(clearPendingConfirm, 3500)
-  };
-  button.innerHTML = escapeHtml(label);
-}
-
-function clearPendingConfirm() {
-  if (!pendingConfirm) return;
-  window.clearTimeout(pendingConfirm.timer);
-  if (pendingConfirm.button && pendingConfirm.button.isConnected) pendingConfirm.button.innerHTML = pendingConfirm.label;
-  pendingConfirm = null;
+  return fullRulesHtml(state.gameTarget);
 }
 
 function captureAnimationSnapshot() {

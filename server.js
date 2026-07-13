@@ -1,45 +1,42 @@
-const express = require('express');
 const fs = require('fs');
 const http = require('http');
 const os = require('os');
 const path = require('path');
 const { Server } = require('socket.io');
 const packageInfo = require('./package.json');
+const { createHttpApp } = require('./lib/http-app.js');
+const {
+  PLAYER_NAME_MAX_LENGTH,
+  SUITS,
+  RANKS,
+  SPECIAL_RANKS,
+  logTimestamp: gameLogTimestamp,
+  logEntryTimeMs,
+  logRelativeBaseMs,
+  formatRelativeLogTime,
+  scoreHistoryRows,
+  normalizedShortPlayerName,
+  shortPlayerName,
+  suitSymbol,
+  isRedSuit,
+  cardPoints,
+  specialName
+} = require('./public/shared.js');
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const DISCONNECT_GRACE_MS = 15 * 60 * 1000;
 const WAITING_ROOM_TIMEOUT_MS = 15 * 60 * 1000;
 const GAME_INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
-const PLAYER_NAME_MAX_LENGTH = 16;
 const ADMIN_LOG_PATH = path.join(__dirname, 'usage.log');
 const GAME_LOG_DIR = path.join(__dirname, 'game-logs');
 const APP_VERSION = packageInfo.version;
-const INDEX_PATH = path.join(__dirname, 'public', 'index.html');
+const PUBLIC_DIR = path.join(__dirname, 'public');
+const INDEX_PATH = path.join(PUBLIC_DIR, 'index.html');
+const app = createHttpApp({ indexPath: INDEX_PATH, publicDir: PUBLIC_DIR, appVersion: APP_VERSION });
+const server = http.createServer(app);
+const io = new Server(server);
 
-app.get('/', (req, res) => {
-  fs.readFile(INDEX_PATH, 'utf8', (error, html) => {
-    if (error) {
-      res.status(500).send('Could not load app.');
-      return;
-    }
-    const versionedHtml = html
-      .replace('href="styles.css"', 'href="styles.css?v=' + APP_VERSION + '"')
-      .replace('src="client.js"', 'src="client.js?v=' + APP_VERSION + '"');
-    res.set('Cache-Control', 'no-cache');
-    res.type('html').send(versionedHtml);
-  });
-});
-
-app.use(express.static('public'));
-
-const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
-const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-const SPECIALS = new Set(['A', 'Q', 'J']);
-const RED_SUITS = new Set(['hearts', 'diamonds']);
-
+const SPECIALS = new Set(SPECIAL_RANKS);
 const BOT_PROFILES = {
   strategic: {
     name: '🦉 Athena',
@@ -172,47 +169,10 @@ function adminLog(event, data = {}) {
   });
 }
 
-function gameLogTimestamp(date = new Date()) {
-  const pad = (value) => String(value).padStart(2, "0");
-  return date.getFullYear() + "-" +
-    pad(date.getMonth() + 1) + "-" +
-    pad(date.getDate()) + "_" +
-    pad(date.getHours()) + "-" +
-    pad(date.getMinutes()) + "-" +
-    pad(date.getSeconds());
-}
-
 function gameLogStartDate(fallbackDate = new Date()) {
   if (!state.gameStartedAt) return fallbackDate;
   const startedAt = new Date(state.gameStartedAt);
   return Number.isNaN(startedAt.getTime()) ? fallbackDate : startedAt;
-}
-
-function logEntryTimeMs(entry) {
-  if (!entry || typeof entry === "string") return null;
-  const ms = Date.parse(entry.at || "");
-  return Number.isFinite(ms) ? ms : null;
-}
-
-function logRelativeBaseMs(lines) {
-  const times = lines.map(logEntryTimeMs).filter(Number.isFinite);
-  return times.length ? Math.min(...times) : null;
-}
-
-function formatRelativeLogTime(ms, baseMs) {
-  if (!Number.isFinite(ms) || !Number.isFinite(baseMs)) return "+--:--.---";
-  const elapsed = Math.max(0, ms - baseMs);
-  const milliseconds = elapsed % 1000;
-  const totalSeconds = Math.floor(elapsed / 1000);
-  const seconds = totalSeconds % 60;
-  const totalMinutes = Math.floor(totalSeconds / 60);
-  const minutes = totalMinutes % 60;
-  const hours = Math.floor(totalMinutes / 60);
-  const pad = (value, size = 2) => String(value).padStart(size, "0");
-  const clock = hours > 0
-    ? hours + ":" + pad(minutes) + ":" + pad(seconds)
-    : pad(minutes) + ":" + pad(seconds);
-  return "+" + clock + "." + pad(milliseconds, 3);
 }
 
 function gameLogLineText(entry, index, baseMs) {
@@ -223,26 +183,7 @@ function gameLogLineText(entry, index, baseMs) {
 }
 
 function scoreHistoryForLog() {
-  const history = state.scoreHistory || [];
-  if (history.length === 0) return ["No completed rounds yet."];
-  const playerNames = [];
-  for (const entry of history) {
-    for (const player of entry.players || []) {
-      if (!playerNames.includes(player.name)) playerNames.push(player.name);
-    }
-  }
-  const rows = ["Round | " + playerNames.join(" | ")];
-  rows.push(["---", ...playerNames.map(() => "---")].join(" | "));
-  for (const entry of history) {
-    rows.push([
-      "Round " + entry.round,
-      ...playerNames.map((name) => {
-        const player = (entry.players || []).find((item) => item.name === name);
-        return player ? String(player.total) : "";
-      })
-    ].join(" | "));
-  }
-  return rows;
+  return scoreHistoryRows(state.scoreHistory || []);
 }
 
 function finishedGameLogText(savedAt, winnerName) {
@@ -289,37 +230,6 @@ function hostAddresses() {
     .flat()
     .filter((address) => address && address.family === 'IPv4' && !address.internal)
     .map((address) => "http://" + address.address + ":" + PORT);
-}
-
-function nameGraphemes(value) {
-  const text = String(value || '').trim();
-  if (!text) return [];
-  if (typeof Intl !== 'undefined' && Intl.Segmenter) {
-    return Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text), (part) => part.segment);
-  }
-  return Array.from(text);
-}
-
-function isEmojiGrapheme(value) {
-  return Array.from(String(value || '')).some((char) => {
-    const code = char.codePointAt(0);
-    return (code >= 0x1F000 && code <= 0x1FAFF) ||
-      (code >= 0x1F1E6 && code <= 0x1F1FF) ||
-      (code >= 0x2600 && code <= 0x27BF) ||
-      (code >= 0x2300 && code <= 0x23FF);
-  });
-}
-
-function shortPlayerName(name) {
-  const graphemes = nameGraphemes(name);
-  if (graphemes.length === 0) return '';
-  if (isEmojiGrapheme(graphemes[0])) return graphemes[0];
-  if (graphemes.length > 5) return graphemes.slice(0, 4).join('') + '.';
-  return graphemes.join('');
-}
-
-function normalizedShortPlayerName(name) {
-  return shortPlayerName(name).toLocaleLowerCase();
 }
 
 function playerShortNameTaken(name, ignoredId = '', ignoredBotType = '') {
@@ -429,29 +339,6 @@ function shuffle(cards) {
   }
   return cards;
 }
-
-function suitSymbol(suit) {
-  return {
-    hearts: '♥',
-    diamonds: '♦',
-    clubs: '♣',
-    spades: '♠'
-  }[suit];
-}
-
-function isRedSuit(suit) {
-  return RED_SUITS.has(suit);
-}
-
-function cardPoints(card) {
-  if (!card) return 0;
-  if (card.rank === 'A') return 1;
-  if (card.rank === 'J') return 11;
-  if (card.rank === 'Q') return 12;
-  if (card.rank === 'K') return isRedSuit(card.suit) ? 0 : 13;
-  return Number(card.rank);
-}
-
 
 function randomBetween(min, max) {
   return min + Math.random() * (max - min);
@@ -1091,10 +978,6 @@ function callDutchForPlayer(player) {
   setDutchCaller(player);
   advanceTurn();
   return true;
-}
-
-function specialName(rank) {
-  return rank === 'A' ? 'Ace' : rank === 'Q' ? 'Queen' : 'Jack';
 }
 
 function label(card) {
@@ -2113,6 +1996,13 @@ function assertPlayer(socket) {
   return findPlayer(playerIdForSocket(socket));
 }
 
+function runSocketAction(socket, action, options = {}) {
+  const player = options.requirePlayer === false ? null : assertPlayer(socket);
+  if (options.requirePlayer !== false && !player) return;
+  const result = action(player);
+  if (result !== false) broadcastState();
+}
+
 io.on('connection', (socket) => {
   socket.on('identify', (tokenRaw) => {
     const playerId = normalizePlayerToken(tokenRaw) || socket.id;
@@ -2214,32 +2104,26 @@ io.on('connection', (socket) => {
   });
 
   socket.on('setDeckSetting', (value) => {
-    if (!assertPlayer(socket)) return;
-    setDeckSetting(value);
-    broadcastState();
+    runSocketAction(socket, () => setDeckSetting(value));
   });
 
   socket.on('setGameTarget', (value) => {
-    if (!assertPlayer(socket)) return;
-    setGameTarget(value);
-    broadcastState();
+    runSocketAction(socket, () => setGameTarget(value));
   });
 
   socket.on('removeWaitingPlayer', (playerId) => {
-    if (removeWaitingPlayer(String(playerId || ''), 'was removed from the waiting room')) broadcastState();
+    runSocketAction(socket, () => removeWaitingPlayer(String(playerId || ''), 'was removed from the waiting room'), { requirePlayer: false });
   });
 
   socket.on('addBot', (typeRaw) => {
-    const player = assertPlayer(socket);
-    const result = addBotPlayer(String(typeRaw || ''), player ? player.id : '');
-    if (!result.ok && result.message) socket.emit('notice', result.message);
-    broadcastState();
+    runSocketAction(socket, (player) => {
+      const result = addBotPlayer(String(typeRaw || ''), player.id);
+      if (!result.ok && result.message) socket.emit('notice', result.message);
+    });
   });
 
   socket.on('startGame', () => {
-    if (!assertPlayer(socket)) return;
-    startGame();
-    broadcastState();
+    runSocketAction(socket, () => startGame());
   });
 
   socket.on('peekStart', (cardId) => {
@@ -2437,21 +2321,15 @@ io.on('connection', (socket) => {
   });
 
   socket.on('nextRound', () => {
-    if (!assertPlayer(socket)) return;
-    nextRound();
-    broadcastState();
+    runSocketAction(socket, () => nextRound());
   });
 
   socket.on('newGame', () => {
-    if (!assertPlayer(socket)) return;
-    resetToWaiting(true);
-    broadcastState();
+    runSocketAction(socket, () => resetToWaiting(true));
   });
 
   socket.on('endGameForAll', () => {
-    if (!assertPlayer(socket)) return;
-    resetToWaiting(true, 'game cancelled by players', { adminEvent: 'game_cancelled' });
-    broadcastState();
+    runSocketAction(socket, () => resetToWaiting(true, 'game cancelled by players', { adminEvent: 'game_cancelled' }));
   });
 
   socket.on('disconnect', () => {
