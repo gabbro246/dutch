@@ -480,7 +480,7 @@ function renderCardCell(card, ownerId, index, state, compact, own) {
   const selected = r.special && r.special.selected && r.special.selected.includes(card.id);
   return `
     <div class="card-cell" data-owner-id="${escapeHtml(ownerId)}" data-card-slot="${escapeHtml(ownerId)}:${index}">
-      ${cardHtml(card, compact, { 'data-location-key': `player:${ownerId}:${index}`, 'data-selected': selected ? 'true' : '' })}
+      ${cardHtml(card, compact, { 'data-location-key': `player:${ownerId}:${index}`, 'data-selected': selected ? 'true' : '', 'data-highlight': card.highlight || '' })}
       <div class="card-buttons">${buttons.join('')}</div>
     </div>
   `;

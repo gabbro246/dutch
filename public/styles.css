@@ -446,8 +446,12 @@ input, select {
 }
 
 .drawn-button-spacer { pointer-events: none; }
-.card[data-selected="true"] {
-  background: #fff7d6;
+.card[data-selected="true"],
+.card[data-highlight="peek"],
+.card[data-highlight="swap"] {
+  border-color: #1a73e8;
+  background: #eef4ff;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.28);
 }
 
 .card[data-drawn-card="true"] {

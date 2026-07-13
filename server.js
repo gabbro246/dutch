@@ -27,6 +27,7 @@ const PORT = process.env.PORT || 3000;
 const DISCONNECT_GRACE_MS = 15 * 60 * 1000;
 const WAITING_ROOM_TIMEOUT_MS = 15 * 60 * 1000;
 const GAME_INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+const JACK_SWAP_SELECTION_MS = 500;
 const ADMIN_LOG_PATH = path.join(__dirname, 'usage.log');
 const GAME_LOG_DIR = path.join(__dirname, 'game-logs');
 const APP_VERSION = packageInfo.version;
@@ -922,10 +923,65 @@ function topSpecial() {
   return state.round.specialQueue[0] || null;
 }
 
+function isJackSwapSelectionActive(special = topSpecial()) {
+  return !!(special && special.type === 'J' && (special.resolving || (special.selected || []).length > 0));
+}
+
 function isJackSwapInProgress() {
   const round = state.round;
+  return !!(round && round.stage === 'special' && isJackSwapSelectionActive());
+}
+
+function activeJackSpecialFor(actorId) {
+  const round = state.round;
   const special = topSpecial();
-  return !!(round && round.stage === 'special' && special && special.type === 'J' && (special.selected || []).length === 1);
+  if (!round || round.stage !== 'special' || !special || special.type !== 'J' || special.actorId !== actorId) return null;
+  return special;
+}
+
+function sameSelectedCards(a, b) {
+  return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((cardId, index) => cardId === b[index]);
+}
+
+function completeJackSwap(actorId, selectedIds) {
+  const special = activeJackSpecialFor(actorId);
+  if (!special || !sameSelectedCards(special.selected, selectedIds)) return;
+
+  const a = playerByCardId(selectedIds[0]);
+  const b = playerByCardId(selectedIds[1]);
+  if (a && b && !isProtectedSpecialTarget(a.player.id) && !isProtectedSpecialTarget(b.player.id) && a.card.id !== b.card.id) {
+    [a.player.cards[a.index], b.player.cards[b.index]] = [b.player.cards[b.index], a.player.cards[a.index]];
+    moveSlotMemoryForAllBots(a.player.id, a.index, b.player.id, b.index, 'Jack swap');
+    addLog(nameOf(actorId) + ' used Jack swap');
+    highlightCardsForAll([a.card.id, b.card.id], 'swap', 3000);
+  }
+
+  finishSpecial();
+  broadcastState();
+}
+
+function beginJackSwapResolution(actorId, selectedIds, delay = JACK_SWAP_SELECTION_MS) {
+  const special = activeJackSpecialFor(actorId);
+  const selected = (selectedIds || (special && special.selected) || []).slice(0, 2);
+  if (!special || selected.length < 2) return;
+  special.selected = selected;
+  special.resolving = true;
+  broadcastState();
+  setTimeout(() => completeJackSwap(actorId, selected), delay);
+}
+
+function beginBotJackSwapSelection(actorId, firstCardId, secondCardId) {
+  const special = activeJackSpecialFor(actorId);
+  if (!special || !firstCardId || !secondCardId || firstCardId === secondCardId) return false;
+  special.selected = [firstCardId];
+  special.resolving = true;
+  broadcastState();
+  setTimeout(() => {
+    const active = activeJackSpecialFor(actorId);
+    if (!active || !sameSelectedCards(active.selected, [firstCardId])) return;
+    beginJackSwapResolution(actorId, [firstCardId, secondCardId]);
+  }, JACK_SWAP_SELECTION_MS);
+  return true;
 }
 
 function canPlayerSayDutch(playerId) {
@@ -938,13 +994,13 @@ function canPlayerSayDutch(playerId) {
     if (!cp || cp.id !== playerId) return false;
     if (round.stage === 'turn') return true;
     const special = topSpecial();
-    return !!(round.stage === 'special' && special && special.actorId === playerId);
+    return !!(round.stage === 'special' && special && special.actorId === playerId && !isJackSwapSelectionActive(special));
   }
   if (!round.turnComplete) return false;
   if (!cp || cp.id !== playerId) return false;
   if (round.stage === 'turn') return true;
   const special = topSpecial();
-  return !!(round.stage === 'special' && special && special.actorId === playerId);
+  return !!(round.stage === 'special' && special && special.actorId === playerId && !isJackSwapSelectionActive(special));
 }
 
 function mustPlayerSayDutch(playerId) {
@@ -1007,13 +1063,33 @@ function removeExpiredReveals() {
   const now = Date.now();
   state.round.reveals = state.round.reveals.filter((r) => r.until > now);
 }
-function revealCardTo(playerId, cardId, ms = 3000) {
-  if (!state.round) return;
-  state.round.reveals.push({ viewerId: playerId, cardId, until: Date.now() + ms });
+function scheduleRevealCleanup(ms) {
   setTimeout(() => {
     removeExpiredReveals();
     broadcastState();
   }, ms + 50);
+}
+
+function revealCardTo(playerId, cardId, ms = 3000) {
+  if (!state.round) return;
+  state.round.reveals.push({ viewerId: playerId, cardId, until: Date.now() + ms });
+  scheduleRevealCleanup(ms);
+}
+
+function highlightCardForAll(cardId, kind = 'peek', ms = 3000, options = {}) {
+  if (!state.round || !cardId) return;
+  state.round.reveals.push({
+    public: true,
+    kind,
+    cardId,
+    exceptViewerId: options.exceptViewerId || '',
+    until: Date.now() + ms
+  });
+  scheduleRevealCleanup(ms);
+}
+
+function highlightCardsForAll(cardIds, kind = 'peek', ms = 3000, options = {}) {
+  for (const cardId of cardIds || []) highlightCardForAll(cardId, kind, ms, options);
 }
 
 function canViewerSeeCard(viewerId, ownerId, card) {
@@ -1021,7 +1097,19 @@ function canViewerSeeCard(viewerId, ownerId, card) {
   if (!round) return false;
   if (round.stage === 'roundEnd' || round.stage === 'gameEnd') return true;
   if (round.drawn && round.drawn.card.id === card.id && round.drawn.playerId === viewerId) return true;
-  return round.reveals.some((r) => r.viewerId === viewerId && r.cardId === card.id && r.until > Date.now());
+  return round.reveals.some((r) => !r.public && r.viewerId === viewerId && r.cardId === card.id && r.until > Date.now());
+}
+
+function cardHighlight(cardId, viewerId = '') {
+  const round = state.round;
+  if (!round || !cardId) return '';
+  const active = round.reveals.find((r) => (
+    r.public &&
+    r.cardId === cardId &&
+    r.until > Date.now() &&
+    r.exceptViewerId !== viewerId
+  ));
+  return active ? String(active.kind || 'peek') : '';
 }
 
 function publicCard(card, visible) {
@@ -1127,6 +1215,7 @@ function buildView(playerId) {
       finalTurnDone: !!(round.dutchCallerId && !['roundEnd', 'gameEnd'].includes(round.stage) && p.id !== round.dutchCallerId && !pendingDutchIds.has(p.id) && (!cp || cp.id !== p.id || round.turnComplete)),
       cards: p.cards.map((card) => {
         const view = publicCard(card, canViewerSeeCard(playerId, p.id, card));
+        if (view) view.highlight = cardHighlight(card.id, playerId);
         if (view && p.id === playerId && p.startPeekedCardIds && p.startPeekedCardIds.includes(card.id)) view.startPeeked = true;
         return view;
       })
@@ -1146,6 +1235,7 @@ function controlsFor(playerId) {
   const actorForSpecial = special && special.actorId === playerId;
   const mustDutch = mustPlayerSayDutch(playerId);
   const jackSwapInProgress = isJackSwapInProgress();
+  const jackSwapSelectionActive = isJackSwapSelectionActive(special);
   const beforeDraw = round.stage === 'turn' && isCurrent && !round.drawn && !round.turnComplete && !special && !mustDutch;
   return {
     canPeekStart: round.stage === 'peek' && !player.startPeekDone,
@@ -1154,10 +1244,10 @@ function controlsFor(playerId) {
     canSwapDrawn: round.stage === 'turn' && isCurrent && !!round.drawn && !mustDutch,
     canThrowIn: !!(round.throwIn && round.throwIn.open) && round.stage !== 'roundEnd' && round.stage !== 'gameEnd' && !jackSwapInProgress,
     canQueenPeek: round.stage === 'special' && actorForSpecial && special.type === 'Q' && !mustDutch,
-    canJackSwap: round.stage === 'special' && actorForSpecial && special.type === 'J' && !mustDutch,
+    canJackSwap: round.stage === 'special' && actorForSpecial && special.type === 'J' && !mustDutch && !special.resolving && (special.selected || []).length < 2,
     canAceAdd: round.stage === 'special' && actorForSpecial && special.type === 'A' && !mustDutch,
     canDutch: canPlayerSayDutch(playerId),
-    canEndTurn: !mustDutch && ((round.stage === 'turn' && isCurrent && round.turnComplete) || (round.stage === 'special' && actorForSpecial)),
+    canEndTurn: !mustDutch && ((round.stage === 'turn' && isCurrent && round.turnComplete) || (round.stage === 'special' && actorForSpecial && !jackSwapSelectionActive)),
     canNextRound: round.stage === 'roundEnd',
     canNewGame: round.stage === 'gameEnd'
   };
@@ -1186,7 +1276,7 @@ function scheduleBotAutomation() {
   const special = topSpecial();
   if (round.stage === 'special' && special) {
     const actor = findPlayer(special.actorId);
-    if (actor && actor.isBot) {
+    if (actor && actor.isBot && !isJackSwapSelectionActive(special)) {
       scheduleBotTimer(botScheduleKey(['special', state.roundNumber, special.type, actor.id, round.specialQueue.length]), randomBetween(650, 1800), () => botResolveSpecial(actor.id));
     }
   }
@@ -1229,6 +1319,7 @@ function botDoStartPeek(botId) {
     if (!card) continue;
     bot.startPeekedCardIds.push(card.id);
     rememberSlotForBot(bot, bot.id, index, card, 'start peek', 0.96);
+    highlightCardForAll(card.id, 'peek', 3000, { exceptViewerId: bot.id });
   }
   bot.startPeekDone = true;
   addLog(`${bot.name} finished start peek`);
@@ -1417,7 +1508,8 @@ function botUseQueen(bot) {
   const card = target.player.cards[target.index];
   if (!card) return botSkipSpecial(bot);
   rememberSlotForBot(bot, target.player.id, target.index, card, 'Queen peek', 0.96);
-  addLog(`${bot.name} used Queen peek`);
+  highlightCardForAll(card.id, 'peek', 3000, { exceptViewerId: bot.id });
+  addLog(bot.name + ' used Queen peek');
   finishSpecial();
   broadcastState();
 }
@@ -1490,11 +1582,7 @@ function botUseJack(bot) {
   const a = { player: candidate.a.player, index: candidate.a.index, card: candidate.a.player.cards[candidate.a.index] };
   const b = { player: candidate.b.player, index: candidate.b.index, card: candidate.b.player.cards[candidate.b.index] };
   if (!a.card || !b.card || a.card.id === b.card.id || isProtectedSpecialTarget(a.player.id) || isProtectedSpecialTarget(b.player.id)) return botSkipSpecial(bot);
-  [a.player.cards[a.index], b.player.cards[b.index]] = [b.player.cards[b.index], a.player.cards[a.index]];
-  moveSlotMemoryForAllBots(a.player.id, a.index, b.player.id, b.index, 'Jack swap');
-  addLog(`${bot.name} used Jack swap`);
-  finishSpecial();
-  broadcastState();
+  if (!beginBotJackSwapSelection(bot.id, a.card.id, b.card.id)) return botSkipSpecial(bot);
 }
 
 function estimatedTurnImprovement(bot, player) {
@@ -2138,6 +2226,7 @@ io.on('connection', (socket) => {
     player.startPeekedCardIds.push(cardId);
     markGameActivity();
     revealCardTo(player.id, cardId, 3000);
+    highlightCardForAll(cardId, 'peek', 3000, { exceptViewerId: player.id });
     if (player.startPeekedCardIds.length === 2) {
       player.startPeekDone = true;
       addLog(`${player.name} finished start peek`);
@@ -2261,6 +2350,7 @@ io.on('connection', (socket) => {
     const target = playerByCardId(cardId);
     if (!target) return;
     revealCardTo(player.id, cardId, 3000);
+    highlightCardForAll(cardId, 'peek', 3000, { exceptViewerId: player.id });
     addLog(`${player.name} used Queen peek`);
     finishSpecial();
     broadcastState();
@@ -2275,22 +2365,14 @@ io.on('connection', (socket) => {
     const target = playerByCardId(cardId);
     if (!target || isProtectedSpecialTarget(target.player.id)) return;
     special.selected = special.selected || [];
-    if (special.selected.includes(cardId)) return;
+    if (special.resolving || special.selected.length >= 2 || special.selected.includes(cardId)) return;
     special.selected.push(cardId);
     markGameActivity();
     if (special.selected.length < 2) {
       broadcastState();
       return;
     }
-    const a = playerByCardId(special.selected[0]);
-    const b = playerByCardId(special.selected[1]);
-    if (a && b && !isProtectedSpecialTarget(a.player.id) && !isProtectedSpecialTarget(b.player.id) && a.card.id !== b.card.id) {
-      [a.player.cards[a.index], b.player.cards[b.index]] = [b.player.cards[b.index], a.player.cards[a.index]];
-      moveSlotMemoryForAllBots(a.player.id, a.index, b.player.id, b.index, 'Jack swap');
-      addLog(`${player.name} used Jack swap`);
-    }
-    finishSpecial();
-    broadcastState();
+    beginJackSwapResolution(player.id, special.selected);
   });
 
 
@@ -2307,7 +2389,7 @@ io.on('connection', (socket) => {
     const round = state.round;
     const special = topSpecial();
     if (!player || !round) return;
-    if (round.stage === "special" && special && special.actorId === player.id) {
+    if (round.stage === "special" && special && special.actorId === player.id && !isJackSwapSelectionActive(special)) {
       addLog(`${player.name} skipped ${specialName(special.type)}`);
       finishSpecial();
       if (round.stage === "turn" && round.turnComplete && currentPlayer()?.id === player.id) advanceTurn();
