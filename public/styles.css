@@ -447,17 +447,9 @@ input, select {
 
 .drawn-button-spacer { pointer-events: none; }
 .card[data-selected="true"],
-.card[data-highlight="peek"],
-.card[data-highlight="swap"] {
-  border-color: #1a73e8;
-  background: #eef4ff;
-  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.28);
-}
-
-.card[data-drawn-card="true"] {
+.card[data-highlight]:not([data-highlight=""]) {
   border-color: #d28b00;
-  background: #fff8e6;
-  box-shadow: 0 0 0 2px rgba(210, 139, 0, 0.14);
+  box-shadow: 0 0 0 2px rgba(210, 139, 0, 0.22);
 }
 .card .rank { font-size: 20px; line-height: 1.1; }
 .card.small .rank { font-size: 15px; }

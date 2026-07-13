@@ -953,7 +953,6 @@ function completeJackSwap(actorId, selectedIds) {
     [a.player.cards[a.index], b.player.cards[b.index]] = [b.player.cards[b.index], a.player.cards[a.index]];
     moveSlotMemoryForAllBots(a.player.id, a.index, b.player.id, b.index, 'Jack swap');
     addLog(nameOf(actorId) + ' used Jack swap');
-    highlightCardsForAll([a.card.id, b.card.id], 'swap', 3000);
   }
 
   finishSpecial();
@@ -1062,6 +1061,7 @@ function removeExpiredReveals() {
   if (!state.round) return;
   const now = Date.now();
   state.round.reveals = state.round.reveals.filter((r) => r.until > now);
+  if (state.round.pileHighlight && state.round.pileHighlight.until <= now) state.round.pileHighlight = null;
 }
 function scheduleRevealCleanup(ms) {
   setTimeout(() => {
@@ -1088,8 +1088,10 @@ function highlightCardForAll(cardId, kind = 'peek', ms = 3000, options = {}) {
   scheduleRevealCleanup(ms);
 }
 
-function highlightCardsForAll(cardIds, kind = 'peek', ms = 3000, options = {}) {
-  for (const cardId of cardIds || []) highlightCardForAll(cardId, kind, ms, options);
+function highlightPileForAll(kind = 'event', ms = 3000) {
+  if (!state.round) return;
+  state.round.pileHighlight = { kind, until: Date.now() + ms };
+  scheduleRevealCleanup(ms);
 }
 
 function canViewerSeeCard(viewerId, ownerId, card) {
@@ -1183,6 +1185,7 @@ function buildView(playerId) {
     deckCount: round.deck.length,
     discardCount: round.discard.length,
     discardTop: publicCard(round.discard[round.discard.length - 1], true),
+    pileHighlight: round.pileHighlight && round.pileHighlight.until > Date.now() ? String(round.pileHighlight.kind || 'event') : '',
     deckBack: state.deckSetting === 'one' ? (state.deckColor || 'blue') : 'mixed',
     drawn: round.drawn ? {
       source: round.drawn.source,
@@ -1392,6 +1395,7 @@ function botSwapDrawn(bot, index) {
   const newCard = round.drawn.card;
   const source = round.drawn.source;
   bot.cards[index] = newCard;
+  highlightCardForAll(newCard.id, 'event', 3000);
   round.drawn = null;
   round.turnComplete = true;
   const memory = ensureBotMemory(bot);
@@ -1455,6 +1459,7 @@ function botUseAce(bot) {
   const card = drawFromDeck();
   if (card) {
     target.player.cards.push(card);
+    highlightCardForAll(card.id, 'event', 3000);
     addUnknownSlotForAllBots(target.player.id, 'Ace');
     observeAceForAllBots(bot.id, target.player.id);
     addLog(`${bot.name} gave a card to ${target.player.name}`);
@@ -1687,6 +1692,7 @@ function botDoThrowIn(botId, index, token) {
   removeSlotForAllBots(bot.id, index, 'throw-in');
   observeDiscardForAllBots(card, 'throw-in', bot.id);
   pushDiscard(card, bot.id, 'threw in', { allowThrowIn: false });
+  highlightPileForAll('event', 3000);
   broadcastState();
 }
 
@@ -1718,6 +1724,7 @@ function startRound() {
     throwIn: null,
     specialQueue: [],
     reveals: [],
+    pileHighlight: null,
     botTick: 0,
     dutchCallerId: null,
     dutchQueue: [],
@@ -2283,6 +2290,7 @@ io.on('connection', (socket) => {
     const oldCard = player.cards[index];
     const newCard = round.drawn.card;
     player.cards[index] = newCard;
+    highlightCardForAll(newCard.id, 'event', 3000);
     const source = round.drawn.source;
     round.drawn = null;
     round.turnComplete = true;
@@ -2319,6 +2327,7 @@ io.on('connection', (socket) => {
     removeSlotForAllBots(player.id, index, 'throw-in');
     observeDiscardForAllBots(card, 'throw-in', player.id);
     pushDiscard(card, player.id, 'threw in', { allowThrowIn: false });
+    highlightPileForAll('event', 3000);
     broadcastState();
   });
 
@@ -2333,6 +2342,7 @@ io.on('connection', (socket) => {
     const card = drawFromDeck();
     if (card) {
       target.cards.push(card);
+      highlightCardForAll(card.id, 'event', 3000);
       addUnknownSlotForAllBots(target.id, 'Ace');
       observeAceForAllBots(player.id, target.id);
       addLog(`${player.name} gave a card to ${target.name}`);

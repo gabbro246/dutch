@@ -410,7 +410,7 @@ function playerBadges(state, player) {
 function renderDeckPile(state) {
   const r = state.round;
   const drawnCard = r.drawn
-    ? cardHtml(r.drawn.card, false, { 'data-anim-role': 'drawn', 'data-location-key': 'drawn', 'data-drawn-card': 'true' })
+    ? cardHtml(r.drawn.card, false, { 'data-anim-role': 'drawn', 'data-location-key': 'drawn' })
     : '<div class="card empty-card drawn-placeholder">empty</div>';
   const drawnLabel = r.drawn ? '<div>Drawn</div>' : '<div class="drawn-label-spacer" aria-hidden="true">Drawn</div>';
   const discardButton = r.drawn
@@ -459,7 +459,7 @@ function stackPile(r) {
   if (!r.discardTop) return '<div class="card empty-card">empty</div>';
   let under = '';
   if (r.discardCount > 1) under = '<div class="card back-blue" data-face-kind="stack-back">##</div>';
-  return `${under}${cardHtml(r.discardTop, false, { 'data-anim-role': 'pile-top', 'data-location-key': 'pile-top' })}`;
+  return `${under}${cardHtml(r.discardTop, false, { 'data-anim-role': 'pile-top', 'data-location-key': 'pile-top', 'data-highlight': r.pileHighlight || '' })}`;
 }
 
 function renderCardCell(card, ownerId, index, state, compact, own) {
@@ -477,7 +477,7 @@ function renderCardCell(card, ownerId, index, state, compact, own) {
   const specialAction = showingStartPeek ? "" : renderCardSpecialAction(card, ownerId, r);
   if (specialAction) buttons.push(specialAction);
 
-  const selected = r.special && r.special.selected && r.special.selected.includes(card.id);
+  const selected = r.special && r.special.actorId !== state.you && r.special.selected && r.special.selected.includes(card.id);
   return `
     <div class="card-cell" data-owner-id="${escapeHtml(ownerId)}" data-card-slot="${escapeHtml(ownerId)}:${index}">
       ${cardHtml(card, compact, { 'data-location-key': `player:${ownerId}:${index}`, 'data-selected': selected ? 'true' : '', 'data-highlight': card.highlight || '' })}
@@ -495,7 +495,8 @@ function renderCardSpecialAction(card, ownerId, r) {
     return '<button data-action="queenPeek" data-card-id="' + escapeHtml(card.id) + '">' + cardActionLabel('Q', 'peek') + '</button>';
   }
   if (r.controls.canJackSwap && !protectedTarget) {
-    return '<button data-action="jackSelect" data-card-id="' + escapeHtml(card.id) + '">' + cardActionLabel('J', 'swap') + '</button>';
+    const selected = r.special && r.special.selected && r.special.selected.includes(card.id);
+    return '<button data-action="jackSelect" data-card-id="' + escapeHtml(card.id) + '" ' + (selected ? 'disabled' : '') + '>' + cardActionLabel('J', 'swap') + '</button>';
   }
   return '<button class="special-action-placeholder" disabled>Action</button>';
 }
