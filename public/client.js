@@ -8,6 +8,7 @@ let currentDetailsMode = '';
 let logExpanded = false;
 const detailPreferencesByMode = {};
 const waitingDrawerPreferences = { bots: false, settings: false };
+const SPECTATOR_TRIGGER_NAME = 'spectator';
 const {
   PLAYER_NAME_MAX_LENGTH,
   GAME_DESCRIPTION,
@@ -115,10 +116,15 @@ function playerNameTaken(state, name) {
   return state.players.some((player) => normalizedShortPlayerName(player.name) === normalized && player.id !== state.you);
 }
 
+function isSpectatorName(name) {
+  return String(name || '').trim().toLowerCase() === SPECTATOR_TRIGGER_NAME;
+}
+
 function canJoinWithName(state, name) {
   if (state.joined) return false;
   if (!state.canJoin) return false;
   if (!String(name || '').trim()) return false;
+  if (isSpectatorName(name)) return true;
   return !playerNameTaken(state, name);
 }
 
@@ -170,7 +176,7 @@ function renderWaiting(state) {
   const botTypes = ['strategic', 'roswell', 'casual', 'distracted'];
   const usedBotTypes = new Set(state.players.filter((p) => p.isBot).map((p) => p.botType));
   const firstAvailableBot = botTypes.find((type) => !usedBotTypes.has(type));
-  const startDisabled = state.canStart === false || state.joined === false;
+  let startDisabled = state.canStart === false || state.joined === false;
   const botsOpen = waitingDrawerPreferences.bots ? 'open' : '';
   const settingsOpen = waitingDrawerPreferences.settings ? 'open' : '';
   const botOptions = '<option value="" selected>Choose bot...</option>' + botTypes.map((type) => `
@@ -187,14 +193,14 @@ function renderWaiting(state) {
     `;
     return `
       <div class="player-line">
-        <span>${index + 1}. ${escapeHtml(p.name)}${p.isBot ? ' <span class="bot-badge">bot</span>' : ''}${isMe ? ' <span class="you-label">(you)</span>' : ''} ${p.connected ? '' : '(missing)'}</span>
+        <span>${index + 1}. ${escapeHtml(p.name)}${p.isBot ? ' <span class="bot-badge">bot</span>' : ''}${p.isSpectator ? ' <span class="spectator-badge">spectator</span>' : ''}${isMe ? ' <span class="you-label">(you)</span>' : ''} ${p.connected ? '' : '(missing)'}</span>
         ${moveControls}
       </div>
     `;
   }).join('');
   const joined = state.joined;
   const me = state.players.find((p) => p.id === state.you);
-  const humanCount = state.players.filter((p) => !p.isBot).length;
+  const humanCount = state.players.filter((p) => !p.isBot && !p.isSpectator).length;
   const playerHintText = humanCount === 0 ? 'Waiting for a human player.' : 'Waiting for another human or a bot.';
   const playerHint = state.players.length > 0 && !state.canStart ? `<p class="hint">${playerHintText}</p>` : '';
   const playerCount = state.players.length;
@@ -386,6 +392,11 @@ function renderStatus(state) {
   `;
 }
 
+function renderPlayerMeta(player) {
+  if (player.isSpectator) return '<div class="player-meta">Watching</div>';
+  return `<div class="player-meta">Total: ${player.total}${player.roundPoints === null ? '' : `, round: ${player.roundPoints}`}</div>`;
+}
+
 function renderPlayerField(player, state, compact) {
   const current = player.isCurrent ? ' current' : '';
   const dutchCaller = state.round.dutchCallerId === player.id ? ' dutch-caller' : '';
@@ -398,7 +409,7 @@ function renderPlayerField(player, state, compact) {
     <div class="player-field${current}${dutchCaller}${finalTurnDone}${winner}">
       <div class="player-title">
         <strong>${escapeHtml(player.name)}</strong>${missing}${playerBadges(state, player)}
-        <div class="player-meta">Total: ${player.total}${player.roundPoints === null ? '' : `, round: ${player.roundPoints}`}</div>
+        ${renderPlayerMeta(player)}
       </div>
       <div class="cards-row">
         ${player.cards.map((card, index) => renderCardCell(card, player.id, index, state, compact, false)).join('')}
@@ -416,18 +427,18 @@ function renderOwnArea(player, state) {
   const winner = roundWinner || gameWinner ? ' winner' : '';
   return `
     <section class="own-area${player.isCurrent ? ' current' : ''}${dutchCaller}${finalTurnDone}${winner}">
-      <h2>Your cards</h2>
+      <h2>${player.isSpectator ? 'Spectating' : 'Your cards'}</h2>
       <div class="player-title">
         <strong>${escapeHtml(player.name)}</strong>${playerBadges(state, player)}
-        <div class="player-meta">Total: ${player.total}${player.roundPoints === null ? '' : `, round: ${player.roundPoints}`}</div>
+        ${renderPlayerMeta(player)}
       </div>
       <div class="cards-row">
         ${player.cards.map((card, index) => renderCardCell(card, player.id, index, state, false, true)).join('')}
       </div>
-      <div class="row own-actions">
+      ${player.isSpectator ? '' : `<div class="row own-actions">
         <button data-action="sayDutch" class="expected-action" ${r.controls.canDutch ? '' : 'disabled'}>Dutch</button>
         <button data-action="endTurn" class="expected-action" ${r.controls.canEndTurn ? "" : "disabled"}>${endTurnLabel(state)}</button>
-      </div>
+      </div>`}
     </section>
   `;
 }
@@ -442,6 +453,7 @@ function playerBadges(state, player) {
   const r = state.round;
   const badges = [];
   if (player.isBot) badges.push('<span class="bot-badge">bot</span>');
+  if (player.isSpectator) badges.push('<span class="spectator-badge">spectator</span>');
   if (r.dutchCallerId === player.id) badges.push('<span class="player-badge dutch-badge">said Dutch</span>');
   if ((r.roundWinnerIds || []).includes(player.id)) badges.push('<span class="player-badge round-winner-badge">won this round</span>');
   if (r.winnerId === player.id) badges.push('<span class="player-badge game-winner-badge">won the game</span>');
@@ -676,7 +688,7 @@ function pointsTable(state) {
       if (!playerMap.has(player.id)) playerMap.set(player.id, { id: player.id, name: player.name });
     });
   });
-  state.round.players.forEach((player) => {
+  state.round.players.filter((player) => !player.isSpectator).forEach((player) => {
     if (!playerMap.has(player.id)) playerMap.set(player.id, { id: player.id, name: player.name });
   });
   const players = Array.from(playerMap.values());

@@ -31,6 +31,7 @@ const JACK_SWAP_SELECTION_MS = 500;
 const ADMIN_LOG_PATH = path.join(__dirname, 'usage.log');
 const GAME_LOG_DIR = path.join(__dirname, 'game-logs');
 const APP_VERSION = packageInfo.version;
+const SPECTATOR_TRIGGER_NAME = 'spectator';
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const INDEX_PATH = path.join(PUBLIC_DIR, 'index.html');
 const app = createHttpApp({ indexPath: INDEX_PATH, publicDir: PUBLIC_DIR, appVersion: APP_VERSION });
@@ -249,16 +250,28 @@ function activePlayerCount() {
   return activePlayers().length;
 }
 
+function activePlayablePlayers() {
+  return activePlayers().filter((p) => !p.isSpectator);
+}
+
+function activePlayablePlayerCount() {
+  return activePlayablePlayers().length;
+}
+
 function activeHumanCount() {
   return activePlayers().filter((p) => !p.isBot).length;
 }
 
 function hasPlayableHumanGame() {
-  return activeHumanCount() >= 1 && activePlayerCount() >= 2;
+  return activeHumanCount() >= 1 && activePlayablePlayerCount() >= 2;
+}
+
+function isSpectatorName(name) {
+  return String(name || '').trim().toLowerCase() === SPECTATOR_TRIGGER_NAME;
 }
 
 function scoreSnapshot() {
-  return activePlayers().map((p) => ({
+  return activePlayablePlayers().map((p) => ({
     name: p.name,
     total: p.total,
     roundPoints: p.roundPoints
@@ -275,7 +288,7 @@ function normalizePlayerToken(value) {
 
 function isActivePlayer(playerId) {
   const player = findPlayer(playerId);
-  return !!(player && !player.left);
+  return !!(player && !player.left && !player.isSpectator);
 }
 
 function isProtectedSpecialTarget(playerId) {
@@ -287,7 +300,7 @@ function findActiveIndexFrom(startIndex) {
   if (state.players.length === 0) return -1;
   for (let offset = 0; offset < state.players.length; offset += 1) {
     const index = (startIndex + offset + state.players.length) % state.players.length;
-    if (state.players[index] && !state.players[index].left) return index;
+    if (state.players[index] && !state.players[index].left && !state.players[index].isSpectator) return index;
   }
   return -1;
 }
@@ -298,11 +311,12 @@ function findPlayer(playerId) {
 
 function currentPlayer() {
   if (!state.round) return null;
-  return state.players[state.round.currentPlayerIndex] || null;
+  const player = state.players[state.round.currentPlayerIndex] || null;
+  return player && !player.isSpectator ? player : null;
 }
 
 function clampDeckSetting() {
-  if (activePlayerCount() > 4) state.deckSetting = 'two';
+  if (activePlayablePlayerCount() > 4) state.deckSetting = 'two';
 }
 
 function createDeck(deckColor) {
@@ -401,7 +415,7 @@ function ensureBotMemory(bot) {
       aceAttackers: {}
     };
   }
-  for (const player of activePlayers()) {
+  for (const player of activePlayablePlayers()) {
     if (!bot.botMemory.slots[player.id]) bot.botMemory.slots[player.id] = [];
     const slots = bot.botMemory.slots[player.id];
     while (slots.length < player.cards.length) slots.push(unknownMemory('unknown'));
@@ -557,7 +571,7 @@ function rankStatsForBot(bot, rank) {
 
 function rankDiscardPressure(bot, rank) {
   let pressure = 0;
-  for (const player of activePlayers()) {
+  for (const player of activePlayablePlayers()) {
     if (player.id === bot.id || isProtectedSpecialTarget(player.id)) continue;
     player.cards.forEach((card, index) => {
       const memory = effectiveMemory(bot, botMemoryEntry(bot, player.id, index));
@@ -756,7 +770,7 @@ function botBestOwnSlot(bot, mode = 'highest') {
 function botLowOpponentSlot(bot) {
   const candidates = [];
   const profile = botProfile(bot);
-  for (const player of activePlayers()) {
+  for (const player of activePlayablePlayers()) {
     if (player.id === bot.id || isProtectedSpecialTarget(player.id)) continue;
     player.cards.forEach((card, index) => {
       const memory = botMemoryEntry(bot, player.id, index);
@@ -773,14 +787,14 @@ function botLowOpponentSlot(bot) {
 }
 
 function botOpponentEstimates(bot) {
-  return activePlayers()
+  return activePlayablePlayers()
     .filter((p) => p.id !== bot.id && !isProtectedSpecialTarget(p.id))
     .map((player) => ({ player, expected: botExpectedScore(bot, player), cards: player.cards.length, total: player.total }))
     .sort((a, b) => a.expected - b.expected);
 }
 
 function botRiskMode(bot) {
-  const totals = activePlayers().map((p) => p.total);
+  const totals = activePlayablePlayers().map((p) => p.total);
   const min = Math.min(...totals);
   const max = Math.max(...totals);
   if (bot.total >= max - 3 && bot.total > min + 10) return 'behind';
@@ -833,6 +847,11 @@ function botReactionDelay(bot, confidence) {
 
 function botScheduleKey(parts) {
   return parts.join(':');
+}
+
+function onlyBotsArePlaying() {
+  const players = activePlayablePlayers();
+  return players.length >= 2 && players.every((p) => p.isBot);
 }
 
 function scheduleBotTimer(key, delay, fn) {
@@ -986,7 +1005,7 @@ function beginBotJackSwapSelection(actorId, firstCardId, secondCardId) {
 function canPlayerSayDutch(playerId) {
   const round = state.round;
   const player = findPlayer(playerId);
-  if (!round || !player || player.left || round.dutchCallerId) return false;
+  if (!round || !player || player.left || player.isSpectator || round.dutchCallerId) return false;
   const cp = currentPlayer();
   const noCards = player.cards.length === 0;
   if (noCards && !round.drawn) {
@@ -1016,7 +1035,7 @@ function setDutchCaller(player) {
   const ordered = [];
   for (let i = 1; i < state.players.length; i += 1) {
     const p = state.players[(startIndex + i) % state.players.length];
-    if (!p.left && p.id !== player.id) ordered.push(p.id);
+    if (!p.left && !p.isSpectator && p.id !== player.id) ordered.push(p.id);
   }
   round.dutchQueue = ordered;
   addLog(`${player.name} said Dutch`);
@@ -1145,7 +1164,7 @@ function buildView(playerId) {
     version: APP_VERSION,
     deckSetting: state.deckSetting,
     gameTarget: state.gameTarget,
-    oneDeckDisabled: activePlayerCount() > 4,
+    oneDeckDisabled: activePlayablePlayerCount() > 4,
     canJoin: state.phase === 'waiting' && activePlayerCount() < 9 && !joined,
     canStart: state.phase === 'waiting' && hasPlayableHumanGame(),
     waitingMessage: state.phase === 'playing' && !joined ? state.waitingMessage : '',
@@ -1158,6 +1177,7 @@ function buildView(playerId) {
       connected: p.connected,
       isBot: !!p.isBot,
       botType: p.botType || '',
+      isSpectator: !!p.isSpectator,
       joinedAt: p.joinedAt || null,
       startPeekCount: p.startPeekedCardIds ? p.startPeekedCardIds.length : 0,
       startPeekDone: !!p.startPeekDone,
@@ -1214,8 +1234,9 @@ function buildView(playerId) {
       connected: p.connected,
       isBot: !!p.isBot,
       botType: p.botType || '',
+      isSpectator: !!p.isSpectator,
       isCurrent: !['peek', 'roundEnd', 'gameEnd'].includes(round.stage) && cp && cp.id === p.id,
-      finalTurnDone: !!(round.dutchCallerId && !['roundEnd', 'gameEnd'].includes(round.stage) && p.id !== round.dutchCallerId && !pendingDutchIds.has(p.id) && (!cp || cp.id !== p.id || round.turnComplete)),
+      finalTurnDone: !!(!p.isSpectator && round.dutchCallerId && !['roundEnd', 'gameEnd'].includes(round.stage) && p.id !== round.dutchCallerId && !pendingDutchIds.has(p.id) && (!cp || cp.id !== p.id || round.turnComplete)),
       cards: p.cards.map((card) => {
         const view = publicCard(card, canViewerSeeCard(playerId, p.id, card));
         if (view) view.highlight = cardHighlight(card.id, playerId);
@@ -1231,7 +1252,7 @@ function buildView(playerId) {
 function controlsFor(playerId) {
   const round = state.round;
   const player = findPlayer(playerId);
-  if (!round || !player || player.left) return {};
+  if (!round || !player || player.left || player.isSpectator) return {};
   const cp = currentPlayer();
   const isCurrent = cp && cp.id === playerId;
   const special = topSpecial();
@@ -1282,6 +1303,15 @@ function scheduleBotAutomation() {
     if (actor && actor.isBot && !isJackSwapSelectionActive(special)) {
       scheduleBotTimer(botScheduleKey(['special', state.roundNumber, special.type, actor.id, round.specialQueue.length]), randomBetween(650, 1800), () => botResolveSpecial(actor.id));
     }
+  }
+
+  if (round.stage === 'roundEnd' && onlyBotsArePlaying()) {
+    scheduleBotTimer(botScheduleKey(['nextRound', state.roundNumber]), randomBetween(1400, 2600), () => {
+      if (state.phase === 'playing' && state.round && state.round.stage === 'roundEnd' && onlyBotsArePlaying()) {
+        nextRound();
+        broadcastState();
+      }
+    });
   }
 
   const current = currentPlayer();
@@ -1436,7 +1466,7 @@ function botAceTargetScore(bot, estimate) {
   const memory = ensureBotMemory(bot);
   const profile = botProfile(bot);
   const player = estimate.player;
-  const tableTotals = activePlayers().map((p) => p.total);
+  const tableTotals = activePlayablePlayers().map((p) => p.total);
   const bestTotal = Math.min(...tableTotals);
   const scoreThreat = Math.max(0, 10 - estimate.expected) * 1.15;
   const cardCountThreat = Math.max(0, 5 - player.cards.length) * 1.2;
@@ -1533,7 +1563,7 @@ function botJackCandidates(bot) {
     };
   });
   const opponentSlots = [];
-  for (const player of activePlayers()) {
+  for (const player of activePlayablePlayers()) {
     if (player.id === bot.id || isProtectedSpecialTarget(player.id)) continue;
     const playerExpected = botExpectedScore(bot, player);
     player.cards.forEach((card, index) => {
@@ -1608,7 +1638,7 @@ function estimatedTurnImprovement(bot, player) {
 function botShouldCallDutch(bot) {
   const expected = botExpectedRoundScore(bot, bot);
   const profile = botProfile(bot);
-  const opponents = activePlayers()
+  const opponents = activePlayablePlayers()
     .filter((p) => p.id !== bot.id && !isProtectedSpecialTarget(p.id))
     .map((player) => ({ player, expected: botExpectedRoundScore(bot, player), cards: player.cards.length, total: player.total }))
     .sort((a, b) => a.expected - b.expected);
@@ -1701,6 +1731,7 @@ function startingPlayerIndexForNextRound() {
   let bestIndex = 0;
   let bestScore = -Infinity;
   state.players.forEach((player, index) => {
+    if (player.left || player.isSpectator) return;
     const score = typeof player.roundPoints === 'number' ? player.roundPoints : -Infinity;
     if (score > bestScore) {
       bestScore = score;
@@ -1737,12 +1768,12 @@ function startRound() {
   for (const player of state.players) {
     player.cards = [];
     player.roundPoints = null;
-    player.startPeekDone = false;
+    player.startPeekDone = !!player.isSpectator;
     player.startPeekedCardIds = [];
   }
 
   for (let i = 0; i < 4; i += 1) {
-    for (const player of state.players) {
+    for (const player of activePlayablePlayers()) {
       player.cards.push(drawFromDeck());
     }
   }
@@ -1779,14 +1810,14 @@ function startGame() {
     p.total = 0;
     p.roundPoints = null;
   }
-  const names = activePlayers().map((p) => p.name);
+  const names = activePlayablePlayers().map((p) => p.name);
   adminLog('game_started', { players: names, target: state.gameTarget });
   addLog('game started', 'system');
   startRound();
 }
 
 function allPlayersPeeked() {
-  return state.players.every((p) => p.left || p.startPeekDone);
+  return state.players.every((p) => p.left || p.isSpectator || p.startPeekDone);
 }
 
 function beginTurnsIfReady() {
@@ -1817,7 +1848,7 @@ function advanceTurn() {
   if (round.dutchCallerId) {
     while (round.dutchQueue.length > 0) {
       const nextId = round.dutchQueue.shift();
-      const nextIndex = state.players.findIndex((p) => p.id === nextId && !p.left);
+      const nextIndex = state.players.findIndex((p) => p.id === nextId && !p.left && !p.isSpectator);
       if (nextIndex >= 0) {
         round.currentPlayerIndex = nextIndex;
         return;
@@ -1852,7 +1883,7 @@ function endRound() {
   if (round.throwIn) round.throwIn.open = false;
   round.specialQueue = [];
 
-  const scoringPlayers = activePlayers();
+  const scoringPlayers = activePlayablePlayers();
   const scores = scoringPlayers.map((p) => ({
     player: p,
     raw: p.cards.reduce((sum, card) => sum + cardPoints(card), 0)
@@ -1929,7 +1960,8 @@ function resetToWaiting(keepPlayers = true, reason = 'returned to waiting room',
     joinedAt: p.isBot ? null : Date.now(),
     isBot: !!p.isBot,
     botType: p.botType || '',
-    botMemory: null
+    botMemory: null,
+    isSpectator: !!p.isSpectator
   })) : [];
   state = freshState();
   state.players = players;
@@ -2012,8 +2044,8 @@ function purgeExpiredDisconnectedPlayers() {
     }
     if (currentId && remainingIds.has(currentId)) {
       state.round.currentPlayerIndex = state.players.findIndex((p) => p.id === currentId);
-    } else if (state.round.currentPlayerIndex >= state.players.length) {
-      state.round.currentPlayerIndex = 0;
+    } else if (state.round.currentPlayerIndex >= state.players.length || currentPlayer() === null) {
+      state.round.currentPlayerIndex = findActiveIndexFrom(state.round.currentPlayerIndex);
     }
   }
 
@@ -2137,6 +2169,7 @@ io.on('connection', (socket) => {
     if (joinToken) socket.data.playerId = joinToken;
     const name = String(nameRaw || '').trim().slice(0, PLAYER_NAME_MAX_LENGTH);
     if (!name) return;
+    const isSpectator = isSpectatorName(name);
     if (state.phase !== 'waiting') {
       socket.emit('notice', state.waitingMessage);
       broadcastState();
@@ -2144,7 +2177,7 @@ io.on('connection', (socket) => {
     }
     if (activePlayerCount() >= 9) return;
     const playerId = playerIdForSocket(socket);
-    const duplicateShortName = playerShortNameTaken(name, playerId);
+    const duplicateShortName = !isSpectator && playerShortNameTaken(name, playerId);
     if (duplicateShortName) {
       broadcastState();
       return;
@@ -2169,10 +2202,11 @@ io.on('connection', (socket) => {
       cards: [],
       startPeekDone: false,
       startPeekedCardIds: [],
-      joinedAt: Date.now()
+      joinedAt: Date.now(),
+      isSpectator
     });
     clampDeckSetting();
-    addLog(`${name} joined`);
+    addLog(isSpectator ? `${name} joined as a spectator` : `${name} joined`);
     broadcastState();
   });
 
@@ -2357,7 +2391,7 @@ io.on('connection', (socket) => {
     if (!player || !round || round.stage !== 'special' || !special) return;
     if (special.actorId !== player.id || special.type !== 'A') return;
     const target = findPlayer(targetId);
-    if (!target || isProtectedSpecialTarget(target.id)) return;
+    if (!target || target.isSpectator || isProtectedSpecialTarget(target.id)) return;
     const card = drawFromDeck();
     if (card) {
       target.cards.push(card);
