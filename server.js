@@ -2054,10 +2054,21 @@ function removeWaitingPlayer(playerId, reason = 'removed from waiting room') {
   return true;
 }
 
+function moveWaitingPlayer(playerId, direction) {
+  if (state.phase !== 'waiting') return false;
+  const index = state.players.findIndex((p) => p.id === playerId && !p.left);
+  if (index < 0) return false;
+  const offset = direction === 'up' ? -1 : direction === 'down' ? 1 : 0;
+  if (!offset) return false;
+  const nextIndex = index + offset;
+  if (nextIndex < 0 || nextIndex >= state.players.length) return false;
+  const [player] = state.players.splice(index, 1);
+  state.players.splice(nextIndex, 0, player);
+  return true;
+}
 
-function addBotPlayer(type, requesterId = '') {
+function addBotPlayer(type) {
   if (state.phase !== 'waiting') return { ok: false, message: 'Bots can only be added in the waiting room.' };
-  if (!isActivePlayer(requesterId)) return { ok: false, message: 'Join the waiting room before adding bots.' };
   if (!BOT_PROFILES[type]) return { ok: false, message: 'Unknown bot type.' };
   if (activePlayerCount() >= 9) return { ok: false, message: 'The player list is full.' };
   if (activePlayers().some((p) => p.isBot && p.botType === type)) return { ok: false, message: 'That bot is already in the player list.' };
@@ -2199,22 +2210,30 @@ io.on('connection', (socket) => {
   });
 
   socket.on('setDeckSetting', (value) => {
-    runSocketAction(socket, () => setDeckSetting(value));
+    runSocketAction(socket, () => setDeckSetting(value), { requirePlayer: false });
   });
 
   socket.on('setGameTarget', (value) => {
-    runSocketAction(socket, () => setGameTarget(value));
+    runSocketAction(socket, () => setGameTarget(value), { requirePlayer: false });
   });
 
   socket.on('removeWaitingPlayer', (playerId) => {
     runSocketAction(socket, () => removeWaitingPlayer(String(playerId || ''), 'was removed from the waiting room'), { requirePlayer: false });
   });
 
+  socket.on('moveWaitingPlayer', (moveRaw) => {
+    runSocketAction(socket, () => {
+      const playerId = moveRaw && typeof moveRaw === 'object' ? moveRaw.playerId : '';
+      const direction = moveRaw && typeof moveRaw === 'object' ? moveRaw.direction : '';
+      return moveWaitingPlayer(String(playerId || ''), String(direction || ''));
+    }, { requirePlayer: false });
+  });
+
   socket.on('addBot', (typeRaw) => {
-    runSocketAction(socket, (player) => {
-      const result = addBotPlayer(String(typeRaw || ''), player.id);
+    runSocketAction(socket, () => {
+      const result = addBotPlayer(String(typeRaw || ''));
       if (!result.ok && result.message) socket.emit('notice', result.message);
-    });
+    }, { requirePlayer: false });
   });
 
   socket.on('startGame', () => {

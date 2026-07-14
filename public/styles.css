@@ -122,10 +122,18 @@ input, select {
   padding: 1px 0 0;
 }
 
+.bot-personality.empty {
+  color: #9aa0a6;
+}
+
 .bot-personality p {
   margin: 0 0 8px;
   color: #5f6368;
   font-size: 12px;
+}
+
+.bot-personality.empty p {
+  color: #9aa0a6;
 }
 
 .bot-stats {
@@ -147,6 +155,11 @@ input, select {
   white-space: nowrap;
 }
 
+.bot-personality.empty .bot-stat-name,
+.bot-personality.empty .bot-stat-value {
+  color: #9aa0a6;
+}
+
 .bot-stat-value {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -166,12 +179,50 @@ input, select {
   background: var(--accent-color);
 }
 
+.bot-personality.empty .bot-stat-bar span {
+  background: #9aa0a6;
+}
+
 .waiting-controls {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
   margin-top: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
+}
+
+.waiting-controls .join-row {
+  margin-bottom: 10px;
+}
+
+.waiting-drawer {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid #e8eaed;
+  border-radius: 0;
+  padding: 7px 0;
+  background: transparent;
+}
+
+.waiting-drawer summary {
+  color: #202124;
+  font-weight: 650;
+}
+
+.drawer-count {
+  color: #5f6368;
+  font-weight: 400;
+}
+
+.waiting-drawer[open] .drawer-count {
+  display: none;
+}
+
+.drawer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 9px 0 2px;
 }
 
 .field-note,
@@ -195,7 +246,12 @@ input, select {
 .repo-link a:hover { text-decoration: underline; }
 .version-label { color: #5f6368; }
 
-.player-list { margin-top: 12px; }
+.player-list { margin-top: 0; }
+
+.drawer-content.player-list {
+  gap: 0;
+  padding-top: 5px;
+}
 .player-line {
   display: flex;
   align-items: center;
@@ -206,6 +262,20 @@ input, select {
 }
 .player-line span { min-width: 0; overflow-wrap: anywhere; }
 .player-line button { flex: 0 0 auto; }
+.player-line-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.icon-button {
+  width: var(--control-height);
+  min-width: var(--control-height);
+  padding-left: 0;
+  padding-right: 0;
+  font-weight: 700;
+  line-height: 1;
+}
 .you-label { color: #5f6368; }
 .bot-badge,
 .player-badge {
@@ -627,15 +697,32 @@ summary {
 
 .waiting-selectors {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 12px;
+}
+
+.setting-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  color: #3c4043;
+}
+
+.setting-row span {
+  white-space: nowrap;
 }
 
 .waiting-selectors select {
-  flex: 1 1 220px;
   min-width: 0;
   width: 100%;
+}
+
+@media (max-width: 430px) {
+  .setting-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
 }
 
 #startBtn {

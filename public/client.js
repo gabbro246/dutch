@@ -7,6 +7,7 @@ let hasRenderedGame = false;
 let currentDetailsMode = '';
 let logExpanded = false;
 const detailPreferencesByMode = {};
+const waitingDrawerPreferences = { bots: false, players: true, settings: false };
 const {
   PLAYER_NAME_MAX_LENGTH,
   GAME_DESCRIPTION,
@@ -146,19 +147,23 @@ function botTypeLabel(type) {
 }
 
 function renderBotPersonality(type) {
-  const personality = BOT_PERSONALITIES[type];
-  if (!personality) return "";
-  const stats = personality.stats.map(([label, value]) => (
-    "<div class=\"bot-stat\">" +
-      "<span class=\"bot-stat-name\">" + escapeHtml(label) + "</span>" +
-      "<span class=\"bot-stat-bar\" aria-hidden=\"true\"><span style=\"width: " + (value * 10) + "%\"></span></span>" +
-      "<span class=\"bot-stat-value\">" + escapeHtml(value + "/10") + "</span>" +
-    "</div>"
-  )).join("");
-  return "<div id=\"botPersonality\" class=\"bot-personality\">" +
-    "<p>" + escapeHtml(personality.summary) + "</p>" +
-    "<div class=\"bot-stats\">" + stats + "</div>" +
-  "</div>";
+  const personality = BOT_PERSONALITIES[type] || null;
+  const fallbackStats = Object.values(BOT_PERSONALITIES)[0].stats;
+  const stats = (personality ? personality.stats : fallbackStats).map(([label, value]) => {
+    const barWidth = personality ? value * 10 : 0;
+    const valueText = personality ? escapeHtml(value + "/10") : "";
+    return (
+      '<div class="bot-stat">' +
+        '<span class="bot-stat-name">' + escapeHtml(label) + '</span>' +
+        '<span class="bot-stat-bar" aria-hidden="true"><span style="width: ' + barWidth + '%"></span></span>' +
+        '<span class="bot-stat-value">' + valueText + '</span>' +
+      '</div>'
+    );
+  }).join("");
+  return '<div id="botPersonality" class="bot-personality' + (personality ? '' : ' empty') + '">' +
+    '<p>' + (personality ? escapeHtml(personality.summary) : '&nbsp;') + '</p>' +
+    '<div class="bot-stats">' + stats + '</div>' +
+  '</div>';
 }
 
 function renderWaiting(state) {
@@ -166,15 +171,25 @@ function renderWaiting(state) {
   const usedBotTypes = new Set(state.players.filter((p) => p.isBot).map((p) => p.botType));
   const firstAvailableBot = botTypes.find((type) => !usedBotTypes.has(type));
   const startDisabled = state.canStart === false || state.joined === false;
+  const botsOpen = waitingDrawerPreferences.bots ? 'open' : '';
+  const settingsOpen = waitingDrawerPreferences.settings ? 'open' : '';
+  const playersOpen = waitingDrawerPreferences.players ? 'open' : '';
   const botOptions = '<option value="" selected>Choose bot...</option>' + botTypes.map((type) => `
     <option value="${escapeHtml(type)}" ${usedBotTypes.has(type) ? 'disabled' : ''}>${escapeHtml(botTypeLabel(type))}</option>
   `).join('');
   const players = state.players.map((p, index) => {
     const isMe = p.id === state.you;
+    const moveControls = `
+      <div class="player-line-actions">
+        ${isMe ? '' : `<button data-action="removeWaitingPlayer" data-player-id="${escapeHtml(p.id)}">Remove</button>`}
+        <button class="icon-button" title="Move up" aria-label="Move ${escapeHtml(p.name)} up" data-action="moveWaitingPlayer" data-player-id="${escapeHtml(p.id)}" data-direction="up" ${index === 0 ? 'disabled' : ''}>↑</button>
+        <button class="icon-button" title="Move down" aria-label="Move ${escapeHtml(p.name)} down" data-action="moveWaitingPlayer" data-player-id="${escapeHtml(p.id)}" data-direction="down" ${index === state.players.length - 1 ? 'disabled' : ''}>↓</button>
+      </div>
+    `;
     return `
       <div class="player-line">
         <span>${index + 1}. ${escapeHtml(p.name)}${p.isBot ? ' <span class="bot-badge">bot</span>' : ''}${isMe ? ' <span class="you-label">(you)</span>' : ''} ${p.connected ? '' : '(missing)'}</span>
-        ${isMe ? '' : `<button data-action="removeWaitingPlayer" data-player-id="${escapeHtml(p.id)}">Remove</button>`}
+        ${moveControls}
       </div>
     `;
   }).join('');
@@ -183,6 +198,7 @@ function renderWaiting(state) {
   const humanCount = state.players.filter((p) => !p.isBot).length;
   const playerHintText = humanCount === 0 ? 'Waiting for a human player.' : 'Waiting for another human or a bot.';
   const playerHint = state.players.length > 0 && !state.canStart ? `<p class="hint">${playerHintText}</p>` : '';
+  const playerCount = state.players.length;
   app.innerHTML = `
     <div class="page waiting-page">
       <h1 class="app-title">Dutch! 🂡</h1>
@@ -194,27 +210,44 @@ function renderWaiting(state) {
             <button id="joinBtn" disabled>Join</button>
             <button id="leaveBtn" ${joined ? '' : 'disabled'}>Leave</button>
           </div>
-          <div class="row bot-row">
-            <select id="botTypeSelect" ${joined && firstAvailableBot && state.players.length < 9 ? '' : 'disabled'}>
-              ${botOptions}
-            </select>
-            <button id="addBotBtn" class="expected-action" disabled>Add bot</button>
-          </div>
-          <div id="botPersonalitySlot"></div>
-        </div>
-        <div class="player-list">
-          ${players || '<p class="hint">No players yet. Join to choose settings and add bots.</p>'}
-          ${players ? playerHint : ''}
-        </div>
-        <div class="waiting-selectors">
-          <select id="gameTargetSelect" ${!joined ? 'disabled' : ''}>
-            <option value="50" ${state.gameTarget === 50 ? 'selected' : ''}>Short game, 50 points</option>
-            <option value="100" ${state.gameTarget === 100 ? 'selected' : ''}>Full game, 100 points</option>
-          </select>
-          <select id="deckSettingSelect" ${!joined ? 'disabled' : ''}>
-            <option value="one" ${state.deckSetting === 'one' ? 'selected' : ''} ${state.oneDeckDisabled ? 'disabled' : ''}>One deck</option>
-            <option value="two" ${state.deckSetting === 'two' ? 'selected' : ''}>Two decks</option>
-          </select>
+          <details class="waiting-drawer" data-waiting-drawer="bots" ${botsOpen}>
+            <summary>Bots</summary>
+            <div class="drawer-content">
+              <div class="row bot-row">
+                <select id="botTypeSelect" ${firstAvailableBot && state.players.length < 9 ? '' : 'disabled'}>
+                  ${botOptions}
+                </select>
+                <button id="addBotBtn" class="expected-action" disabled>Add bot</button>
+              </div>
+              <div id="botPersonalitySlot">${renderBotPersonality('')}</div>
+            </div>
+          </details>
+          <details class="waiting-drawer player-list-drawer" data-waiting-drawer="players" ${playersOpen}>
+            <summary>Players <span class="drawer-count">(${playerCount})</span></summary>
+            <div class="drawer-content player-list">
+              ${players || '<p class="hint">No players yet.</p>'}
+              ${players ? playerHint : ''}
+            </div>
+          </details>
+          <details class="waiting-drawer" data-waiting-drawer="settings" ${settingsOpen}>
+            <summary>Settings</summary>
+            <div class="drawer-content waiting-selectors">
+              <label class="setting-row" for="gameTargetSelect">
+                <span>Game length</span>
+                <select id="gameTargetSelect">
+                  <option value="50" ${state.gameTarget === 50 ? 'selected' : ''}>Short game, 50 points</option>
+                  <option value="100" ${state.gameTarget === 100 ? 'selected' : ''}>Full game, 100 points</option>
+                </select>
+              </label>
+              <label class="setting-row" for="deckSettingSelect">
+                <span>Deck amount</span>
+                <select id="deckSettingSelect">
+                  <option value="one" ${state.deckSetting === 'one' ? 'selected' : ''} ${state.oneDeckDisabled ? 'disabled' : ''}>One deck</option>
+                  <option value="two" ${state.deckSetting === 'two' ? 'selected' : ''}>Two decks</option>
+                </select>
+              </label>
+            </div>
+          </details>
         </div>
         <button id="startBtn" class="expected-action" ${startDisabled ? 'disabled' : ''}>Start game</button>
       </div>
@@ -243,6 +276,11 @@ function renderWaiting(state) {
   }
   const leaveBtn = document.getElementById('leaveBtn');
   if (leaveBtn) leaveBtn.addEventListener('click', () => clientActions.confirmThen(leaveBtn, 'leave-waiting', 'Confirm leave', () => emit('leave')));
+  document.querySelectorAll('[data-waiting-drawer]').forEach((details) => {
+    details.addEventListener('toggle', () => {
+      waitingDrawerPreferences[details.dataset.waitingDrawer] = details.open;
+    });
+  });
   const botTypeSelect = document.getElementById('botTypeSelect');
   const addBotBtn = document.getElementById('addBotBtn');
   if (botTypeSelect && addBotBtn) {
@@ -251,7 +289,7 @@ function renderWaiting(state) {
       const selectedOption = botTypeSelect.selectedOptions[0];
       const type = selectedOption && !selectedOption.disabled ? botTypeSelect.value : '';
       if (botPersonalitySlot) botPersonalitySlot.innerHTML = renderBotPersonality(type);
-      addBotBtn.disabled = !type || !joined || state.players.length >= 9;
+      addBotBtn.disabled = !type || state.players.length >= 9;
       const startButton = document.getElementById('startBtn');
       if (startButton) startButton.disabled = !state.canStart || !joined || !!type;
     };
@@ -276,6 +314,12 @@ function renderWaiting(state) {
       emit('setGameTarget', gameTargetSelect.value);
     });
   }
+  document.querySelectorAll('[data-action="moveWaitingPlayer"]').forEach((button) => {
+    button.addEventListener('click', () => {
+      clientActions.clearPendingConfirm();
+      emit('moveWaitingPlayer', { playerId: button.dataset.playerId || '', direction: button.dataset.direction || '' });
+    });
+  });
   document.querySelectorAll('[data-action="removeWaitingPlayer"]').forEach((button) => {
     button.addEventListener('click', () => {
       clientActions.confirmThen(button, `remove-${button.dataset.playerId}`, 'Confirm remove', () => emit('removeWaitingPlayer', button.dataset.playerId || ''));
