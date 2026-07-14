@@ -7,7 +7,7 @@ let hasRenderedGame = false;
 let currentDetailsMode = '';
 let logExpanded = false;
 const detailPreferencesByMode = {};
-const waitingDrawerPreferences = { bots: false, players: true, settings: false };
+const waitingDrawerPreferences = { bots: false, settings: false };
 const {
   PLAYER_NAME_MAX_LENGTH,
   GAME_DESCRIPTION,
@@ -173,7 +173,6 @@ function renderWaiting(state) {
   const startDisabled = state.canStart === false || state.joined === false;
   const botsOpen = waitingDrawerPreferences.bots ? 'open' : '';
   const settingsOpen = waitingDrawerPreferences.settings ? 'open' : '';
-  const playersOpen = waitingDrawerPreferences.players ? 'open' : '';
   const botOptions = '<option value="" selected>Choose bot...</option>' + botTypes.map((type) => `
     <option value="${escapeHtml(type)}" ${usedBotTypes.has(type) ? 'disabled' : ''}>${escapeHtml(botTypeLabel(type))}</option>
   `).join('');
@@ -222,13 +221,6 @@ function renderWaiting(state) {
               <div id="botPersonalitySlot">${renderBotPersonality('')}</div>
             </div>
           </details>
-          <details class="waiting-drawer player-list-drawer" data-waiting-drawer="players" ${playersOpen}>
-            <summary>Players <span class="drawer-count">(${playerCount})</span></summary>
-            <div class="drawer-content player-list">
-              ${players || '<p class="hint">No players yet.</p>'}
-              ${players ? playerHint : ''}
-            </div>
-          </details>
           <details class="waiting-drawer" data-waiting-drawer="settings" ${settingsOpen}>
             <summary>Settings</summary>
             <div class="drawer-content waiting-selectors">
@@ -248,6 +240,11 @@ function renderWaiting(state) {
               </label>
             </div>
           </details>
+          <section class="waiting-player-list player-list" aria-labelledby="waitingPlayersHeading">
+            <h2 id="waitingPlayersHeading">Players <span class="drawer-count">(${playerCount})</span></h2>
+            ${players || "<p class=\"hint\">No players yet.</p>"}
+            ${players ? playerHint : ""}
+          </section>
         </div>
         <button id="startBtn" class="expected-action" ${startDisabled ? 'disabled' : ''}>Start game</button>
       </div>

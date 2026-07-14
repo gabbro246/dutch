@@ -225,6 +225,21 @@ input, select {
   padding: 9px 0 2px;
 }
 
+.waiting-player-list {
+  border-top: 1px solid #e8eaed;
+  padding: 9px 0 0;
+}
+
+.waiting-player-list h2 {
+  font-size: 16px;
+  line-height: 1.25;
+  margin: 0 0 9px;
+}
+
+.waiting-player-list .hint {
+  margin-bottom: 0;
+}
+
 .field-note,
 .repo-link {
   font-size: 12px;
