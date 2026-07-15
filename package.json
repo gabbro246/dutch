@@ -1,6 +1,6 @@
 {
   "name": "dutch-card-game",
-  "version": "1.2.24",
+  "version": "1.2.25",
   "description": "Simple local multiplayer Dutch card game",
   "main": "server.js",
   "scripts": {

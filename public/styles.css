@@ -86,6 +86,88 @@ input, select {
 
 .active-game-summary { margin-top: 4px; }
 
+.logs-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.log-file-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid #e8eaed;
+}
+
+.log-file-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e8eaed;
+  color: #202124;
+  text-decoration: none;
+}
+
+.log-file-link:hover span:first-child,
+.log-back-link:hover {
+  text-decoration: underline;
+}
+
+.log-file-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.log-file-summary,
+.log-file-meta {
+  color: #5f6368;
+  font-size: 12px;
+}
+
+.log-file-summary {
+  overflow-wrap: anywhere;
+}
+
+.log-file-meta {
+  flex: 0 0 auto;
+}
+
+.log-view-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #e8eaed;
+  padding-bottom: 10px;
+}
+
+.log-view-header .waiting-description {
+  margin-bottom: 0;
+}
+
+.log-back-link {
+  flex: 0 0 auto;
+  color: #1a73e8;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.saved-log-view {
+  margin: 0;
+  color: #202124;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.log-download-row {
+  border-top: 1px solid #e8eaed;
+  padding-top: 10px;
+}
+
 .row {
   display: flex;
   gap: 8px;

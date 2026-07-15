@@ -35,7 +35,7 @@ const APP_VERSION = packageInfo.version;
 const SPECTATOR_TRIGGER_NAME = 'spectator';
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const INDEX_PATH = path.join(PUBLIC_DIR, 'index.html');
-const app = createHttpApp({ indexPath: INDEX_PATH, publicDir: PUBLIC_DIR, appVersion: APP_VERSION });
+const app = createHttpApp({ indexPath: INDEX_PATH, publicDir: PUBLIC_DIR, appVersion: APP_VERSION, gameLogDir: GAME_LOG_DIR });
 const server = http.createServer(app);
 const io = new Server(server);
 
