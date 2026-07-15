@@ -109,6 +109,18 @@ function gameStartedText(startedAt) {
   return '<p class="hint">Started ' + escapeHtml(time) + ' (' + escapeHtml(elapsed) + ')</p>';
 }
 
+function activeGameSummary(state) {
+  const tag = String.fromCharCode(60);
+  const end = String.fromCharCode(62);
+  const players = (state.players || [])
+    .filter(function(player) { return player.isSpectator === false; })
+    .map(function(player) { return player.name; })
+    .join(", ");
+  const round = state.roundNumber ? "Round " + state.roundNumber : "Round not started";
+  const text = "Players: " + (players || "none") + ". " + round + ".";
+  return tag + "p class=\"hint active-game-summary\"" + end + escapeHtml(text) + tag + "/p" + end;
+}
+
 function playerNameTaken(state, name) {
   const normalized = normalizedShortPlayerName(name);
   if (!normalized) return false;
@@ -131,6 +143,7 @@ function canJoinWithName(state, name) {
 function render(state) {
   if (!state.joined && state.phase === 'playing') {
     const gameStarted = gameStartedText(state.gameStartedAt);
+    const gameSummary = activeGameSummary(state);
     app.innerHTML = `
       <div class="page waiting-page">
         <h1 class="app-title">Dutch! 🂡</h1>
@@ -138,6 +151,7 @@ function render(state) {
           <p class="waiting-description">${escapeHtml(GAME_DESCRIPTION)}</p>
           <p>${escapeHtml(state.waitingMessage)}</p>
           ${gameStarted}
+          ${gameSummary}
         </div>
         ${repoLink(state.version)}
       </div>
@@ -203,7 +217,6 @@ function renderWaiting(state) {
   const humanCount = state.players.filter((p) => !p.isBot && !p.isSpectator).length;
   const playerHintText = humanCount === 0 ? 'Waiting for a human player.' : 'Waiting for another human or a bot.';
   const playerHint = state.players.length > 0 && !state.canStart ? `<p class="hint">${playerHintText}</p>` : '';
-  const playerCount = state.players.length;
   app.innerHTML = `
     <div class="page waiting-page">
       <h1 class="app-title">Dutch! 🂡</h1>
@@ -247,7 +260,7 @@ function renderWaiting(state) {
             </div>
           </details>
           <section class="waiting-player-list player-list" aria-labelledby="waitingPlayersHeading">
-            <h2 id="waitingPlayersHeading">Players <span class="drawer-count">(${playerCount})</span></h2>
+            <h2 id="waitingPlayersHeading">Players</h2>
             ${players || "<p class=\"hint\">No players yet.</p>"}
             ${players ? playerHint : ""}
           </section>

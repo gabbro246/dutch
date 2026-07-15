@@ -171,6 +171,37 @@ function adminLog(event, data = {}) {
   });
 }
 
+function terminalGameLog(message) {
+  console.log("[Dutch] " + new Date().toISOString() + " " + message);
+}
+
+function terminalSettingsText() {
+  const deck = state.deckSetting === "two" ? "two decks" : "one deck";
+  return deck + ", target " + state.gameTarget + " points";
+}
+
+function terminalPlayerNames() {
+  return activePlayablePlayers().map(function(player) {
+    return player.name + (player.isBot ? " (bot)" : "");
+  }).join(", ");
+}
+
+function terminalScoresText(scores) {
+  return (scores || scoreSnapshot()).map(function(score) {
+    const roundText = typeof score.roundPoints === "number" ? ", round " + score.roundPoints : "";
+    return score.name + ": " + score.total + " pts" + roundText;
+  }).join("; ");
+}
+
+function terminalGameStarted() {
+  terminalGameLog("Game started. Players: " + terminalPlayerNames() + ". Settings: " + terminalSettingsText() + ".");
+}
+
+function terminalGameEnded(reason, winnerName) {
+  const winnerText = winnerName ? " Winner: " + winnerName + "." : "";
+  terminalGameLog("Game ended." + winnerText + " Reason: " + reason + ". Rounds: " + state.roundNumber + ". Final scores: " + terminalScoresText() + ".");
+}
+
 function gameLogStartDate(fallbackDate = new Date()) {
   if (!state.gameStartedAt) return fallbackDate;
   const startedAt = new Date(state.gameStartedAt);
@@ -1811,6 +1842,7 @@ function startGame() {
     p.roundPoints = null;
   }
   const names = activePlayablePlayers().map((p) => p.name);
+  terminalGameStarted();
   adminLog('game_started', { players: names, target: state.gameTarget });
   addLog('game started', 'system');
   startRound();
@@ -1930,6 +1962,7 @@ function endRound() {
     const winner = scoringPlayers.slice().sort((a, b) => a.total - b.total)[0];
     round.winnerId = winner ? winner.id : null;
     addLog(`game ended. ${winner ? winner.name : 'No one'} won`, 'system');
+    terminalGameEnded('score target reached', winner ? winner.name : 'No one');
     adminLog('game_ended_by_score', { target: state.gameTarget, winner: winner ? winner.name : null, scores: scoreSnapshot() });
     saveFinishedGameLog(winner ? winner.name : null);
   }
@@ -1942,8 +1975,13 @@ function nextRound() {
 
 function resetToWaiting(keepPlayers = true, reason = 'returned to waiting room', options = {}) {
   clearBotTimers();
-  if (state.phase === 'playing' && options.adminEvent) {
-    adminLog(options.adminEvent, { reason, scores: scoreSnapshot() });
+  const wasPlaying = state.phase === 'playing';
+  const alreadyFinished = state.round ? state.round.stage === 'gameEnd' : false;
+  if (wasPlaying) {
+    if (alreadyFinished === false) terminalGameEnded(reason);
+    if (options.adminEvent) {
+      adminLog(options.adminEvent, { reason, scores: scoreSnapshot() });
+    }
   }
   const players = keepPlayers ? state.players.filter((p) => p.connected && !p.left).map((p) => ({
     id: p.id,

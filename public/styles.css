@@ -84,6 +84,8 @@ input, select {
   font-size: 14px;
 }
 
+.active-game-summary { margin-top: 4px; }
+
 .row {
   display: flex;
   gap: 8px;
