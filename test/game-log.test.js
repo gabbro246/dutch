@@ -5,6 +5,7 @@ const {
   finishedGameLogFilename,
   finishedGameLogText
 } = require('../lib/game-log.js');
+const { logSummaryFromContent } = require('../lib/http-app.js');
 
 test('game log filename uses the game start time when present', () => {
   const savedAt = new Date(2026, 0, 2, 3, 4, 5);
@@ -38,4 +39,23 @@ test('finished game log includes winner, score table, and relative log lines', (
   assert.match(text, /Winner: Ada\nTarget: 100\nRounds: 2\n/);
   assert.match(text, /Round \| Ada \| Ben\n--- \| --- \| ---\nRound 1 \| 4 \| 7\nRound 2 \| 9 \| 8/);
   assert.match(text, /Game log:\n\+00:00\.000 1\. \[system\] game started\n\+00:01\.500 2\. Ada swapped cards\n$/);
+});
+
+test('log list summary ranks players by final score without winner text', () => {
+  const text = finishedGameLogText({
+    savedAt: new Date(2026, 0, 2, 3, 4, 5),
+    gameStartedAt: new Date(2026, 0, 1, 1, 2, 3),
+    winnerName: 'Ben',
+    gameTarget: 100,
+    roundNumber: 2,
+    scoreHistory: [
+      { round: 1, players: [{ name: 'Ada', total: 4 }, { name: 'Ben', total: 7 }, { name: 'Cal', total: 6 }] },
+      { round: 2, players: [{ name: 'Ada', total: 9 }, { name: 'Ben', total: 8 }, { name: 'Cal', total: 12 }] }
+    ],
+    log: []
+  });
+
+  assert.deepEqual(logSummaryFromContent(text), {
+    summaryText: 'Ranking: Ben, Ada, Cal · Rounds: 2'
+  });
 });

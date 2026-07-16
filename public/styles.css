@@ -661,6 +661,13 @@ input, select {
   margin-bottom: 10px;
 }
 
+.status.game-ended-status {
+  border: 1px solid #d28b00;
+  border-radius: 8px;
+  background: #fff8e6;
+  box-shadow: 0 0 0 2px rgba(210, 139, 0, 0.14);
+}
+
 .hint {
   font-size: 12px;
   color: #5f6368;
@@ -744,6 +751,10 @@ summary {
 
 .score-table th {
   font-weight: 650;
+}
+
+.score-table .winner-points {
+  font-weight: 800;
 }
 
 .points-note {

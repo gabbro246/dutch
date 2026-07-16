@@ -370,6 +370,7 @@ function renderGame(state) {
 function renderStatus(state) {
   const r = state.round;
   let text = '';
+  let textHtml = '';
   if (r.stage === 'peek') {
     text = 'Start peek: each player must look at exactly two own cards.';
   } else if (r.stage === 'special' && r.special) {
@@ -377,7 +378,7 @@ function renderStatus(state) {
   } else if (r.stage === 'roundEnd') {
     text = 'Round ended. Cards are revealed and points were counted.';
   } else if (r.stage === 'gameEnd') {
-    text = `Game ended. Winner: ${r.winnerName || 'unknown'}.`;
+    textHtml = 'Game ended. <strong>Winner: ' + escapeHtml(r.winnerName || 'unknown') + '.</strong>';
   } else if (r.turnComplete && r.currentPlayerId === state.you) {
     text = 'Your turn is complete. Say Dutch or click Next player.';
   } else if (r.turnComplete) {
@@ -385,6 +386,8 @@ function renderStatus(state) {
   } else {
     text = `${r.currentPlayerName}'s move.`;
   }
+  if (!textHtml) textHtml = escapeHtml(text);
+  const statusClass = r.stage === 'gameEnd' ? 'status game-ended-status' : 'status';
   const dutch = r.dutchCallerName ? `<div>${escapeHtml(r.dutchCallerName)} called Dutch. ${r.dutchTurnsRemaining} player turn(s) remaining.</div>` : '';
   const buttons = [
     '<button data-action="endGameForAll">End game for all</button>',
@@ -393,10 +396,10 @@ function renderStatus(state) {
     `<button data-action="newGame" class="expected-action" ${r.stage === 'gameEnd' ? '' : 'disabled'}>New game</button>`
   ].filter(Boolean).join('');
   return `
-    <div class="status">
+    <div class="${statusClass}">
       <div class="status-main">
         <div class="status-info">
-          <div>${escapeHtml(text)}</div>
+          <div>${textHtml}</div>
           ${dutch}
         </div>
         ${buttons ? `<div class="status-actions">${buttons}</div>` : ''}
@@ -705,10 +708,12 @@ function pointsTable(state) {
     if (!playerMap.has(player.id)) playerMap.set(player.id, { id: player.id, name: player.name });
   });
   const players = Array.from(playerMap.values());
+  const winnerId = state.round.stage === 'gameEnd' ? state.round.winnerId : '';
   const historyRows = history.map((entry) => {
     const cells = players.map((p) => {
       const item = entry.players.find((h) => h.id === p.id);
-      return `<td>${item ? item.total : ""}</td>`;
+      const winnerClass = winnerId && p.id === winnerId ? " class=\"winner-points\"" : "";
+      return `<td${winnerClass}>${item ? item.total : ""}</td>`;
     }).join("");
     return `<tr><th>Round ${entry.round}</th>${cells}</tr>`;
   }).join("");
