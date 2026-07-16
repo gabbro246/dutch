@@ -9,6 +9,11 @@ let logExpanded = false;
 const detailPreferencesByMode = {};
 const waitingDrawerPreferences = { bots: false, settings: false };
 const SPECTATOR_TRIGGER_NAME = 'spectator';
+const RIGHT_PANEL_SCROLL_TARGETS = [
+  ['side-area', '.side-area'],
+  ['status-info', '.side-status-card .status-info'],
+  ['score-scroll', '.score-scroll']
+];
 const {
   PLAYER_NAME_MAX_LENGTH,
   GAME_DESCRIPTION,
@@ -228,7 +233,7 @@ function renderWaiting(state) {
             <button id="joinBtn" disabled>Join</button>
             <button id="leaveBtn" ${joined ? '' : 'disabled'}>Leave</button>
           </div>
-          <details class="waiting-drawer" data-waiting-drawer="bots" ${botsOpen}>
+          <details class="drawer waiting-drawer" data-waiting-drawer="bots" ${botsOpen}>
             <summary>Bots</summary>
             <div class="drawer-content">
               <div class="row bot-row">
@@ -240,7 +245,7 @@ function renderWaiting(state) {
               <div id="botPersonalitySlot">${renderBotPersonality('')}</div>
             </div>
           </details>
-          <details class="waiting-drawer" data-waiting-drawer="settings" ${settingsOpen}>
+          <details class="drawer waiting-drawer" data-waiting-drawer="settings" ${settingsOpen}>
             <summary>Settings</summary>
             <div class="drawer-content waiting-selectors">
               <label class="setting-row" for="gameTargetSelect">
@@ -348,10 +353,29 @@ function renderWaiting(state) {
   });
 }
 
+function captureRightPanelScroll() {
+  return RIGHT_PANEL_SCROLL_TARGETS.reduce((snapshot, [key, selector]) => {
+    const element = document.querySelector(selector);
+    if (element) snapshot[key] = { top: element.scrollTop, left: element.scrollLeft };
+    return snapshot;
+  }, {});
+}
+
+function restoreRightPanelScroll(snapshot) {
+  RIGHT_PANEL_SCROLL_TARGETS.forEach(([key, selector]) => {
+    const position = snapshot[key];
+    const element = position ? document.querySelector(selector) : null;
+    if (!element) return;
+    element.scrollTop = position.top;
+    element.scrollLeft = position.left;
+  });
+}
+
 function renderGame(state) {
   const round = state.round;
   const me = round.players.find((p) => p.id === state.you);
-  const others = round.players.filter((p) => p.id !== state.you);
+  const others = round.players.filter((p) => p.id !== state.you && !p.isSpectator);
+  const rightPanelScroll = captureRightPanelScroll();
   app.innerHTML = `
     <div class="main-layout">
       <main class="game-area">
@@ -359,12 +383,13 @@ function renderGame(state) {
           ${others.map((player) => renderPlayerField(player, state, true)).join('')}
         </section>
         ${renderDeckPile(state)}
-        ${me ? renderOwnArea(me, state) : ''}
+        ${me && !me.isSpectator ? renderOwnArea(me, state) : ''}
       </main>
       ${renderSideArea(state)}
     </div>
   `;
   clientActions.wireGameButtons();
+  restoreRightPanelScroll(rightPanelScroll);
 }
 
 function renderStatus(state) {
@@ -609,11 +634,17 @@ function renderSideArea(state) {
   const logDefaultOpen = !gameFinished;
   return `
     <aside class="side-area">
-      ${renderStatus(state)}
-      ${renderDetails('guide', 'Quick guide', shortInstructions(), guideDefaultOpen)}
-      ${renderDetails('rules', 'Complete rules', fullRules(state), false, 'rules-body')}
-      ${renderDetails('points', 'Points', pointsTable(state), pointsDefaultOpen)}
-      ${renderDetails('log', 'Game log', renderLog(state), logDefaultOpen)}
+      <div class="side-status-card">
+        ${renderStatus(state)}
+      </div>
+      <div class="panel side-panel">
+        <div class="side-drawers">
+          ${renderDetails('points', 'Points', pointsTable(state), pointsDefaultOpen)}
+          ${renderDetails('log', 'Game log', renderLog(state), logDefaultOpen)}
+          ${renderDetails('guide', 'Quick guide', shortInstructions(), guideDefaultOpen)}
+          ${renderDetails('rules', 'Complete rules', fullRules(state), false, 'rules-body')}
+        </div>
+      </div>
       ${repoLink(state.version)}
     </aside>
   `;
@@ -622,8 +653,9 @@ function renderSideArea(state) {
 function renderDetails(key, title, content, defaultOpen, extraClass = '') {
   const preferences = detailPreferencesByMode[currentDetailsMode] || {};
   const open = preferences[key] === undefined ? defaultOpen : preferences[key];
+  const classes = ['drawer', 'side-drawer', extraClass].filter(Boolean).join(' ');
   return `
-    <details data-detail-key="${escapeHtml(key)}" class="${escapeHtml(extraClass)}" ${open ? 'open' : ''}>
+    <details data-detail-key="${escapeHtml(key)}" class="${escapeHtml(classes)}" ${open ? 'open' : ''}>
       <summary>${escapeHtml(title)}</summary>
       ${content}
     </details>
@@ -712,7 +744,7 @@ function pointsTable(state) {
   const historyRows = history.map((entry) => {
     const cells = players.map((p) => {
       const item = entry.players.find((h) => h.id === p.id);
-      const winnerClass = winnerId && p.id === winnerId ? " class=\"winner-points\"" : "";
+      const winnerClass = winnerId && p.id === winnerId ? ' class="winner-points"' : "";
       return `<td${winnerClass}>${item ? item.total : ""}</td>`;
     }).join("");
     return `<tr><th>Round ${entry.round}</th>${cells}</tr>`;
