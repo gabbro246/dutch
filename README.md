@@ -1,7 +1,6 @@
 # Dutch! 🂡
 
 A card game where players try to finish with the lowest score by remembering, swapping, and revealing cards.
-
 This project provides a minimal local multiplayer version that you can play in a browser against other players or bots.
 
 ## Run Dutch
@@ -9,13 +8,9 @@ This project provides a minimal local multiplayer version that you can play in a
 Node.js must be installed first. If it is not installed, see the [Node.js installation instructions](https://nodejs.org/).
 
 1. Click the green **Code** button near the top of this GitHub page, select **Download ZIP**, and extract the downloaded folder.
-
 2. Open a terminal inside the extracted folder.
-
 3. Install the required packages: `npm install`
-
 4. Start the game: `npm start`
-
 5. Open `http://localhost:3000` on the computer running the game. To play on another device connected to the same network, open the network address shown in the terminal.
 
 It can also be hosted on Home Assistant OS using [gabbro246/dutch-haos](https://github.com/gabbro246/dutch-haos).
