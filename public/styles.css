@@ -547,6 +547,7 @@ summary {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding-inline: 2px;
   overflow-y: auto;
   max-height: calc(100vh - 20px);
 }

@@ -894,20 +894,20 @@ function animateCardMove(sourceData, targetData) {
   clone.classList.add('moving-card');
   clone.removeAttribute('data-card-id');
   clone.removeAttribute('data-action');
-  clone.style.left = `${source.left}px`;
-  clone.style.top = `${source.top}px`;
-  clone.style.width = `${source.width}px`;
-  clone.style.height = `${source.height}px`;
+  clone.style.left = `${dest.left}px`;
+  clone.style.top = `${dest.top}px`;
+  clone.style.width = `${dest.width}px`;
+  clone.style.height = `${dest.height}px`;
   clone.style.margin = '0';
   clone.style.transformOrigin = 'top left';
   document.body.appendChild(clone);
 
   target.classList.add('anim-target-hidden');
-  const scaleX = dest.width / source.width;
-  const scaleY = dest.height / source.height;
+  const scaleX = source.width / dest.width;
+  const scaleY = source.height / dest.height;
   const animation = clone.animate([
-    { transform: 'translate(0, 0) scale(1, 1)' },
-    { transform: `translate(${dest.left - source.left}px, ${dest.top - source.top}px) scale(${scaleX}, ${scaleY})` }
+    { transform: `translate(${source.left - dest.left}px, ${source.top - dest.top}px) scale(${scaleX}, ${scaleY})` },
+    { transform: 'translate(0, 0) scale(1, 1)' }
   ], {
     duration: 360,
     easing: 'linear',
