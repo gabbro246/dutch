@@ -1,6 +1,9 @@
 const socket = io({ autoConnect: false });
 const app = document.getElementById('app');
 const PLAYER_TOKEN_KEY = 'dutchPlayerSessionToken';
+const PLAYER_TAB_KEY = 'dutchPlayerTabId';
+const PLAYER_TOKEN_BACKUP_PREFIX = 'dutchPlayerSessionToken:';
+const PLAYER_TAB_WINDOW_PREFIX = 'dutch-tab:';
 const PLAYER_NAME_KEY = 'dutchPlayerName';
 const playerToken = getPlayerToken();
 let lastState = null;
@@ -50,16 +53,74 @@ function generatePlayerToken() {
     : 'player-' + Date.now() + '-' + Math.random().toString(36).slice(2);
 }
 
-function getPlayerToken() {
+function readSessionValue(key) {
   try {
-    const existing = window.sessionStorage.getItem(PLAYER_TOKEN_KEY);
-    if (existing) return existing;
-    const token = generatePlayerToken();
-    window.sessionStorage.setItem(PLAYER_TOKEN_KEY, token);
-    return token;
+    return window.sessionStorage.getItem(key) || '';
   } catch (error) {
-    return generatePlayerToken();
+    return '';
   }
+}
+
+function rememberSessionValue(key, value) {
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch (error) {
+    // Storage can fail in private browsing; in-memory identity still works for this page load.
+  }
+}
+
+function readLocalValue(key) {
+  try {
+    return window.localStorage.getItem(key) || '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function rememberLocalValue(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch (error) {
+    // A blocked backup only affects reload recovery; current-tab play still works.
+  }
+}
+
+function getPlayerTabId() {
+  const existing = readSessionValue(PLAYER_TAB_KEY);
+  if (existing) return existing;
+  const fromWindowName = String(window.name || '').startsWith(PLAYER_TAB_WINDOW_PREFIX)
+    ? String(window.name).slice(PLAYER_TAB_WINDOW_PREFIX.length)
+    : '';
+  const tabId = fromWindowName || generatePlayerToken();
+  rememberSessionValue(PLAYER_TAB_KEY, tabId);
+  try {
+    window.name = PLAYER_TAB_WINDOW_PREFIX + tabId;
+  } catch (error) {
+    // The session value is enough for ordinary reloads.
+  }
+  return tabId;
+}
+
+function rememberPlayerTokenBackup(token) {
+  rememberLocalValue(PLAYER_TOKEN_BACKUP_PREFIX + getPlayerTabId(), token);
+}
+
+function getPlayerToken() {
+  const tabId = getPlayerTabId();
+  const existing = readSessionValue(PLAYER_TOKEN_KEY);
+  if (existing) {
+    rememberLocalValue(PLAYER_TOKEN_BACKUP_PREFIX + tabId, existing);
+    return existing;
+  }
+  const backedUp = readLocalValue(PLAYER_TOKEN_BACKUP_PREFIX + tabId);
+  if (backedUp) {
+    rememberSessionValue(PLAYER_TOKEN_KEY, backedUp);
+    return backedUp;
+  }
+  const token = generatePlayerToken();
+  rememberSessionValue(PLAYER_TOKEN_KEY, token);
+  rememberLocalValue(PLAYER_TOKEN_BACKUP_PREFIX + tabId, token);
+  return token;
 }
 
 function readStoredValue(key) {
@@ -183,10 +244,14 @@ function canJoinWithName(state, name) {
   return !playerNameTaken(state, name);
 }
 
+function normalizedReconnectName(name) {
+  return String(name || '').trim().toLocaleLowerCase();
+}
+
 function canRejoinMissingPlayer(missingPlayers, name) {
-  const normalized = normalizedShortPlayerName(name);
+  const normalized = normalizedReconnectName(name);
   if (!normalized) return false;
-  return missingPlayers.some((player) => normalizedShortPlayerName(player.name) === normalized);
+  return missingPlayers.some((player) => normalizedReconnectName(player.name) === normalized);
 }
 
 function bindActiveGameRejoin(missingPlayers = []) {
@@ -200,6 +265,7 @@ function bindActiveGameRejoin(missingPlayers = []) {
     const name = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
     if (!canRejoinMissingPlayer(missingPlayers, name)) return;
     rememberPlayerName(name);
+    rememberPlayerTokenBackup(playerToken);
     emit('join', { name, token: playerToken });
   };
   update();
@@ -365,6 +431,7 @@ function renderWaiting(state) {
       const name = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
       clientActions.clearPendingConfirm();
       rememberPlayerName(name);
+      rememberPlayerTokenBackup(playerToken);
       emit('join', { name, token: playerToken });
     });
     nameInput.addEventListener('keydown', (event) => {
@@ -372,6 +439,7 @@ function renderWaiting(state) {
         const name = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
         clientActions.clearPendingConfirm();
         rememberPlayerName(name);
+        rememberPlayerTokenBackup(playerToken);
         emit('join', { name, token: playerToken });
       }
     });

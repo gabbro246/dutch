@@ -121,6 +121,28 @@ test('active game join can reattach a disconnected player by name', () => {
   assert.deepEqual(client.emitted, []);
 });
 
+test('active game join rejects wrong rejoin names even with the old token', () => {
+  const state = {
+    phase: 'playing',
+    waitingMessage: 'A game is already active. Join after the game ends.',
+    players: [
+      player('gabriel-token', 'Gabriel', { connected: false, disconnectedAt: 123, socketId: null }),
+      player('ben-token', 'Ben', { socketId: 'socket-2' })
+    ]
+  };
+  const { sessions, calls } = sessionsFor(state);
+  const client = socket('socket-new');
+
+  sessions.join(client, { name: 'Gabrxxxx', token: 'gabriel-token' });
+
+  assert.equal(playerIdForSocket(client), 'gabriel-token');
+  assert.equal(state.players[0].connected, false);
+  assert.equal(state.players[0].socketId, null);
+  assert.equal(calls.logs.length, 0);
+  assert.equal(calls.broadcasts, 1);
+  assert.deepEqual(client.emitted, [{ event: 'notice', payload: state.waitingMessage }]);
+});
+
 test('waiting-room actions remove, move, and add players', () => {
   const state = {
     phase: 'waiting',
