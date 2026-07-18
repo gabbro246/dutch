@@ -97,6 +97,30 @@ test('joining and identifying use stable tokens without duplicating players', ()
   assert.ok(calls.broadcasts >= 2);
 });
 
+test('active game join can reattach a disconnected player by name', () => {
+  const state = {
+    phase: 'playing',
+    waitingMessage: 'A game is already active. Join after the game ends.',
+    players: [
+      player('ada-token', 'Ada', { connected: false, disconnectedAt: 123, socketId: null }),
+      player('ben-token', 'Ben', { socketId: 'socket-2' })
+    ]
+  };
+  const { sessions, calls } = sessionsFor(state);
+  const client = socket('socket-new');
+
+  sessions.join(client, { name: 'Ada', token: 'new-token' });
+
+  assert.equal(state.players.length, 2);
+  assert.equal(playerIdForSocket(client), 'ada-token');
+  assert.equal(state.players[0].connected, true);
+  assert.equal(state.players[0].disconnectedAt, null);
+  assert.equal(state.players[0].socketId, 'socket-new');
+  assert.equal(calls.logs.at(-1).text, 'Ada reconnected');
+  assert.equal(calls.broadcasts, 1);
+  assert.deepEqual(client.emitted, []);
+});
+
 test('waiting-room actions remove, move, and add players', () => {
   const state = {
     phase: 'waiting',

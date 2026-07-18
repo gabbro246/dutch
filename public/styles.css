@@ -200,7 +200,7 @@ summary {
   flex-wrap: nowrap;
 }
 
-.join-row #nameInput,
+.join-row input,
 .bot-row select {
   flex: 1 1 auto;
   min-width: 0;

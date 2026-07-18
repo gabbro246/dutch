@@ -1,6 +1,7 @@
 const socket = io({ autoConnect: false });
 const app = document.getElementById('app');
 const PLAYER_TOKEN_KEY = 'dutchPlayerSessionToken';
+const PLAYER_NAME_KEY = 'dutchPlayerName';
 const playerToken = getPlayerToken();
 let lastState = null;
 let hasRenderedGame = false;
@@ -43,18 +44,55 @@ const clientActions = window.DutchClientActions.create({
   setLogExpanded: (value) => { logExpanded = value; }
 });
 
+function generatePlayerToken() {
+  return window.crypto && window.crypto.randomUUID
+    ? window.crypto.randomUUID()
+    : 'player-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+}
+
 function getPlayerToken() {
   try {
     const existing = window.sessionStorage.getItem(PLAYER_TOKEN_KEY);
     if (existing) return existing;
-    const token = window.crypto && window.crypto.randomUUID
-      ? window.crypto.randomUUID()
-      : 'player-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    const token = generatePlayerToken();
     window.sessionStorage.setItem(PLAYER_TOKEN_KEY, token);
     return token;
   } catch (error) {
-    return 'player-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    return generatePlayerToken();
   }
+}
+
+function readStoredValue(key) {
+  try {
+    return window.localStorage.getItem(key) || window.sessionStorage.getItem(key) || '';
+  } catch (error) {
+    try {
+      return window.sessionStorage.getItem(key) || '';
+    } catch (sessionError) {
+      return '';
+    }
+  }
+}
+
+function rememberStoredValue(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch (error) {
+    try {
+      window.sessionStorage.setItem(key, value);
+    } catch (sessionError) {
+      // Storage can fail in private browsing; the in-memory token still works for this tab.
+    }
+  }
+}
+
+function getStoredPlayerName() {
+  return readStoredValue(PLAYER_NAME_KEY);
+}
+
+function rememberPlayerName(name) {
+  const trimmedName = String(name || '').trim().slice(0, PLAYER_NAME_MAX_LENGTH);
+  if (trimmedName) rememberStoredValue(PLAYER_NAME_KEY, trimmedName);
 }
 
 socket.on('connect', () => {
@@ -145,22 +183,61 @@ function canJoinWithName(state, name) {
   return !playerNameTaken(state, name);
 }
 
+function canRejoinMissingPlayer(missingPlayers, name) {
+  const normalized = normalizedShortPlayerName(name);
+  if (!normalized) return false;
+  return missingPlayers.some((player) => normalizedShortPlayerName(player.name) === normalized);
+}
+
+function bindActiveGameRejoin(missingPlayers = []) {
+  const nameInput = document.getElementById('rejoinNameInput');
+  const rejoinBtn = document.getElementById('rejoinBtn');
+  if (!nameInput || !rejoinBtn) return;
+  const update = () => {
+    rejoinBtn.disabled = !canRejoinMissingPlayer(missingPlayers, nameInput.value);
+  };
+  const rejoin = () => {
+    const name = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
+    if (!canRejoinMissingPlayer(missingPlayers, name)) return;
+    rememberPlayerName(name);
+    emit('join', { name, token: playerToken });
+  };
+  update();
+  nameInput.addEventListener('input', update);
+  nameInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !rejoinBtn.disabled) rejoin();
+  });
+  rejoinBtn.addEventListener('click', rejoin);
+}
+
 function render(state) {
   if (!state.joined && state.phase === 'playing') {
     const gameStarted = gameStartedText(state.gameStartedAt);
     const gameSummary = activeGameSummary(state);
+    const missingPlayers = (state.players || []).filter((player) => !player.isBot && !player.connected);
+    const rejoinAvailable = missingPlayers.length > 0;
+    const activeGameMessage = rejoinAvailable
+      ? 'A game is already active. If you were disconnected, enter your name to rejoin.'
+      : 'A game is already active. Join after the game ends.';
+    const rejoinControls = rejoinAvailable ? `
+          <div class="row join-row active-rejoin-row">
+            <input id="rejoinNameInput" placeholder="Name" maxlength="${PLAYER_NAME_MAX_LENGTH}" value="">
+            <button id="rejoinBtn" class="expected-action" disabled>Rejoin</button>
+          </div>` : '';
     app.innerHTML = `
       <div class="page waiting-page">
         <h1 class="app-title">Dutch! 🂡</h1>
         <div class="waiting-panel">
           <p class="waiting-description">${escapeHtml(GAME_DESCRIPTION)}</p>
-          <p>${escapeHtml(state.waitingMessage)}</p>
+          <p>${activeGameMessage}</p>
+          ${rejoinControls}
           ${gameStarted}
           ${gameSummary}
         </div>
         ${repoLink(state.version)}
       </div>
     `;
+    bindActiveGameRejoin(missingPlayers);
     return;
   }
   if (state.phase === 'waiting') renderWaiting(state);
@@ -285,13 +362,17 @@ function renderWaiting(state) {
     });
     joinBtn.disabled = !canJoinWithName(state, nameInput.value);
     joinBtn.addEventListener('click', () => {
+      const name = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
       clientActions.clearPendingConfirm();
-      emit('join', { name: nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH), token: playerToken });
+      rememberPlayerName(name);
+      emit('join', { name, token: playerToken });
     });
     nameInput.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !joinBtn.disabled) {
+        const name = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
         clientActions.clearPendingConfirm();
-        emit('join', { name: nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH), token: playerToken });
+        rememberPlayerName(name);
+        emit('join', { name, token: playerToken });
       }
     });
   }
