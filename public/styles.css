@@ -4,7 +4,7 @@
 
 :root {
   --control-height: 30px;
-  --control-padding-x: 9px;
+  --control-padding-x: 6px;
   --control-radius: 5px;
   --control-border: #9aa0a6;
   --control-hover-bg: #f8f9fa;
@@ -725,7 +725,7 @@ summary {
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 /* Badges */
@@ -882,7 +882,7 @@ summary {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  width: 86px;
+  width: 78px;
 }
 
 .card-buttons button {

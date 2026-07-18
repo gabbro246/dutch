@@ -547,11 +547,11 @@ function renderOwnArea(player, state) {
   const roundWinner = (r.roundWinnerIds || []).includes(player.id);
   const gameWinner = r.winnerId === player.id;
   const winner = roundWinner || gameWinner ? ' winner' : '';
+  const areaLabel = player.isSpectator ? 'spectating' : 'your cards';
   return `
     <section class="own-area${player.isCurrent ? ' current' : ''}${dutchCaller}${finalTurnDone}${winner}">
-      <h2>${player.isSpectator ? 'Spectating' : 'Your cards'}</h2>
       <div class="player-title">
-        <strong>${escapeHtml(player.name)}</strong>${playerBadges(state, player)}
+        <h2>${escapeHtml(player.name)} <span class="own-title-label">(${areaLabel})</span>${playerBadges(state, player)}</h2>
         ${renderPlayerMeta(player)}
       </div>
       <div class="cards-row">
