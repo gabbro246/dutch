@@ -57,3 +57,23 @@ If a player’s total reaches exactly **50** or **100** points, that total is ha
 ### Starting the Next Round
 The player who scored the most points in the previous round starts the next round.
 The game ends when a player exceeds 100 points after all scoring and score-halving rules have been applied. The player with the lowest total score wins.
+
+## Bot strategy development
+
+Bot decisions use one shared outcome evaluator. The physical-card belief model lives in `lib/bot-belief-state.js`, comparable action diagnostics in `lib/bot-evaluator.js`, outcome search in `lib/bot-optimal.js`, and character limitations in `lib/bot-character.js`. `lib/bot-decisions.js` remains the compatibility facade used by the server.
+
+The evaluator reports expected round and game score, game and round win estimates, Dutch success and opponent-call probabilities, variance, information value, opponent benefit, and final action value. Current diagnostics remain server-internal in `botMemory.lastDecision`. Compact traces containing hidden hands are never included in socket views, the visible game log, or in-game log downloads; they are appended only to the finished log saved by the server and available under `/logs`.
+
+Run all deterministic tests with:
+
+```sh
+npm test
+```
+
+Run the seeded full-game tournament benchmark with:
+
+```sh
+npm run benchmark:bots -- 2
+```
+
+The optional number is the games per lineup. The benchmark includes every bot profile, Roswell mirrors, and simple pile, deck, aggressive-Dutch, and conservative-Dutch policies. It reports win and round-win rates, final scores, Dutch outcomes and failure cost, pile/deck choices, throw-ins, and decision latency.

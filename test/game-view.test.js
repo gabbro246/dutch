@@ -76,6 +76,7 @@ test('build view reveals only cards visible to the viewer', () => {
       player('ben', [card('b1', '9'), card('b2', 'K', 'hearts')])
     ],
     log: [],
+    botDiagnostics: [{ actualHands: [{ score: 2 }] }],
     roundNumber: 1,
     scoreHistory: [],
     gameStartedAt: 0,
@@ -101,6 +102,7 @@ test('build view reveals only cards visible to the viewer', () => {
   const view = viewFor(state).buildView('ada');
 
   assert.equal(view.version, 'test-version');
+  assert.equal(Object.hasOwn(view, 'botDiagnostics'), false);
   assert.equal(view.round.players[0].cards[0].back, false);
   assert.equal(view.round.players[0].cards[0].rank, '2');
   assert.equal(view.round.players[0].cards[1].back, true);

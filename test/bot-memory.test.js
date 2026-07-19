@@ -81,7 +81,9 @@ test('remember, forget, add, remove, and move slot memory mutate all bots', () =
   memory.rememberSlotForBot(bot, 'ada', 1, ada.cards[1], 'queen', 0.8);
   memory.moveSlotMemoryForAllBots('bot', 0, 'ada', 1, 'Jack swap');
   assert.equal(bot.botMemory.slots.bot[0].card.rank, '2');
+  assert.equal(bot.botMemory.slots.bot[0].physicalId, 'a2');
   assert.equal(bot.botMemory.slots.ada[1].card.rank, '7');
+  assert.equal(bot.botMemory.slots.ada[1].physicalId, 'b1');
   assert.equal(bot.botMemory.slots.ada[1].source, 'Jack swap');
 
   memory.removeSlotForAllBots('ada', 1, 'throw-in');
@@ -101,7 +103,7 @@ test('observations record discards, pile takes, and Ace attackers', () => {
   memory.syncBotMemories();
 
   for (let i = 0; i < 82; i += 1) memory.observeDiscardForAllBots(card('d' + i, 'Q'), 'discarded', 'ada');
-  assert.equal(bot.botMemory.discards.length, 80);
+  assert.equal(bot.botMemory.discards.length, 82);
   assert.equal(bot.botMemory.discards.at(-1).rank, 'Q');
   assert.equal(bot.botMemory.discards.at(-1).actorId, 'ada');
 
@@ -109,6 +111,10 @@ test('observations record discards, pile takes, and Ace attackers', () => {
   assert.equal(bot.botMemory.pendingPile.actorId, 'ada');
   assert.equal(bot.botMemory.pendingPile.rank, 'A');
   assert.equal(bot.botMemory.pendingPile.card.suit, 'spades');
+  assert.ok(bot.botMemory.inference.ada.lowCardBelief > 0);
+
+  memory.observeDecisionForAllBots('ada', 'call-dutch');
+  assert.equal(bot.botMemory.inference.ada.dutchReadiness, 0.65);
 
   memory.observeAceForAllBots('ada', 'bot');
   memory.observeAceForAllBots('ada', 'bot');

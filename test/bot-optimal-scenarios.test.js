@@ -1,0 +1,317 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { createBotDecisions } = require('../lib/bot-decisions.js');
+const { cardMemory, unknownMemory, effectiveMemory } = require('../lib/bot-strategy.js');
+
+let nextId = 1;
+function card(rank, suit = 'clubs') {
+  return { id: 'scenario-' + nextId++, rank, suit, deckColor: 'blue' };
+}
+
+function harness(options) {
+  const bot = {
+    id: 'bot',
+    name: 'Roswell',
+    isBot: true,
+    botType: options.botType || 'roswell',
+    cards: options.own,
+    total: options.total || 0,
+    left: false,
+    isSpectator: false
+  };
+  const opponents = (options.opponents || []).map((cards, index) => ({
+    id: 'opp-' + index,
+    name: 'Opponent ' + index,
+    cards,
+    total: (options.opponentTotals || [])[index] || 0,
+    left: false,
+    isSpectator: false
+  }));
+  const state = {
+    deckSetting: 'one',
+    gameTarget: options.gameTarget || 100,
+    roundNumber: 3,
+    players: [bot, ...opponents],
+    round: {
+      currentPlayerIndex: 0,
+      discard: [options.pile || card('9')],
+      deck: Array(options.deckCount || 20).fill(null),
+      dutchCallerId: null,
+      strategyTick: 4,
+      throwIn: options.throwIn || null
+    }
+  };
+  const slots = {
+    bot: bot.cards.map((item) => options.ownUnknown
+      ? unknownMemory('own unknown', 4)
+      : cardMemory(item, 'own peek', 1, 'known', 4))
+  };
+  opponents.forEach((player) => {
+    slots[player.id] = player.cards.map((item) => options.opponentsUnknown
+      ? unknownMemory('opponent unknown', 4)
+      : cardMemory(item, 'Queen peek', 1, 'known', 4));
+  });
+  const memory = { slots, discards: [], removed: [], reshuffles: [], inference: {} };
+  const decisions = createBotDecisions({
+    getState: () => state,
+    ensureBotMemory: () => memory,
+    botMemoryEntry: (viewer, ownerId, index) => memory.slots[ownerId][index],
+    effectiveMemory: (viewer, entry) => effectiveMemory(viewer, entry, 4),
+    activePlayablePlayers: () => state.players,
+    isProtectedSpecialTarget: () => false,
+    findActiveIndexFrom: (start) => start % state.players.length,
+    randomBetween: (min, max) => (min + max) / 2,
+    random: () => 0.5
+  });
+  return { bot, opponents, state, memory, decisions };
+}
+
+test('rejects a lower pile card when it cannot create a viable Dutch state and deck upside is better', () => {
+  const setup = harness({
+    own: [card('K', 'hearts'), card('2'), card('3'), card('9')],
+    opponents: [[card('A'), card('A', 'spades'), card('2'), card('K', 'diamonds')]],
+    total: 40,
+    opponentTotals: [20],
+    pile: card('8')
+  });
+  const result = setup.decisions.evaluateDrawSources(setup.bot);
+  assert.equal(result.selected.actionType, 'draw-deck');
+  assert.ok(result.deck.actionValue > result.pile.actionValue);
+  assert.equal(result.pile.expectedRoundScore > 5, true);
+});
+
+test('takes a safe pile card while ahead when it creates a callable winning hand', () => {
+  const setup = harness({
+    own: [card('K', 'hearts'), card('2'), card('3'), card('8')],
+    opponents: [[card('10'), card('9'), card('8'), card('7')]],
+    total: 20,
+    opponentTotals: [55],
+    pile: card('K', 'diamonds')
+  });
+  const result = setup.decisions.evaluateDrawSources(setup.bot);
+  assert.equal(result.selected.actionType, 'take-pile');
+  assert.equal(result.pile.expectedRoundScore, 5);
+  assert.ok(result.pile.actionVariance <= result.deck.actionVariance);
+});
+
+test('accepts deck variance when an opponent is likely to end the round first', () => {
+  const setup = harness({
+    own: [card('K', 'hearts'), card('2'), card('3'), card('9')],
+    opponents: [[card('A'), card('2')]],
+    total: 40,
+    opponentTotals: [20],
+    pile: card('8')
+  });
+  const result = setup.decisions.evaluateDrawSources(setup.bot);
+  assert.equal(result.selected.actionType, 'draw-deck');
+  assert.ok(result.deck.actionVariance > result.pile.actionVariance);
+});
+
+test('Dutch evaluator rejects lower opponent, uncertain, and high-card calls but accepts a safe call', () => {
+  const lowerOpponent = harness({
+    own: [card('2'), card('2')],
+    opponents: [[card('A'), card('A')]]
+  });
+  assert.equal(lowerOpponent.decisions.botShouldCallDutch(lowerOpponent.bot), false);
+
+  const uncertain = harness({
+    own: [card('A'), card('2')],
+    ownUnknown: true,
+    opponents: [[card('8'), card('9')]]
+  });
+  const uncertainResult = uncertain.decisions.evaluateDutch(uncertain.bot);
+  assert.equal(uncertain.decisions.botShouldCallDutch(uncertain.bot), false);
+  assert.ok(uncertainResult.call.dutchSuccessProbability < 0.5);
+
+  const safe = harness({
+    own: [card('A'), card('2'), card('K', 'hearts')],
+    opponents: [[card('8'), card('9')]]
+  });
+  assert.equal(safe.decisions.botShouldCallDutch(safe.bot), true);
+  assert.ok(safe.decisions.evaluateDutch(safe.bot).call.dutchSuccessProbability > 0.8);
+
+  const high = harness({
+    own: [card('K', 'clubs'), card('2')],
+    opponents: [[card('9'), card('8')]]
+  });
+  assert.equal(high.decisions.botShouldCallDutch(high.bot), false);
+});
+
+test('Dutch continue rollout includes an opponent call and the real final-turn response', () => {
+  const setup = harness({
+    own: [card('2'), card('3')],
+    opponents: [[card('A'), card('2')]],
+    pile: card('9')
+  });
+  const result = setup.decisions.evaluateDutch(setup.bot);
+
+  assert.equal(result.continue.metadata.simulatedToNextDecision, true);
+  assert.ok(result.continue.metadata.opponentCallBeforeNextProbability > 0.7);
+  assert.ok(result.continue.branches.some((branch) => (
+    branch.evaluation.actionType === 'continue-opponent-called' &&
+    branch.evaluation.metadata.callerId === setup.opponents[0].id
+  )));
+  assert.equal(result.continue.metadata.expectedImprovement, undefined);
+  assert.ok(result.continue.actionVariance > 0);
+});
+
+test('Dutch at five uses beliefs and does not wait for secret proof that nobody is lower', () => {
+  const setup = harness({
+    own: [card('2'), card('3')],
+    opponents: [[card('A'), card('A', 'spades')]],
+    opponentsUnknown: true
+  });
+  const result = setup.decisions.evaluateDutch(setup.bot);
+
+  assert.ok(result.call.dutchSuccessProbability > 0.5);
+  assert.equal(setup.decisions.botShouldCallDutch(setup.bot), true);
+});
+
+test('Dutch evaluation preserves a safe exact-50 halving opportunity', () => {
+  const setup = harness({
+    own: [card('2'), card('2')],
+    opponents: [[card('9'), card('9')]],
+    total: 46
+  });
+  const result = setup.decisions.evaluateDutch(setup.bot);
+
+  assert.equal(setup.decisions.botShouldCallDutch(setup.bot), false);
+  assert.ok(result.continue.expectedGameScore < result.call.expectedGameScore);
+});
+
+test('Queen uses information value and Ace targets expected damage rather than cumulative lead alone', () => {
+  const queen = harness({
+    own: [card('2'), card('3'), card('8')],
+    ownUnknown: true,
+    opponents: [[card('2')]],
+    opponentsUnknown: true
+  });
+  const queenTarget = queen.decisions.botQueenTarget(queen.bot);
+  assert.equal(queenTarget.player.id, queen.opponents[0].id);
+  assert.ok(queenTarget.informationValue > 0);
+
+  const ace = harness({
+    own: [card('2'), card('3')],
+    opponents: [
+      [card('10'), card('9'), card('8'), card('7')],
+      [card('2')]
+    ],
+    opponentsUnknown: true,
+    total: 30,
+    opponentTotals: [5, 35]
+  });
+  const aceTarget = ace.decisions.botAceTarget(ace.bot);
+  assert.equal(aceTarget.player.id, ace.opponents[1].id);
+  assert.notEqual(aceTarget.player.total, Math.min(...ace.opponents.map((player) => player.total)));
+});
+
+test('throw-in is selected only when expected value is positive', () => {
+  const positive = harness({
+    own: [card('9'), card('2')],
+    opponents: [[card('8'), card('8')]],
+    throwIn: { open: true, rank: '9' }
+  });
+  const candidate = positive.decisions.botThrowInCandidate(positive.bot);
+  assert.equal(candidate.index, 0);
+  assert.ok(candidate.expectedValue > 0 || candidate.confidence === 1);
+
+  const uncertain = harness({
+    own: [card('9'), card('2')],
+    ownUnknown: true,
+    opponents: [[card('8'), card('8')]],
+    throwIn: { open: true, rank: '9' }
+  });
+  assert.equal(uncertain.decisions.botThrowInCandidate(uncertain.bot), null);
+});
+
+test('discarding a drawn matching rank evaluates the immediate throw-in continuation', () => {
+  const setup = harness({
+    own: [card('9'), card('2')],
+    opponents: [[card('8'), card('7')]]
+  });
+  const ctx = setup.decisions.contextFor(setup.bot);
+  const result = setup.decisions.evaluateDeckDiscard(setup.bot, card('9', 'spades'), ctx);
+
+  assert.equal(result.metadata.throwInFollowUp.index, 0);
+  assert.equal(result.metadata.throwInFollowUp.rank, '9');
+  assert.equal(result.metadata.throwInFollowUp.confidence, 1);
+  assert.equal(result.expectedRawHandScore, 2);
+});
+
+test('replacement values a retained rank match as a future throw-in path', () => {
+  const setup = harness({
+    own: [card('5'), card('9'), card('2')],
+    opponents: [[card('8'), card('7')]]
+  });
+  const result = setup.decisions.evaluateReplacement(setup.bot, card('5', 'spades'), 1);
+
+  assert.ok(result.futureThrowInScoreSaving > 0);
+  assert.ok(result.finalActionValue > result.actionValue - 1e-9);
+});
+
+test('discard value includes the opponent throw-in it may enable', () => {
+  const setup = harness({
+    own: [card('2'), card('3')],
+    opponents: [[card('9'), card('7')]]
+  });
+  const ctx = setup.decisions.contextFor(setup.bot);
+
+  assert.equal(setup.decisions.opponentThrowInBenefit(setup.bot, card('9', 'spades'), ctx), 9);
+  assert.equal(setup.decisions.opponentThrowInBenefit(setup.bot, card('6'), ctx), 0);
+});
+
+test('Jack strategy never spends the special reordering one player hand', () => {
+  const setup = harness({
+    own: [card('9'), card('2'), card('3')],
+    opponents: [[card('8'), card('7'), card('4')]]
+  });
+  const candidates = setup.decisions.botJackCandidates(setup.bot);
+
+  assert.ok(candidates.length > 0);
+  assert.ok(candidates.every((candidate) => candidate.a.player.id !== candidate.b.player.id));
+});
+
+test('Jack strategy values a cross-player swap that creates an own rank pair', () => {
+  const setup = harness({
+    own: [card('5'), card('6')],
+    opponents: [[card('5', 'spades'), card('6', 'spades')]]
+  });
+  const candidates = setup.decisions.botJackCandidates(setup.bot);
+  const createsPair = candidates.find((candidate) => (
+    candidate.a.player.id === setup.bot.id &&
+    candidate.a.index === 1 &&
+    candidate.b.player.id === setup.opponents[0].id &&
+    candidate.b.index === 0
+  ));
+
+  assert.ok(createsPair);
+  assert.ok(createsPair.futureThrowInScoreSaving > 0);
+});
+
+test('a perfectly remembered zero-point card is still thrown to reduce hand size', () => {
+  const setup = harness({
+    own: [card('K', 'hearts'), card('2')],
+    opponents: [[card('8'), card('7')]],
+    throwIn: { open: true, rank: 'K' }
+  });
+  const candidate = setup.decisions.botThrowInCandidate(setup.bot);
+
+  assert.equal(candidate.index, 0);
+  assert.equal(candidate.confidence, 1);
+});
+
+test('bot diagnostics retain hidden decision state outside the public game log', () => {
+  const setup = harness({
+    own: [card('A'), card('2'), card('K', 'hearts')],
+    opponents: [[card('8'), card('9')]]
+  });
+
+  setup.decisions.evaluateDrawSources(setup.bot);
+  setup.decisions.botShouldCallDutch(setup.bot);
+
+  assert.deepEqual(setup.state.log, undefined);
+  assert.equal(setup.state.botDiagnostics.length, 2);
+  assert.equal(setup.state.botDiagnostics[0].decision, 'draw-source');
+  assert.equal(setup.state.botDiagnostics[1].decision, 'dutch');
+  assert.equal(setup.state.botDiagnostics[1].actualHands[0].score, 3);
+});

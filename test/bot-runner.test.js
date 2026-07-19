@@ -124,6 +124,7 @@ test('bot runner schedules and performs the start peek', () => {
   assert.equal(bot.startPeekDone, true);
   assert.deepEqual(bot.startPeekedCardIds, ['b1', 'b2']);
   assert.equal(calls.remembered.length, 2);
+  assert.ok(calls.remembered.every((args) => args[5] === 1));
   assert.equal(calls.highlighted.length, 2);
   assert.equal(calls.beganTurns, 1);
   assert.equal(calls.broadcasts, 1);
