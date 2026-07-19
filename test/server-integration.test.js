@@ -47,9 +47,9 @@ function parseEventPacket(packet) {
 }
 
 
-async function waitFor(predicate, message = 'condition was not met') {
+async function waitFor(predicate, message = 'condition was not met', timeoutMs = 1000) {
   const startedAt = Date.now();
-  while (Date.now() - startedAt < 1000) {
+  while (Date.now() - startedAt < timeoutMs) {
     if (predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
@@ -179,7 +179,7 @@ test('socket gameplay flow covers turns, throw-ins, specials, Dutch, reconnect, 
   const discardBeforeWrongThrow = getState().round.discard.length;
   getState().round.throwIn.rank = 'not-a-real-rank';
   await secondClient.emit('throwIn', throwCard.id);
-  await waitFor(() => getState().players.find((player) => player.id === secondPlayerId).cards.length === 5, 'Wrong throw-in did not add a penalty card.');
+  await waitFor(() => getState().players.find((player) => player.id === secondPlayerId).cards.length === 5, 'Wrong throw-in did not add a penalty card.', 2500);
   assert.equal(getState().round.deck.length, deckBeforeWrongThrow - 1);
   assert.equal(getState().round.discard.length, discardBeforeWrongThrow);
   assert.equal(getState().round.throwIn.open, true);

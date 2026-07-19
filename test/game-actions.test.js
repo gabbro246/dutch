@@ -52,7 +52,9 @@ function actionsFor(state) {
     aceObservations: [],
     cardHighlights: [],
     pileHighlights: [],
-    reveals: []
+    reveals: [],
+    scheduled: [],
+    broadcasts: 0
   };
   const deps = {
     getState: () => state,
@@ -91,7 +93,12 @@ function actionsFor(state) {
       }
       return null;
     },
-    revealCardTo: (playerId, cardId, ms) => calls.reveals.push({ playerId, cardId, ms })
+    revealCardTo: (playerId, cardId, ms) => calls.reveals.push({ playerId, cardId, ms }),
+    setTimeoutFn: (fn, ms) => {
+      calls.scheduled.push({ fn, ms });
+      return { unref() {} };
+    },
+    broadcastState: () => { calls.broadcasts += 1; }
   };
   return { actions: createGameActions(deps), calls };
 }
@@ -149,9 +156,17 @@ test('throw-in handles valid and wrong cards', () => {
   const wrong = actions.throwInForPlayer(state.players[0], 'a2');
   assert.equal(wrong.valid, false);
   assert.equal(wrong.penalty.id, 'd2');
+  assert.equal(state.players[0].cards.some((item) => item.id === 'd2'), false);
+  assert.equal(calls.unknownSlots.length, 0);
+  assert.equal(calls.logs.length, 0);
+  assert.equal(calls.scheduled.at(-1).ms, 1500);
+  assert.deepEqual(calls.cardHighlights.at(-1), { cardId: 'a2', kind: 'wrong-throw', ms: 2200, options: { playerId: 'ada' } });
+
+  calls.scheduled.at(-1).fn();
   assert.equal(state.players[0].cards.at(-1).id, 'd2');
   assert.deepEqual(calls.unknownSlots.at(-1), { ownerId: 'ada', source: 'wrong throw-in penalty' });
   assert.equal(calls.logs.at(-1), 'ADA made a wrong throw-in and took a penalty card');
+  assert.equal(calls.broadcasts, 1);
 });
 
 test('Ace and Queen special actions mutate targets and finish the special', () => {

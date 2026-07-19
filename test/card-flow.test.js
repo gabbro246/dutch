@@ -118,7 +118,7 @@ test('reveal and highlight helpers schedule cleanup and remove expired state', (
   assert.deepEqual(calls.timeouts.map((item) => item.delay), [350, 450, 550]);
   assert.deepEqual(state.round.reveals, [
     { viewerId: 'ada', cardId: 'a1', until: 1300 },
-    { public: true, kind: 'event', cardId: 'b1', exceptViewerId: 'ben', until: 1400 }
+    { public: true, kind: 'event', cardId: 'b1', exceptViewerId: 'ben', playerId: '', until: 1400 }
   ]);
   assert.deepEqual(state.round.pileHighlight, { kind: 'peek', until: 1500 });
 

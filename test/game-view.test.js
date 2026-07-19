@@ -92,7 +92,8 @@ test('build view reveals only cards visible to the viewer', () => {
       specialQueue: [],
       reveals: [
         { viewerId: 'ada', cardId: 'a1', until: Date.now() + 60_000 },
-        { public: true, kind: 'peek', cardId: 'a2', exceptViewerId: 'ada', until: Date.now() + 60_000 }
+        { public: true, kind: 'peek', cardId: 'a2', exceptViewerId: 'ada', playerId: '', until: Date.now() + 60_000 },
+        { public: true, kind: 'wrong-throw', cardId: 'b1', exceptViewerId: '', playerId: 'ben', until: Date.now() + 60_000 }
       ],
       pileHighlight: null,
       dutchCallerId: null,
@@ -110,6 +111,10 @@ test('build view reveals only cards visible to the viewer', () => {
   assert.equal(view.round.players[0].cards[0].rank, '2');
   assert.equal(view.round.players[0].cards[1].back, true);
   assert.equal(view.round.players[1].cards[0].back, true);
+  assert.equal(view.round.wrongThrowIn.playerId, 'ben');
+  assert.equal(view.round.wrongThrowIn.cardId, 'b1');
+  assert.equal(view.round.wrongThrowIn.card.back, false);
+  assert.equal(view.round.wrongThrowIn.card.rank, '9');
   assert.equal(view.round.discardTop.rank, 'Q');
 
   const observerView = viewFor(state).buildView('ben');

@@ -11,6 +11,7 @@ let hasRenderedGame = false;
 let currentDetailsMode = '';
 let logExpanded = false;
 const activeCardMoves = new Map();
+const activeWrongThrows = new Map();
 const detailPreferencesByMode = {};
 const waitingDrawerPreferences = { bots: false, settings: false };
 const SPECTATOR_TRIGGER_NAME = 'spectator';
@@ -224,6 +225,7 @@ socket.on('state', (state) => {
     hideActiveCardMoveTargets();
   } else {
     cancelAllCardMoves();
+    cancelAllWrongThrows();
   }
   const afterSnapshot = captureAnimationSnapshot();
   if (previousState && hasRenderedGame && state.phase === 'playing') {
@@ -783,7 +785,7 @@ function renderCardCell(card, ownerId, index, state, compact, own) {
   const selected = r.special && r.special.actorId !== state.you && r.special.selected && r.special.selected.includes(card.id);
   return `
     <div class="card-cell" data-owner-id="${escapeHtml(ownerId)}" data-card-slot="${escapeHtml(ownerId)}:${index}">
-      ${cardHtml(card, compact, { 'data-location-key': `player:${ownerId}:${index}`, 'data-selected': selected ? 'true' : '', 'data-highlight': card.highlight === 'peek' ? '' : (card.highlight || '') })}
+      ${cardHtml(card, compact, { 'data-location-key': `player:${ownerId}:${index}`, 'data-selected': selected ? 'true' : '', 'data-highlight': ['peek', 'wrong-throw'].includes(card.highlight) ? '' : (card.highlight || '') })}
       <div class="card-buttons">${buttons.join('')}</div>
     </div>
   `;
@@ -1047,6 +1049,11 @@ function animateStateTransition(previousState, state, before, after) {
   animatePlayerPanelResizes(previousState, state, before, after);
   const previousCards = stateCardLocations(previousState);
   const currentCards = stateCardLocations(state);
+  const previousWrongThrow = previousState.round.wrongThrowIn;
+  const currentWrongThrow = state.round.wrongThrowIn;
+  if (currentWrongThrow && (!previousWrongThrow || previousWrongThrow.id !== currentWrongThrow.id)) {
+    animateWrongThrowIn(currentWrongThrow, before, after);
+  }
   const movedIds = new Set();
 
   currentCards.forEach((current, cardId) => {
@@ -1207,6 +1214,161 @@ function animateCardMove(cardId, sourceData, targetData) {
   animation.oncancel = () => finishCardMove(move);
 }
 
+function setMovingFaceRect(face, rect) {
+  face.style.left = String(rect.left) + "px";
+  face.style.top = String(rect.top) + "px";
+  face.style.width = String(rect.width) + "px";
+  face.style.height = String(rect.height) + "px";
+  face.style.margin = "0";
+  face.style.transformOrigin = "center";
+}
+
+function movingFaceFromHtml(html, rect) {
+  const template = document.createElement("template");
+  template.innerHTML = String(html || "").trim();
+  const face = template.content.firstElementChild;
+  if (!face) return null;
+  face.classList.add("moving-card");
+  face.removeAttribute("data-card-id");
+  face.removeAttribute("data-action");
+  setMovingFaceRect(face, rect);
+  document.body.appendChild(face);
+  return face;
+}
+
+function playWrongThrowPhase(move, face, keyframes, options) {
+  if (move.cancelled) return Promise.resolve(false);
+  const animation = face.animate(keyframes, options);
+  move.animation = animation;
+  return animation.finished.then(() => !move.cancelled).catch(() => false);
+}
+
+async function playWrongThrowRectPhase(move, face, fromRect, toRect, duration) {
+  if (move.cancelled) return false;
+  const rectFrame = (rect) => ({
+    left: String(rect.left) + "px",
+    top: String(rect.top) + "px",
+    width: String(rect.width) + "px",
+    height: String(rect.height) + "px"
+  });
+  const animation = face.animate([
+    rectFrame(fromRect),
+    rectFrame(toRect)
+  ], { duration, easing: "linear", fill: "forwards" });
+  move.animation = animation;
+  try {
+    await animation.finished;
+    if (move.cancelled) return false;
+    setMovingFaceRect(face, toRect);
+    animation.cancel();
+    if (move.animation === animation) move.animation = null;
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function finishWrongThrow(move) {
+  move.clones.forEach((clone) => clone.remove());
+  move.clones.clear();
+  if (activeWrongThrows.get(move.cardId) === move) activeWrongThrows.delete(move.cardId);
+  const target = cardElement(move.cardId, move.locationKey);
+  if (target) target.classList.remove("anim-target-hidden");
+}
+
+function cancelWrongThrow(move) {
+  move.cancelled = true;
+  if (move.animation) move.animation.cancel();
+  finishWrongThrow(move);
+}
+
+function cancelAllWrongThrows() {
+  Array.from(activeWrongThrows.values()).forEach(cancelWrongThrow);
+}
+
+async function animateWrongThrowIn(event, before, after) {
+  if (!event || !event.card || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const sourceData = before.cards.get(event.cardId);
+  const targetData = after.cards.get(event.cardId);
+  const pileData = after.roles.get("pile-top") || after.locations.get("pile-top");
+  const target = targetData ? cardElement(event.cardId, targetData.locationKey) : null;
+  if (!sourceData || !targetData || !pileData || !target || !target.animate) return;
+
+  const existing = activeWrongThrows.get(event.cardId);
+  if (existing) cancelWrongThrow(existing);
+  const move = {
+    cardId: event.cardId,
+    locationKey: targetData.locationKey,
+    clones: new Set(),
+    animation: null,
+    cancelled: false
+  };
+  activeWrongThrows.set(event.cardId, move);
+  target.classList.add("anim-target-hidden");
+
+  const backFace = movingFaceFromHtml(sourceData.html, sourceData.rect);
+  const frontHtml = cardHtml(event.card, target.classList.contains("small"));
+  if (!backFace) {
+    finishWrongThrow(move);
+    return;
+  }
+  move.clones.add(backFace);
+
+  try {
+    if (!await playWrongThrowPhase(move, backFace, [
+      { transform: "scaleX(1)" },
+      { transform: "scaleX(0)" }
+    ], { duration: 130, easing: "linear" })) return;
+    backFace.remove();
+    move.clones.delete(backFace);
+
+    const frontFace = movingFaceFromHtml(frontHtml, sourceData.rect);
+    if (!frontFace) {
+      finishWrongThrow(move);
+      return;
+    }
+    move.clones.add(frontFace);
+    if (!await playWrongThrowPhase(move, frontFace, [
+      { transform: "scaleX(0)" },
+      { transform: "scaleX(1)" }
+    ], { duration: 130, easing: "linear" })) return;
+
+    if (!await playWrongThrowRectPhase(move, frontFace, sourceData.rect, pileData.rect, 320)) return;
+
+    if (!await playWrongThrowPhase(move, frontFace, [
+      { transform: "translateX(0)" },
+      { transform: "translateX(-9px)" },
+      { transform: "translateX(9px)" },
+      { transform: "translateX(-7px)" },
+      { transform: "translateX(7px)" },
+      { transform: "translateX(0)" }
+    ], { duration: 280, easing: "ease-in-out" })) return;
+
+    const latestTarget = cardElement(event.cardId, targetData.locationKey);
+    const returnRect = latestTarget ? latestTarget.getBoundingClientRect() : targetData.rect;
+    if (!await playWrongThrowRectPhase(move, frontFace, pileData.rect, returnRect, 320)) return;
+
+    if (!await playWrongThrowPhase(move, frontFace, [
+      { transform: "scaleX(1)" },
+      { transform: "scaleX(0)" }
+    ], { duration: 130, easing: "linear" })) return;
+    frontFace.remove();
+    move.clones.delete(frontFace);
+
+    const returnedCard = cardElement(event.cardId, targetData.locationKey);
+    if (returnedCard) {
+      returnedCard.classList.remove("anim-target-hidden");
+      returnedCard.animate([
+        { transform: "scaleX(0)" },
+        { transform: "scaleX(1)" }
+      ], { duration: 130, easing: "linear" });
+    }
+    finishWrongThrow(move);
+  } catch (error) {
+    cancelWrongThrow(move);
+  }
+}
+
 function cardElement(cardId, locationKey) {
   const card = document.querySelector(`.card[data-card-id="${cssEscape(cardId)}"]`);
   if (!card) return null;
@@ -1215,6 +1377,10 @@ function cardElement(cardId, locationKey) {
 
 function hideActiveCardMoveTargets() {
   activeCardMoves.forEach((move) => {
+    const target = cardElement(move.cardId, move.locationKey);
+    if (target) target.classList.add('anim-target-hidden');
+  });
+  activeWrongThrows.forEach((move) => {
     const target = cardElement(move.cardId, move.locationKey);
     if (target) target.classList.add('anim-target-hidden');
   });
