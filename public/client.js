@@ -231,7 +231,7 @@ socket.on('state', (state) => {
   if (previousState && hasRenderedGame && state.phase === 'playing') {
     animateStateTransition(previousState, state, beforeSnapshot, afterSnapshot);
   } else if (previousState && state.phase === 'waiting') {
-    animateWaitingPlayerAdditions(previousState, state);
+    animateWaitingPlayerListChanges(previousState, state, beforeSnapshot, afterSnapshot);
   }
   hasRenderedGame = state.phase === 'playing' && !!state.round;
   lastState = state;
@@ -384,7 +384,7 @@ function renderBotPersonality(type) {
   const fallbackStats = Object.values(BOT_PERSONALITIES)[0].stats;
   const stats = (personality ? personality.stats : fallbackStats).map(([label, value]) => {
     const barWidth = personality ? value * 10 : 0;
-    const valueText = personality ? escapeHtml(value + "/10") : "";
+    const valueText = personality ? escapeHtml(value + "/10") : "–";
     return (
       '<div class="bot-stat">' +
         '<span class="bot-stat-name">' + escapeHtml(label) + '</span>' +
@@ -413,7 +413,7 @@ function renderWaiting(state) {
     const isMe = p.id === state.you;
     const moveControls = `
       <div class="player-line-actions">
-        ${isMe ? '' : `<button data-action="removeWaitingPlayer" data-player-id="${escapeHtml(p.id)}">Remove</button>`}
+        ${isMe ? '<button data-action="leaveWaitingPlayer">Leave</button>' : `<button data-action="removeWaitingPlayer" data-player-id="${escapeHtml(p.id)}">Remove</button>`}
         <button class="icon-button" title="Move up" aria-label="Move ${escapeHtml(p.name)} up" data-action="moveWaitingPlayer" data-player-id="${escapeHtml(p.id)}" data-direction="up" ${index === 0 ? 'disabled' : ''}>↑</button>
         <button class="icon-button" title="Move down" aria-label="Move ${escapeHtml(p.name)} down" data-action="moveWaitingPlayer" data-player-id="${escapeHtml(p.id)}" data-direction="down" ${index === state.players.length - 1 ? 'disabled' : ''}>↓</button>
       </div>
@@ -558,6 +558,11 @@ function renderWaiting(state) {
       clientActions.confirmThen(button, `remove-${button.dataset.playerId}`, 'Confirm remove', () => emit('removeWaitingPlayer', button.dataset.playerId || ''));
     });
   });
+  document.querySelectorAll('[data-action="leaveWaitingPlayer"]').forEach((button) => {
+    button.addEventListener('click', () => {
+      clientActions.confirmThen(button, 'leave-waiting', 'Confirm leave', () => emit('leave'));
+    });
+  });
   const startBtn = document.getElementById('startBtn');
   if (startBtn) startBtn.addEventListener('click', () => {
     clientActions.clearPendingConfirm();
@@ -565,15 +570,35 @@ function renderWaiting(state) {
   });
 }
 
-function animateWaitingPlayerAdditions(previousState, state) {
+function animateWaitingPlayerListChanges(previousState, state, before, after) {
   if (previousState.phase !== 'waiting' || !Element.prototype.animate) return;
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const previousIds = new Set((previousState.players || []).map((player) => player.id));
+  const currentIds = new Set((state.players || []).map((player) => player.id));
+  const enterEasing = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
+  const exitEasing = 'cubic-bezier(0.8, 0, 0.8, 0.2)';
+  const isRemoving = (previousState.players || []).some((player) => !currentIds.has(player.id));
   (state.players || []).forEach((player) => {
-    if (previousIds.has(player.id)) return;
     const selector = '[data-waiting-player-id="' + cssEscape(player.id) + '"]';
     const row = document.querySelector(selector);
     if (!row) return;
+    if (previousIds.has(player.id)) {
+      if (isRemoving) return;
+      const previousRect = before.waitingPlayers.get(player.id);
+      const currentRect = after.waitingPlayers.get(player.id);
+      if (!previousRect || !currentRect) return;
+      const deltaX = previousRect.left - currentRect.left;
+      const deltaY = previousRect.top - currentRect.top;
+      if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return;
+      row.animate([
+        { transform: 'translate(' + String(deltaX) + 'px, ' + String(deltaY) + 'px)' },
+        { transform: 'translate(0, 0)' }
+      ], {
+        duration: 280,
+        easing: isRemoving ? exitEasing : enterEasing
+      });
+      return;
+    }
     const height = row.getBoundingClientRect().height;
     if (!height) return;
     row.style.overflow = 'hidden';
@@ -582,11 +607,42 @@ function animateWaitingPlayerAdditions(previousState, state) {
       { height: String(height) + 'px', paddingTop: '4px', paddingBottom: '4px', opacity: 1, transform: 'translateY(0)' }
     ], {
       duration: 280,
-      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)'
+      easing: enterEasing
     });
     const finish = () => row.style.removeProperty('overflow');
     animation.onfinish = finish;
     animation.oncancel = finish;
+  });
+  const waitingList = document.querySelector('.waiting-player-list');
+  if (!waitingList) return;
+  (previousState.players || []).forEach((player, index) => {
+    if (currentIds.has(player.id)) return;
+    const previousData = before.waitingPlayers.get(player.id);
+    if (!previousData || !previousData.html) return;
+    const template = document.createElement('template');
+    template.innerHTML = previousData.html.trim();
+    const ghost = template.content.firstElementChild;
+    if (!ghost) return;
+    ghost.removeAttribute('data-waiting-player-id');
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.style.height = String(previousData.height) + 'px';
+    ghost.style.overflow = 'hidden';
+    ghost.style.pointerEvents = 'none';
+    const nextPlayer = (previousState.players || []).slice(index + 1).find((candidate) => currentIds.has(candidate.id));
+    const nextSelector = nextPlayer ? '[data-waiting-player-id="' + cssEscape(nextPlayer.id) + '"]' : '';
+    const nextRow = nextSelector ? waitingList.querySelector(nextSelector) : null;
+    const hint = waitingList.querySelector('.hint');
+    waitingList.insertBefore(ghost, nextRow || hint || null);
+    const animation = ghost.animate([
+      { height: String(previousData.height) + 'px', paddingTop: '4px', paddingBottom: '4px', opacity: 1, transform: 'translateY(0)' },
+      { height: '0px', paddingTop: '0px', paddingBottom: '0px', opacity: 0, transform: 'translateY(-8px)' }
+    ], {
+      duration: 280,
+      easing: exitEasing,
+      fill: 'forwards'
+    });
+    animation.onfinish = () => ghost.remove();
+    animation.oncancel = () => ghost.remove();
   });
 }
 
@@ -1009,7 +1065,11 @@ function fullRules(state) {
 }
 
 function captureAnimationSnapshot() {
-  const snapshot = { cards: new Map(), roles: new Map(), locations: new Map(), panels: new Map() };
+  const snapshot = { cards: new Map(), roles: new Map(), locations: new Map(), panels: new Map(), waitingPlayers: new Map() };
+  document.querySelectorAll('[data-waiting-player-id]').forEach((el) => {
+    const rect = el.getBoundingClientRect();
+    if (rect.height) snapshot.waitingPlayers.set(el.dataset.waitingPlayerId, { left: rect.left, top: rect.top, width: rect.width, height: rect.height, html: el.outerHTML });
+  });
   document.querySelectorAll("[data-player-panel-id]").forEach((el) => {
     const rect = el.getBoundingClientRect();
     if (rect.height) snapshot.panels.set(el.dataset.playerPanelId, { left: rect.left, top: rect.top, width: rect.width, height: rect.height });
