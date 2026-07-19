@@ -10,6 +10,7 @@ let lastState = null;
 let hasRenderedGame = false;
 let currentDetailsMode = '';
 let logExpanded = false;
+const activeCardMoves = new Map();
 const detailPreferencesByMode = {};
 const waitingDrawerPreferences = { bots: false, settings: false };
 const SPECTATOR_TRIGGER_NAME = 'spectator';
@@ -164,6 +165,11 @@ socket.on('state', (state) => {
   const previousState = lastState;
   const beforeSnapshot = captureAnimationSnapshot();
   render(state);
+  if (state.phase === 'playing' && state.round) {
+    hideActiveCardMoveTargets();
+  } else {
+    cancelAllCardMoves();
+  }
   const afterSnapshot = captureAnimationSnapshot();
   if (previousState && hasRenderedGame && state.phase === 'playing') {
     animateStateTransition(previousState, state, beforeSnapshot, afterSnapshot);
@@ -562,12 +568,13 @@ function renderStatus(state) {
   }
   if (!textHtml) textHtml = escapeHtml(text);
   const statusClass = r.stage === 'gameEnd' ? 'status game-ended-status' : 'status';
+  const finishActive = r.stage === 'gameEnd';
   const dutch = r.dutchCallerName ? `<div>${escapeHtml(r.dutchCallerName)} called Dutch. ${r.dutchTurnsRemaining} player turn(s) remaining.</div>` : '';
   const buttons = [
-    '<button data-action="endGameForAll">End game for all</button>',
-    '<button data-action="leave">Leave game</button>',
+    `<button data-action="endGameForAll" ${finishActive ? 'disabled' : ''}>End game for all</button>`,
+    `<button data-action="leave" ${finishActive ? 'disabled' : ''}>Leave game</button>`,
     `<button data-action="nextRound" class="expected-action" ${r.stage === 'roundEnd' ? '' : 'disabled'}>Next round</button>`,
-    `<button data-action="newGame" class="expected-action" ${r.stage === 'gameEnd' ? '' : 'disabled'}>New game</button>`
+    `<button data-action="newGame" class="expected-action" ${finishActive ? '' : 'disabled'}>Finish</button>`
   ].filter(Boolean).join('');
   return `
     <div class="${statusClass}">
@@ -991,7 +998,7 @@ function animateStateTransition(previousState, state, before, after) {
     if (previous && previous.locationKey !== current.locationKey) {
       const sourceData = before.cards.get(cardId) || before.locations.get(previous.locationKey);
       if (sourceData) {
-        animateCardMove(sourceData, targetData);
+        animateCardMove(cardId, sourceData, targetData);
         movedIds.add(cardId);
       }
       return;
@@ -1000,7 +1007,7 @@ function animateStateTransition(previousState, state, before, after) {
     if (!previous && current.locationKey === 'drawn' && state.round.drawn && state.round.drawn.source === 'deck') {
       const sourceData = before.roles.get('deck-top');
       if (sourceData) {
-        animateCardMove(sourceData, targetData);
+        animateCardMove(cardId, sourceData, targetData);
         movedIds.add(cardId);
       }
       return;
@@ -1009,7 +1016,7 @@ function animateStateTransition(previousState, state, before, after) {
     if (!previous && current.locationKey.startsWith('player:')) {
       const sourceData = before.roles.get('deck-top');
       if (sourceData) {
-        animateCardMove(sourceData, targetData);
+        animateCardMove(cardId, sourceData, targetData);
         movedIds.add(cardId);
       }
     }
@@ -1032,12 +1039,26 @@ function cssEscape(value) {
   return String(value).replace(/"/g, '\\"');
 }
 
-function animateCardMove(sourceData, targetData) {
-  const target = elementAtRect(targetData.rect, targetData.locationKey);
-  const source = sourceData.rect;
+function animateCardMove(cardId, sourceData, targetData) {
+  const target = cardElement(cardId, targetData.locationKey) || elementAtRect(targetData.rect, targetData.locationKey);
+  let source = sourceData.rect;
   const dest = targetData.rect;
   if (!target) return;
   if (Math.abs(source.left - dest.left) < 2 && Math.abs(source.top - dest.top) < 2) return;
+
+  const existingMove = activeCardMoves.get(cardId);
+  if (existingMove) {
+    const movingRect = existingMove.clone.getBoundingClientRect();
+    if (movingRect.width && movingRect.height) {
+      source = {
+        left: movingRect.left,
+        top: movingRect.top,
+        width: movingRect.width,
+        height: movingRect.height
+      };
+    }
+    cancelCardMove(existingMove);
+  }
 
   const clone = target.cloneNode(true);
   clone.classList.add('moving-card');
@@ -1062,14 +1083,43 @@ function animateCardMove(sourceData, targetData) {
     easing: 'linear',
     fill: 'forwards'
   });
-  animation.onfinish = () => {
-    clone.remove();
-    target.classList.remove('anim-target-hidden');
-  };
-  animation.oncancel = () => {
-    clone.remove();
-    target.classList.remove('anim-target-hidden');
-  };
+  const move = { cardId, locationKey: targetData.locationKey, clone, animation };
+  activeCardMoves.set(cardId, move);
+  animation.onfinish = () => finishCardMove(move);
+  animation.oncancel = () => finishCardMove(move);
+}
+
+function cardElement(cardId, locationKey) {
+  const card = document.querySelector(`.card[data-card-id="${cssEscape(cardId)}"]`);
+  if (!card) return null;
+  return !locationKey || card.dataset.locationKey === locationKey ? card : null;
+}
+
+function hideActiveCardMoveTargets() {
+  activeCardMoves.forEach((move) => {
+    const target = cardElement(move.cardId, move.locationKey);
+    if (target) target.classList.add('anim-target-hidden');
+  });
+}
+
+function finishCardMove(move) {
+  move.clone.remove();
+  if (activeCardMoves.get(move.cardId) !== move) return;
+  activeCardMoves.delete(move.cardId);
+  const target = cardElement(move.cardId, move.locationKey);
+  if (target) target.classList.remove('anim-target-hidden');
+}
+
+function cancelCardMove(move) {
+  move.animation.onfinish = null;
+  move.animation.oncancel = null;
+  move.animation.cancel();
+  move.clone.remove();
+  if (activeCardMoves.get(move.cardId) === move) activeCardMoves.delete(move.cardId);
+}
+
+function cancelAllCardMoves() {
+  Array.from(activeCardMoves.values()).forEach(cancelCardMove);
 }
 
 function elementAtRect(rect, locationKey) {

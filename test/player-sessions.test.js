@@ -161,6 +161,7 @@ test('waiting-room actions remove, move, and add players', () => {
   assert.equal(botResult.ok, true);
   assert.equal(state.players.at(-1).id, 'bot-strategic');
   assert.equal(state.players.at(-1).isBot, true);
+  assert.equal(typeof state.players.at(-1).joinedAt, 'number');
 
   assert.equal(sessions.removeWaitingPlayer('ada', 'left'), true);
   assert.deepEqual(state.players.map((item) => item.id), ['ben', 'bot-strategic']);

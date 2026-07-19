@@ -249,6 +249,16 @@ test('socket gameplay flow covers turns, throw-ins, specials, Dutch, reconnect, 
   assert.equal(benPlayer.roundPoints, 2);
   assert.equal(benPlayer.total, 25);
 
+  getState().round.stage = 'gameEnd';
+  const finishedPlayerIds = getState().players.map((player) => player.id);
+  await ada.emit('leave');
+  assert.equal(getState().phase, 'playing');
+  assert.deepEqual(getState().players.map((player) => player.id), finishedPlayerIds);
+  await ada.emit('endGameForAll');
+  assert.equal(getState().phase, 'playing');
+  assert.equal(getState().round.stage, 'gameEnd');
+  getState().round.stage = 'roundEnd';
+
   const playerCountBeforeReconnect = getState().players.length;
   const previousAdaSocketId = adaPlayer.socketId;
   const adaReconnect = await openPollingClient();

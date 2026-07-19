@@ -192,6 +192,7 @@ test('reset to waiting replaces state and keeps connected players', () => {
   assert.equal(getState().phase, 'waiting');
   assert.deepEqual(getState().players.map((item) => item.id), ['ada', 'bot-casual']);
   assert.deepEqual(getState().players.map((item) => item.cards.length), [0, 0]);
+  assert.equal(getState().players.every((item) => typeof item.joinedAt === 'number'), true);
   assert.equal(calls.clearedTimers, 1);
   assert.equal(calls.admin[0].event, 'manual_reset');
   assert.equal(calls.logs.at(-1).text, 'table reset');

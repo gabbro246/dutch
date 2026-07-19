@@ -78,7 +78,7 @@ test('playing inactivity timeout resets and broadcasts', () => {
   assert.equal(calls.missing, 0);
 });
 
-test('waiting-room expiry removes only timed-out humans', () => {
+test('waiting-room expiry removes timed-out humans and bots', () => {
   const state = {
     phase: 'waiting',
     players: [
@@ -91,9 +91,24 @@ test('waiting-room expiry removes only timed-out humans', () => {
   const { cleanup, calls } = cleanupFor(state);
 
   assert.equal(cleanup.purgeExpiredDisconnectedPlayers(500), true);
-  assert.deepEqual(calls.removedWaiting, [{ playerId: 'old', reason: 'left after 15 minutes in the waiting room' }]);
-  assert.deepEqual(state.players.map((item) => item.id), ['bot', 'new']);
+  assert.deepEqual(calls.removedWaiting, [
+    { playerId: 'old', reason: 'left after 15 minutes in the waiting room' },
+    { playerId: 'bot', reason: 'left after 15 minutes in the waiting room' }
+  ]);
+  assert.deepEqual(state.players.map((item) => item.id), ['new']);
   assert.equal(calls.broadcasts, 1);
+});
+
+test('waiting-room expiry starts at exactly the configured timeout', () => {
+  const state = {
+    phase: 'waiting',
+    players: [player('bot', { joinedAt: 100, isBot: true })],
+    round: null
+  };
+  const { cleanup, calls } = cleanupFor(state);
+
+  assert.equal(cleanup.purgeExpiredDisconnectedPlayers(300), true);
+  assert.deepEqual(calls.removedWaiting.map((item) => item.playerId), ['bot']);
 });
 
 test('expired disconnected players are removed from round state', () => {
