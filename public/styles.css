@@ -398,6 +398,10 @@ summary {
   padding: 9px 0 2px;
 }
 
+.drawer-animation-content {
+  overflow: hidden;
+}
+
 /* Logs pages and in-game log */
 .logs-panel {
   display: flex;
@@ -598,7 +602,7 @@ summary {
 }
 
 .side-drawers { border-top: 0; }
-.side-drawer > summary + * { margin-top: 8px; }
+.side-drawer > summary + .drawer-animation-content { margin-top: 8px; }
 
 @container (min-width: 520px) {
   .side-status-card {
@@ -819,6 +823,7 @@ summary {
 .stack .card:nth-child(3) { transform: translate(6px, -6px); }
 
 .card-cell {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -908,6 +913,12 @@ summary {
 }
 
 .drawn-button-spacer { pointer-events: none; }
+
+.turning-card {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
 
 .moving-card {
   position: fixed;

@@ -28,12 +28,11 @@
 
     function wireGameButtons() {
       const detailsMode = deps.getDetailsMode();
-      document.querySelectorAll('details[data-detail-key]').forEach((details) => {
-        details.addEventListener('toggle', () => {
-          const preferences = deps.detailPreferencesByMode;
-          if (!preferences[detailsMode]) preferences[detailsMode] = {};
-          preferences[detailsMode][details.dataset.detailKey] = details.open;
-        });
+      deps.wireAnimatedDrawers(document, (details, open) => {
+        if (!details.dataset.detailKey) return;
+        const preferences = deps.detailPreferencesByMode;
+        if (!preferences[detailsMode]) preferences[detailsMode] = {};
+        preferences[detailsMode][details.dataset.detailKey] = open;
       });
       document.querySelectorAll('[data-action]').forEach((button) => {
         button.addEventListener('click', () => {

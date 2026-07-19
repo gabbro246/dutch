@@ -129,6 +129,9 @@ test('reveal and highlight helpers schedule cleanup and remove expired state', (
   assert.deepEqual(state.round.pileHighlight, { kind: 'peek', until: 1500 });
   assert.equal(calls.broadcasts, 1);
 
+  calls.timeouts[0].fn();
+  assert.equal(calls.broadcasts, 1);
+
   setNow(1550);
   flow.removeExpiredReveals();
   assert.equal(state.round.pileHighlight, null);

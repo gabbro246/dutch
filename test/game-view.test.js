@@ -90,7 +90,10 @@ test('build view reveals only cards visible to the viewer', () => {
       turnComplete: false,
       throwIn: null,
       specialQueue: [],
-      reveals: [{ viewerId: 'ada', cardId: 'a1', until: Date.now() + 60_000 }],
+      reveals: [
+        { viewerId: 'ada', cardId: 'a1', until: Date.now() + 60_000 },
+        { public: true, kind: 'peek', cardId: 'a2', exceptViewerId: 'ada', until: Date.now() + 60_000 }
+      ],
       pileHighlight: null,
       dutchCallerId: null,
       dutchQueue: [],
@@ -108,6 +111,11 @@ test('build view reveals only cards visible to the viewer', () => {
   assert.equal(view.round.players[0].cards[1].back, true);
   assert.equal(view.round.players[1].cards[0].back, true);
   assert.equal(view.round.discardTop.rank, 'Q');
+
+  const observerView = viewFor(state).buildView('ben');
+  assert.equal(observerView.round.players[0].cards[1].back, true);
+  assert.equal(observerView.round.players[0].cards[1].highlight, 'peek');
+  assert.equal(Object.hasOwn(observerView.round.players[0].cards[1], 'rank'), false);
 });
 
 test('controls reflect current player draw and turn-complete states', () => {

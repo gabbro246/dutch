@@ -41,12 +41,67 @@ const clientActions = window.DutchClientActions.create({
   render,
   escapeHtml,
   downloadLogFile,
+  wireAnimatedDrawers,
   detailPreferencesByMode,
   getDetailsMode: () => currentDetailsMode,
   getLastState: () => lastState,
   getLogExpanded: () => logExpanded,
   setLogExpanded: (value) => { logExpanded = value; }
 });
+
+function wireAnimatedDrawers(scope, onChange) {
+  scope.querySelectorAll("details.drawer").forEach((details) => {
+    const summary = details.querySelector(":scope > summary");
+    const content = details.querySelector(":scope > .drawer-animation-content");
+    if (!summary || !content) return;
+
+    let animation = null;
+    let targetOpen = details.open;
+
+    summary.addEventListener("click", (event) => {
+      event.preventDefault();
+      targetOpen = animation ? !targetOpen : !details.open;
+      if (typeof onChange === "function") onChange(details, targetOpen);
+
+      const runningHeight = animation ? content.getBoundingClientRect().height : null;
+      const runningOpacity = animation ? Number.parseFloat(getComputedStyle(content).opacity) : null;
+      if (animation) animation.cancel();
+      if (!content.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        details.open = targetOpen;
+        content.removeAttribute("style");
+        animation = null;
+        return;
+      }
+
+      if (targetOpen) details.open = true;
+      const startHeight = runningHeight === null
+        ? (targetOpen ? 0 : content.getBoundingClientRect().height)
+        : runningHeight;
+      const startOpacity = runningOpacity === null ? (targetOpen ? 0 : 1) : runningOpacity;
+      const endHeight = targetOpen ? content.scrollHeight : 0;
+      content.style.overflow = "hidden";
+
+      const currentAnimation = content.animate([
+        { height: `${startHeight}px`, opacity: startOpacity },
+        { height: `${endHeight}px`, opacity: targetOpen ? 1 : 0 }
+      ], {
+        duration: 220,
+        easing: targetOpen ? "cubic-bezier(0.2, 0.8, 0.2, 1)" : "cubic-bezier(0.4, 0, 1, 1)"
+      });
+      animation = currentAnimation;
+
+      currentAnimation.onfinish = () => {
+        if (animation !== currentAnimation) return;
+        details.open = targetOpen;
+        content.removeAttribute("style");
+        animation = null;
+      };
+      currentAnimation.oncancel = () => {
+        if (animation === currentAnimation) animation = null;
+      };
+    });
+  });
+}
 
 function generatePlayerToken() {
   return window.crypto && window.crypto.randomUUID
@@ -384,7 +439,7 @@ function renderWaiting(state) {
           </div>
           <details class="drawer waiting-drawer" data-waiting-drawer="bots" ${botsOpen}>
             <summary>Bots</summary>
-            <div class="drawer-content">
+            <div class="drawer-content drawer-animation-content">
               <div class="row bot-row">
                 <select id="botTypeSelect" ${firstAvailableBot && state.players.length < 9 ? '' : 'disabled'}>
                   ${botOptions}
@@ -396,7 +451,7 @@ function renderWaiting(state) {
           </details>
           <details class="drawer waiting-drawer" data-waiting-drawer="settings" ${settingsOpen}>
             <summary>Settings</summary>
-            <div class="drawer-content waiting-selectors">
+            <div class="drawer-content drawer-animation-content waiting-selectors">
               <label class="setting-row" for="gameTargetSelect">
                 <span>Game length</span>
                 <select id="gameTargetSelect">
@@ -452,10 +507,8 @@ function renderWaiting(state) {
   }
   const leaveBtn = document.getElementById('leaveBtn');
   if (leaveBtn) leaveBtn.addEventListener('click', () => clientActions.confirmThen(leaveBtn, 'leave-waiting', 'Confirm leave', () => emit('leave')));
-  document.querySelectorAll('[data-waiting-drawer]').forEach((details) => {
-    details.addEventListener('toggle', () => {
-      waitingDrawerPreferences[details.dataset.waitingDrawer] = details.open;
-    });
+  wireAnimatedDrawers(document, (details, open) => {
+    if (details.dataset.waitingDrawer) waitingDrawerPreferences[details.dataset.waitingDrawer] = open;
   });
   const botTypeSelect = document.getElementById('botTypeSelect');
   const addBotBtn = document.getElementById('addBotBtn');
@@ -603,7 +656,7 @@ function renderPlayerField(player, state, compact) {
   const winner = roundWinner || gameWinner ? ' winner' : '';
   const missing = player.connected ? '' : ' (missing)';
   return `
-    <div class="player-field${current}${dutchCaller}${finalTurnDone}${winner}">
+    <div class="player-field${current}${dutchCaller}${finalTurnDone}${winner}" data-player-panel-id="${escapeHtml(player.id)}">
       <div class="player-title">
         <strong>${escapeHtml(player.name)}</strong>${missing}${playerBadges(state, player)}
         ${renderPlayerMeta(player)}
@@ -624,7 +677,7 @@ function renderOwnArea(player, state) {
   const winner = roundWinner || gameWinner ? ' winner' : '';
   const areaLabel = player.isSpectator ? 'spectating' : 'your cards';
   return `
-    <section class="own-area${player.isCurrent ? ' current' : ''}${dutchCaller}${finalTurnDone}${winner}">
+    <section class="own-area${player.isCurrent ? ' current' : ''}${dutchCaller}${finalTurnDone}${winner}" data-player-panel-id="${escapeHtml(player.id)}">
       <div class="player-title">
         <h2>${escapeHtml(player.name)} <span class="own-title-label">(${areaLabel})</span>${playerBadges(state, player)}</h2>
         ${renderPlayerMeta(player)}
@@ -730,7 +783,7 @@ function renderCardCell(card, ownerId, index, state, compact, own) {
   const selected = r.special && r.special.actorId !== state.you && r.special.selected && r.special.selected.includes(card.id);
   return `
     <div class="card-cell" data-owner-id="${escapeHtml(ownerId)}" data-card-slot="${escapeHtml(ownerId)}:${index}">
-      ${cardHtml(card, compact, { 'data-location-key': `player:${ownerId}:${index}`, 'data-selected': selected ? 'true' : '', 'data-highlight': card.highlight || '' })}
+      ${cardHtml(card, compact, { 'data-location-key': `player:${ownerId}:${index}`, 'data-selected': selected ? 'true' : '', 'data-highlight': card.highlight === 'peek' ? '' : (card.highlight || '') })}
       <div class="card-buttons">${buttons.join('')}</div>
     </div>
   `;
@@ -813,7 +866,7 @@ function renderDetails(key, title, content, defaultOpen, extraClass = '') {
   return `
     <details data-detail-key="${escapeHtml(key)}" class="${escapeHtml(classes)}" ${open ? 'open' : ''}>
       <summary>${escapeHtml(title)}</summary>
-      ${content}
+      <div class="drawer-animation-content">${content}</div>
     </details>
   `;
 }
@@ -927,7 +980,11 @@ function fullRules(state) {
 }
 
 function captureAnimationSnapshot() {
-  const snapshot = { cards: new Map(), roles: new Map(), locations: new Map() };
+  const snapshot = { cards: new Map(), roles: new Map(), locations: new Map(), panels: new Map() };
+  document.querySelectorAll("[data-player-panel-id]").forEach((el) => {
+    const rect = el.getBoundingClientRect();
+    if (rect.height) snapshot.panels.set(el.dataset.playerPanelId, { left: rect.left, top: rect.top, width: rect.width, height: rect.height });
+  });
   document.querySelectorAll('.card').forEach((el) => {
     const rect = el.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
@@ -960,6 +1017,7 @@ function stateCardLocations(state) {
         id: card.id,
         locationKey: `player:${player.id}:${index}`,
         faceKind: card.back ? 'back' : 'front',
+        highlight: card.highlight || '',
         ownerId: player.id,
         index
       });
@@ -986,6 +1044,7 @@ function stateCardLocations(state) {
 function animateStateTransition(previousState, state, before, after) {
   if (!previousState.round || !state.round) return;
   if (previousState.roundNumber !== state.roundNumber) return;
+  animatePlayerPanelResizes(previousState, state, before, after);
   const previousCards = stateCardLocations(previousState);
   const currentCards = stateCardLocations(state);
   const movedIds = new Set();
@@ -1022,15 +1081,74 @@ function animateStateTransition(previousState, state, before, after) {
     }
   });
 
+  const finishedStage = ['roundEnd', 'gameEnd'].includes(state.round.stage);
+  const enteringFinishedStage = finishedStage && !['roundEnd', 'gameEnd'].includes(previousState.round.stage);
+  const revealCards = enteringFinishedStage ? Array.from(currentCards.entries()).filter(([cardId, current]) => {
+    const previous = previousCards.get(cardId);
+    return previous && previous.locationKey === current.locationKey && previous.faceKind !== current.faceKind;
+  }) : [];
+  const dutchCallerId = state.round.dutchCallerId || '';
+  revealCards.sort((left, right) => {
+    const leftIsCaller = left[1].ownerId === dutchCallerId ? 1 : 0;
+    const rightIsCaller = right[1].ownerId === dutchCallerId ? 1 : 0;
+    return leftIsCaller - rightIsCaller;
+  });
+  const revealInterval = revealCards.length > 1 ? Math.min(90, 1200 / (revealCards.length - 1)) : 0;
+  const revealDelays = new Map(revealCards.map(([cardId], index) => [cardId, index * revealInterval]));
+
   currentCards.forEach((current, cardId) => {
     if (movedIds.has(cardId)) return;
     const previous = previousCards.get(cardId);
     if (!previous) return;
     if (previous.locationKey !== current.locationKey) return;
-    if (previous.faceKind === current.faceKind) return;
+    const faceChanged = previous.faceKind !== current.faceKind;
+    const publicPeekStarted = previous.highlight !== 'peek' && current.highlight === 'peek';
+    if (!faceChanged && !publicPeekStarted) return;
     if (!['front', 'back'].includes(previous.faceKind) || !['front', 'back'].includes(current.faceKind)) return;
     const target = document.querySelector(`.card[data-card-id="${cssEscape(cardId)}"]`);
-    if (target) animateFaceTurn(target);
+    const delay = enteringFinishedStage && faceChanged ? (revealDelays.get(cardId) || 0) : 0;
+    if (target) animateFaceTurn(target, before.cards.get(cardId), publicPeekStarted ? 420 : 260, delay);
+  });
+}
+
+function animatePlayerPanelResizes(previousState, state, before, after) {
+  if (!Element.prototype.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const previousCounts = new Map(previousState.round.players.map((player) => [player.id, player.cards.length]));
+
+  state.round.players.forEach((player) => {
+    const previousCount = previousCounts.get(player.id);
+    if (previousCount === player.cards.length) return;
+    const previousPanel = before.panels.get(player.id);
+    const currentPanel = after.panels.get(player.id);
+    const element = document.querySelector(`[data-player-panel-id="${cssEscape(player.id)}"]`);
+    if (!previousPanel || !currentPanel || !element) return;
+    const widthChanged = Math.abs(previousPanel.width - currentPanel.width) >= 1;
+    const heightChanged = Math.abs(previousPanel.height - currentPanel.height) >= 1;
+    if (!widthChanged && !heightChanged) return;
+
+    element.style.overflow = "hidden";
+    const growing = player.cards.length > previousCount;
+    const offsetX = previousPanel.left - currentPanel.left;
+    const offsetY = previousPanel.top - currentPanel.top;
+    const scaleX = previousPanel.width / currentPanel.width;
+    const animation = element.animate([
+      {
+        height: `${previousPanel.height}px`,
+        transform: `translate(${offsetX}px, ${offsetY}px) scaleX(${scaleX})`,
+        transformOrigin: "top left"
+      },
+      {
+        height: `${currentPanel.height}px`,
+        transform: "translate(0, 0) scaleX(1)",
+        transformOrigin: "top left"
+      }
+    ], {
+      duration: 220,
+      easing: growing ? "cubic-bezier(0.2, 0.8, 0.2, 1)" : "cubic-bezier(0.4, 0, 1, 1)"
+    });
+    const cleanUp = () => element.style.removeProperty("overflow");
+    animation.onfinish = cleanUp;
+    animation.oncancel = cleanUp;
   });
 }
 
@@ -1133,13 +1251,52 @@ function elementAtRect(rect, locationKey) {
   return el ? el.closest('.card') : null;
 }
 
-function animateFaceTurn(el) {
-  el.animate([
-    { transform: 'scaleX(1)' },
-    { transform: 'scaleX(0.12)' },
-    { transform: 'scaleX(1)' }
+function animateFaceTurn(el, previousData, duration = 260, delay = 0) {
+  const halfDuration = duration / 2;
+  if (!el.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  const rect = el.getBoundingClientRect();
+  const template = document.createElement("template");
+  template.innerHTML = previousData && previousData.html ? previousData.html.trim() : "";
+  const previousFace = template.content.firstElementChild;
+  if (!previousFace || !rect.width || !rect.height) {
+    el.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: halfDuration, delay, easing: "linear", fill: "backwards" });
+    return;
+  }
+
+  const cardCell = el.closest(".card-cell");
+  previousFace.classList.add(cardCell ? "turning-card" : "moving-card");
+  previousFace.removeAttribute("data-card-id");
+  previousFace.removeAttribute("data-action");
+  previousFace.style.left = `${cardCell ? el.offsetLeft : rect.left}px`;
+  previousFace.style.top = `${cardCell ? el.offsetTop : rect.top}px`;
+  previousFace.style.width = `${rect.width}px`;
+  previousFace.style.height = `${rect.height}px`;
+  previousFace.style.margin = "0";
+  previousFace.style.transformOrigin = "center";
+  el.style.visibility = "hidden";
+  (cardCell || document.body).appendChild(previousFace);
+
+  const revealNextFace = () => {
+    previousFace.remove();
+    if (!el.isConnected) return;
+    el.style.removeProperty("visibility");
+    el.animate([
+      { transform: "scaleX(0)" },
+      { transform: "scaleX(1)" }
+    ], {
+      duration: halfDuration,
+      easing: "linear"
+    });
+  };
+  const previousAnimation = previousFace.animate([
+    { transform: "scaleX(1)" },
+    { transform: "scaleX(0)" }
   ], {
-    duration: 260,
-    easing: 'linear'
+    duration: halfDuration,
+    delay,
+    easing: "linear"
   });
+  previousAnimation.onfinish = revealNextFace;
+  previousAnimation.oncancel = revealNextFace;
 }
