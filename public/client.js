@@ -230,6 +230,8 @@ socket.on('state', (state) => {
   const afterSnapshot = captureAnimationSnapshot();
   if (previousState && hasRenderedGame && state.phase === 'playing') {
     animateStateTransition(previousState, state, beforeSnapshot, afterSnapshot);
+  } else if (previousState && state.phase === 'waiting') {
+    animateWaitingPlayerAdditions(previousState, state);
   }
   hasRenderedGame = state.phase === 'playing' && !!state.round;
   lastState = state;
@@ -417,7 +419,7 @@ function renderWaiting(state) {
       </div>
     `;
     return `
-      <div class="player-line">
+      <div class="player-line" data-waiting-player-id="${escapeHtml(p.id)}">
         <span>${index + 1}. ${escapeHtml(p.name)}${p.isBot ? ' <span class="bot-badge">bot</span>' : ''}${p.isSpectator ? ' <span class="spectator-badge">spectator</span>' : ''}${isMe ? ' <span class="you-label">(you)</span>' : ''} ${p.connected ? '' : '(missing)'}</span>
         ${moveControls}
       </div>
@@ -560,6 +562,31 @@ function renderWaiting(state) {
   if (startBtn) startBtn.addEventListener('click', () => {
     clientActions.clearPendingConfirm();
     emit('startGame');
+  });
+}
+
+function animateWaitingPlayerAdditions(previousState, state) {
+  if (previousState.phase !== 'waiting' || !Element.prototype.animate) return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const previousIds = new Set((previousState.players || []).map((player) => player.id));
+  (state.players || []).forEach((player) => {
+    if (previousIds.has(player.id)) return;
+    const selector = '[data-waiting-player-id="' + cssEscape(player.id) + '"]';
+    const row = document.querySelector(selector);
+    if (!row) return;
+    const height = row.getBoundingClientRect().height;
+    if (!height) return;
+    row.style.overflow = 'hidden';
+    const animation = row.animate([
+      { height: '0px', paddingTop: '0px', paddingBottom: '0px', opacity: 0, transform: 'translateY(-8px)' },
+      { height: String(height) + 'px', paddingTop: '4px', paddingBottom: '4px', opacity: 1, transform: 'translateY(0)' }
+    ], {
+      duration: 280,
+      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)'
+    });
+    const finish = () => row.style.removeProperty('overflow');
+    animation.onfinish = finish;
+    animation.oncancel = finish;
   });
 }
 
