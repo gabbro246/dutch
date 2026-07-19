@@ -400,6 +400,7 @@ function renderBotPersonality(type) {
 }
 
 function renderWaiting(state) {
+  const selectedTheme = window.DutchTheme.getStoredTheme(window);
   const botTypes = ['strategic', 'roswell', 'casual', 'distracted'];
   const usedBotTypes = new Set(state.players.filter((p) => p.isBot).map((p) => p.botType));
   const firstAvailableBot = botTypes.find((type) => !usedBotTypes.has(type));
@@ -468,6 +469,13 @@ function renderWaiting(state) {
                 <select id="deckSettingSelect">
                   <option value="one" ${state.deckSetting === 'one' ? 'selected' : ''} ${state.oneDeckDisabled ? 'disabled' : ''}>One deck</option>
                   <option value="two" ${state.deckSetting === 'two' ? 'selected' : ''}>Two decks</option>
+                </select>
+              </label>
+              <label class="setting-row" for="themeSelect">
+                <span>Appearance</span>
+                <select id="themeSelect">
+                  <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>Light mode</option>
+                  <option value="night" ${selectedTheme === 'night' ? 'selected' : ''}>Night mode</option>
                 </select>
               </label>
             </div>
@@ -545,6 +553,12 @@ function renderWaiting(state) {
     gameTargetSelect.addEventListener('change', () => {
       clientActions.clearPendingConfirm();
       emit('setGameTarget', gameTargetSelect.value);
+    });
+  }
+  const themeSelect = document.getElementById('themeSelect');
+  if (themeSelect) {
+    themeSelect.addEventListener('change', () => {
+      window.DutchTheme.setTheme(themeSelect.value, window);
     });
   }
   document.querySelectorAll('[data-action="moveWaitingPlayer"]').forEach((button) => {

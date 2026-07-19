@@ -3,10 +3,12 @@
 * { box-sizing: border-box; }
 
 :root {
+  color-scheme: light;
   --control-height: 30px;
   --control-padding-x: 6px;
   --control-radius: 5px;
   --control-border: #9aa0a6;
+  --control-bg: #fff;
   --control-hover-bg: #f8f9fa;
   --badge-height: 20px;
 
@@ -15,6 +17,7 @@
   --link-color: var(--accent-color);
 
   --panel-bg: #fff;
+  --page-bg: #f6f7f9;
   --panel-border: #d4d7dc;
   --panel-radius: 10px;
   --divider-color: #e8eaed;
@@ -23,6 +26,15 @@
   --text-color: #202124;
   --subtle-text: #3c4043;
   --muted-color: #5f6368;
+  --focus-outline: rgba(66, 57, 200, 0.28);
+  --focus-ring: rgba(26, 115, 232, 0.18);
+  --system-log-color: #777;
+  --spectator-border: #8ab4f8;
+  --spectator-text: #174ea6;
+  --player-badge-text: #07514b;
+  --player-badge-bg: #d9f7ef;
+  --winner-badge-text: #7a4b00;
+  --winner-badge-bg: #fff1bf;
 
   --current-border: #1a73e8;
   --current-bg: #eef4ff;
@@ -37,12 +49,49 @@
   --winner-ring: rgba(210, 139, 0, 0.14);
 }
 
+:root[data-theme="night"] {
+  color-scheme: dark;
+  --control-border: #5d6572;
+  --control-bg: #252a34;
+  --control-hover-bg: #303641;
+  --accent-color: #8f87ff;
+  --accent-hover: #7d74f2;
+  --panel-bg: #1b1f27;
+  --page-bg: #111318;
+  --panel-border: #3d444f;
+  --divider-color: #343a45;
+  --line-border: #303640;
+  --text-color: #f1f3f4;
+  --subtle-text: #d6dae0;
+  --muted-color: #aeb5c0;
+  --focus-outline: rgba(143, 135, 255, 0.42);
+  --focus-ring: rgba(143, 135, 255, 0.3);
+  --system-log-color: #aeb5c0;
+  --current-border: #69a7f5;
+  --current-bg: #192a3e;
+  --current-ring: rgba(105, 167, 245, 0.2);
+  --dutch-border: #45b8aa;
+  --dutch-bg: #132d2a;
+  --dutch-ring: rgba(69, 184, 170, 0.2);
+  --done-bg: #252a32;
+  --done-ring: rgba(174, 181, 192, 0.18);
+  --winner-border: #e3ad42;
+  --winner-bg: #332912;
+  --winner-ring: rgba(227, 173, 66, 0.2);
+  --spectator-border: #69a7f5;
+  --spectator-text: #a8ccff;
+  --player-badge-text: #9ce1d7;
+  --player-badge-bg: #173833;
+  --winner-badge-text: #f3ce81;
+  --winner-badge-bg: #3c3016;
+}
+
 body {
   margin: 0;
   font-family: Ubuntu, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
   line-height: 1.35;
   color: var(--text-color);
-  background: #f6f7f9;
+  background: var(--page-bg);
 }
 
 #app { min-height: 100vh; }
@@ -55,7 +104,7 @@ select {
   border: 1px solid var(--control-border);
   border-radius: var(--control-radius);
   padding: 4px var(--control-padding-x);
-  background: #fff;
+  background: var(--control-bg);
   color: inherit;
   font: inherit;
   line-height: 1.25;
@@ -82,7 +131,7 @@ input:disabled {
 button:focus-visible,
 summary:focus-visible,
 a:focus-visible {
-  outline: 2px solid rgba(66, 57, 200, 0.28);
+  outline: 2px solid var(--focus-outline);
   outline-offset: 2px;
 }
 
@@ -90,7 +139,7 @@ input:focus-visible,
 select:focus-visible {
   border-color: var(--link-color);
   outline: 0;
-  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.18);
+  box-shadow: 0 0 0 2px var(--focus-ring);
 }
 
 a { color: var(--link-color); }
@@ -504,7 +553,7 @@ summary {
   text-align: left;
 }
 
-.log .system-log { color: #777; }
+.log .system-log { color: var(--system-log-color); }
 
 .log-controls {
   display: flex;
@@ -757,22 +806,22 @@ summary {
 }
 
 .spectator-badge {
-  border-color: #8ab4f8;
-  color: #174ea6;
+  border-color: var(--spectator-border);
+  color: var(--spectator-text);
 }
 
 .player-badge {
   margin-left: 6px;
   border: 1px solid var(--dutch-border);
-  color: #07514b;
-  background: #d9f7ef;
+  color: var(--player-badge-text);
+  background: var(--player-badge-bg);
 }
 
 .round-winner-badge,
 .game-winner-badge {
   border-color: var(--winner-border);
-  color: #7a4b00;
-  background: #fff1bf;
+  color: var(--winner-badge-text);
+  background: var(--winner-badge-bg);
 }
 
 /* Cards and piles */
