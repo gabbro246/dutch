@@ -15,17 +15,17 @@ function browserWith(storedValue = null) {
   };
 }
 
-test('stored night theme is applied to the document', () => {
-  const browser = browserWith('night');
-  assert.equal(theme.applyStoredTheme(browser), 'night');
-  assert.equal(browser.document.documentElement.dataset.theme, 'night');
+test('stored dark theme is applied to the document', () => {
+  const browser = browserWith('dark');
+  assert.equal(theme.applyStoredTheme(browser), 'dark');
+  assert.equal(browser.document.documentElement.dataset.theme, 'dark');
 });
 
 test('setting a theme applies and persists it', () => {
   const browser = browserWith();
-  assert.equal(theme.setTheme('night', browser), 'night');
-  assert.equal(browser.document.documentElement.dataset.theme, 'night');
-  assert.equal(browser.values.get(theme.STORAGE_KEY), 'night');
+  assert.equal(theme.setTheme('dark', browser), 'dark');
+  assert.equal(browser.document.documentElement.dataset.theme, 'dark');
+  assert.equal(browser.values.get(theme.STORAGE_KEY), 'dark');
 });
 
 test('unknown stored themes fall back to light mode', () => {

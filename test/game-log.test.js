@@ -60,7 +60,7 @@ test('hidden bot diagnostics appear only in the finished-game log section', () =
     botDiagnostics: [diagnostic]
   });
 
-  assert.match(text, /Game log:\n\+00:00\.000 1\. public move\n\nBot strategy diagnostics \(post-game only\):/);
+  assert.match(text, /Game log:\n\+00:00\.000 1\. public move\n\nBot strategy diagnostics:/);
   assert.match(text, new RegExp(JSON.stringify(diagnostic).replace(/[.*+?^$()|[\]\\]/g, '\\$&')));
 });
 

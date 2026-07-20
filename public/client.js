@@ -384,7 +384,7 @@ function renderBotPersonality(type) {
   const fallbackStats = Object.values(BOT_PERSONALITIES)[0].stats;
   const stats = (personality ? personality.stats : fallbackStats).map(([label, value]) => {
     const barWidth = personality ? value * 10 : 0;
-    const valueText = personality ? escapeHtml(value + "/10") : "–";
+    const valueText = personality ? escapeHtml(value + "/10") : "-/--";
     return (
       '<div class="bot-stat">' +
         '<span class="bot-stat-name">' + escapeHtml(label) + '</span>' +
@@ -421,7 +421,7 @@ function renderWaiting(state) {
     `;
     return `
       <div class="player-line" data-waiting-player-id="${escapeHtml(p.id)}">
-        <span>${index + 1}. ${escapeHtml(p.name)}${p.isBot ? ' <span class="bot-badge">bot</span>' : ''}${p.isSpectator ? ' <span class="spectator-badge">spectator</span>' : ''}${isMe ? ' <span class="you-label">(you)</span>' : ''} ${p.connected ? '' : '(missing)'}</span>
+        <span>${index + 1}. ${escapeHtml(p.name)}${p.isBot ? ' <span class="bot-badge">bot</span>' : ''}${p.isSpectator ? ' <span class="spectator-badge">spectator</span>' : ''}${isMe ? ' <span class="you-badge">you</span>' : ''} ${p.connected ? '' : '(missing)'}</span>
         ${moveControls}
       </div>
     `;
@@ -475,7 +475,7 @@ function renderWaiting(state) {
                 <span>Appearance</span>
                 <select id="themeSelect">
                   <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>Light mode</option>
-                  <option value="night" ${selectedTheme === 'night' ? 'selected' : ''}>Night mode</option>
+                  <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>Dark mode</option>
                 </select>
               </label>
             </div>
@@ -696,6 +696,12 @@ function renderGame(state) {
     </div>
   `;
   clientActions.wireGameButtons();
+  const gameThemeSelect = document.getElementById('gameThemeSelect');
+  if (gameThemeSelect) {
+    gameThemeSelect.addEventListener('change', () => {
+      window.DutchTheme.setTheme(gameThemeSelect.value, window);
+    });
+  }
   restoreRightPanelScroll(rightPanelScroll);
 }
 
@@ -778,7 +784,7 @@ function renderOwnArea(player, state) {
   return `
     <section class="own-area${player.isCurrent ? ' current' : ''}${dutchCaller}${finalTurnDone}${winner}" data-player-panel-id="${escapeHtml(player.id)}">
       <div class="player-title">
-        <h2>${escapeHtml(player.name)} <span class="own-title-label">(${areaLabel})</span>${playerBadges(state, player)}</h2>
+        <h2>${escapeHtml(player.name)} <span class="you-badge">${areaLabel}</span>${playerBadges(state, player)}</h2>
         ${renderPlayerMeta(player)}
       </div>
       <div class="cards-row">
@@ -932,6 +938,7 @@ function cardHtml(card, small, extraAttrs = {}) {
 
 function renderSideArea(state) {
   const r = state.round;
+  const selectedTheme = window.DutchTheme.getStoredTheme(window);
   const gameFinished = r.stage === 'gameEnd';
   const firstRoundActive = state.roundNumber <= 1 && !['roundEnd', 'gameEnd'].includes(r.stage);
   const detailsMode = gameFinished ? 'finished' : firstRoundActive ? 'first-round' : 'scoring';
@@ -951,6 +958,17 @@ function renderSideArea(state) {
           ${renderDetails('log', 'Game log', renderLog(state), logDefaultOpen)}
           ${renderDetails('guide', 'Quick guide', shortInstructions(), guideDefaultOpen)}
           ${renderDetails('rules', 'Complete rules', fullRules(state), false, 'rules-body')}
+          ${renderDetails('settings', 'Settings', `
+            <div class="drawer-content waiting-selectors">
+              <label class="setting-row" for="gameThemeSelect">
+                <span>Appearance</span>
+                <select id="gameThemeSelect">
+                  <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>Light mode</option>
+                  <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>Dark mode</option>
+                </select>
+              </label>
+            </div>
+          `, false)}
         </div>
       </div>
       ${repoLink(state.version)}

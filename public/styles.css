@@ -49,18 +49,18 @@
   --winner-ring: rgba(210, 139, 0, 0.14);
 }
 
-:root[data-theme="night"] {
+:root[data-theme="dark"] {
   color-scheme: dark;
-  --control-border: #5d6572;
-  --control-bg: #252a34;
-  --control-hover-bg: #303641;
+  --control-border: #4b5059;
+  --control-bg: #15171b;
+  --control-hover-bg: #202329;
   --accent-color: #8f87ff;
   --accent-hover: #7d74f2;
-  --panel-bg: #1b1f27;
-  --page-bg: #111318;
-  --panel-border: #3d444f;
-  --divider-color: #343a45;
-  --line-border: #303640;
+  --panel-bg: #111318;
+  --page-bg: #000;
+  --panel-border: #30343a;
+  --divider-color: #272a2f;
+  --line-border: #24272c;
   --text-color: #f1f3f4;
   --subtle-text: #d6dae0;
   --muted-color: #aeb5c0;
@@ -68,15 +68,15 @@
   --focus-ring: rgba(143, 135, 255, 0.3);
   --system-log-color: #aeb5c0;
   --current-border: #69a7f5;
-  --current-bg: #192a3e;
+  --current-bg: #081a2d;
   --current-ring: rgba(105, 167, 245, 0.2);
   --dutch-border: #45b8aa;
-  --dutch-bg: #132d2a;
+  --dutch-bg: #081e1a;
   --dutch-ring: rgba(69, 184, 170, 0.2);
-  --done-bg: #252a32;
+  --done-bg: #181a1e;
   --done-ring: rgba(174, 181, 192, 0.18);
   --winner-border: #e3ad42;
-  --winner-bg: #332912;
+  --winner-bg: #261b07;
   --winner-ring: rgba(227, 173, 66, 0.2);
   --spectator-border: #69a7f5;
   --spectator-text: #a8ccff;
@@ -202,8 +202,7 @@ summary {
   text-decoration: underline;
 }
 
-.version-label,
-.you-label {
+.version-label {
   color: var(--muted-color);
 }
 
@@ -786,6 +785,7 @@ summary {
 /* Badges */
 .bot-badge,
 .spectator-badge,
+.you-badge,
 .player-badge {
   display: inline-flex;
   align-items: center;
@@ -808,6 +808,12 @@ summary {
 .spectator-badge {
   border-color: var(--spectator-border);
   color: var(--spectator-text);
+}
+
+.you-badge {
+  margin-left: 4px;
+  border: 1px solid var(--accent-color);
+  color: var(--link-color);
 }
 
 .player-badge {
@@ -914,6 +920,12 @@ summary {
 .card.empty-card {
   color: #777;
   background: #fafafa;
+}
+
+:root[data-theme="dark"] .card.empty-card {
+  border-color: var(--panel-border);
+  color: var(--muted-color);
+  background: var(--panel-bg);
 }
 
 .card[data-selected="true"],
@@ -1025,9 +1037,3 @@ summary {
   .side-area { max-height: none; }
 }
 
-@media (max-width: 430px) {
-  .setting-row {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-}

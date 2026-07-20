@@ -8,7 +8,7 @@
 })(typeof window !== 'undefined' ? window : null, function createDutchTheme() {
   const STORAGE_KEY = 'dutchColorTheme';
   const DEFAULT_THEME = 'light';
-  const THEMES = new Set(['light', 'night']);
+  const THEMES = new Set(['light', 'dark']);
 
   function normalizeTheme(value) {
     return THEMES.has(value) ? value : DEFAULT_THEME;
