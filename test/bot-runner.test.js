@@ -153,6 +153,73 @@ test('bot runner dispatches a turn draw action through injected game actions', (
   assert.equal(calls.broadcasts, 1);
 });
 
+test('bot runner discards a deck card when protection leaves no swap target', () => {
+  const { runner, calls } = createHarness({
+    state: {
+      round: {
+        stage: 'turn',
+        botTick: 3,
+        specialQueue: [],
+        drawn: { playerId: 'bot', source: 'deck', card: card('drawn-high', '10') },
+        turnComplete: false,
+        throwIn: null
+      }
+    },
+    deps: {
+      botBestSwapTarget: () => null,
+      shouldBotSwapDrawn: () => false
+    }
+  });
+
+  runner.scheduleBotAutomation();
+  assert.equal(calls.timers.length, 1);
+  calls.timers[0].fn();
+
+  assert.equal(calls.discarded, 1);
+  assert.equal(calls.swapped, 0);
+  assert.equal(calls.broadcasts, 1);
+});
+
+test('bot runner records a red King recovery only after a successful throw-in', () => {
+  const recoveryMemory = {};
+  const redKing = { id: 'red-king', rank: 'K', suit: 'hearts' };
+  const { runner, bot, calls } = createHarness({
+    state: {
+      round: {
+        stage: 'turn',
+        botTick: 3,
+        specialQueue: [],
+        drawn: null,
+        turnComplete: true,
+        throwIn: { open: true, token: 'king-window', rank: 'K' }
+      }
+    },
+    deps: {
+      ensureBotMemory: () => recoveryMemory,
+      botThrowInCandidate: () => ({
+        index: 0,
+        confidence: 1,
+        recoveryPlan: { replacementIndex: 1, expectedHandImprovement: 5 }
+      }),
+      botReactionDelay: () => 100,
+      throwInForPlayer: () => ({ valid: true, card: redKing })
+    }
+  });
+  bot.cards[0] = redKing;
+
+  runner.scheduleBotAutomation();
+  const throwTimer = calls.timers.find((timer) => timer.delay === 100);
+  assert.ok(throwTimer);
+  throwTimer.fn();
+
+  assert.deepEqual(recoveryMemory.pendingRedKingRecovery, {
+    replacementIndex: 1,
+    expectedHandImprovement: 5,
+    cardId: redKing.id
+  });
+  assert.equal(calls.broadcasts, 1);
+});
+
 test('bot runner clears scheduled timers', () => {
   const { runner, calls } = createHarness();
 

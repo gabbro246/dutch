@@ -288,16 +288,110 @@ test('Jack strategy values a cross-player swap that creates an own rank pair', (
   assert.ok(createsPair.futureThrowInScoreSaving > 0);
 });
 
-test('a perfectly remembered zero-point card is still thrown to reduce hand size', () => {
+test('confirmed low cards are not worsened for speculative future throw-ins', () => {
+  const setup = harness({
+    own: [card('2'), card('10'), card('10', 'spades')],
+    opponents: [[card('8'), card('7')]]
+  });
+  const result = setup.decisions.evaluateReplacement(setup.bot, card('10', 'hearts'), 0);
+
+  assert.ok(result.futureThrowInScoreSaving > 0);
+  assert.equal(result.eligible, false);
+  assert.equal(result.rejectionReason, 'protected-confirmed-low-card');
+});
+
+test('contested immediate throw-ins cannot justify degrading a confirmed card', () => {
+  const setup = harness({
+    own: [card('2'), card('2', 'spades')],
+    opponents: [[card('2', 'hearts'), card('7')]]
+  });
+  const result = setup.decisions.evaluateReplacement(setup.bot, card('3'), 0);
+
+  assert.equal(result.metadata.throwInFollowUp.reliability, 'speculative');
+  assert.ok(result.metadata.throwInFollowUp.contentionProbability > 0.99);
+  assert.equal(result.metadata.protection.reliableImmediateThrowIn, false);
+  assert.equal(result.eligible, false);
+});
+
+test('a confirmed red King is protected from replacement and ordinary throw-in', () => {
   const setup = harness({
     own: [card('K', 'hearts'), card('2')],
     opponents: [[card('8'), card('7')]],
+    pile: card('K', 'clubs'),
     throwIn: { open: true, rank: 'K' }
   });
-  const candidate = setup.decisions.botThrowInCandidate(setup.bot);
 
+  const replacement = setup.decisions.evaluateReplacement(setup.bot, card('4'), 0);
+  assert.equal(replacement.eligible, false);
+  assert.equal(replacement.rejectionReason, 'protected-red-king');
+  assert.equal(setup.decisions.botThrowInCandidate(setup.bot), null);
+});
+
+test('a red King throw-in is allowed only when the next action recovers it for a better card', () => {
+  const redKing = card('K', 'hearts');
+  const setup = harness({
+    own: [redKing, card('9')],
+    opponents: [[card('8'), card('7')]],
+    pile: card('K', 'clubs'),
+    throwIn: { open: true, rank: 'K' }
+  });
+  setup.state.round.currentPlayerIndex = 1;
+  setup.state.round.stage = 'turn';
+  setup.state.round.turnComplete = true;
+  setup.state.round.drawn = null;
+  setup.state.round.specialQueue = [];
+
+  const candidate = setup.decisions.botThrowInCandidate(setup.bot);
   assert.equal(candidate.index, 0);
-  assert.equal(candidate.confidence, 1);
+  assert.equal(candidate.recoveryPlan.expectedHandImprovement, 9);
+  assert.equal(candidate.throwInReliability, 'guaranteed-next-action');
+
+  setup.bot.cards.splice(0, 1);
+  setup.memory.slots.bot.splice(0, 1);
+  setup.state.round.discard[setup.state.round.discard.length - 1] = redKing;
+  setup.memory.pendingRedKingRecovery = { ...candidate.recoveryPlan, cardId: redKing.id };
+  const draw = setup.decisions.evaluateDrawSources(setup.bot);
+  assert.equal(draw.selected.actionType, 'take-pile');
+  assert.equal(draw.selected.metadata.guaranteedRedKingRecovery, true);
+});
+
+test('pile cards require a concrete benefit and cannot merely worsen known cards', () => {
+  const setup = harness({
+    own: [card('2'), card('3')],
+    opponents: [[card('8'), card('7')]],
+    pile: card('4')
+  });
+  const result = setup.decisions.evaluateDrawSources(setup.bot);
+
+  assert.equal(result.pile, null);
+  assert.equal(result.selected.actionType, 'draw-deck');
+});
+
+test('guaranteed throw-ins, valuable specials, and exact thresholds can justify a worse known card', () => {
+  const throwSetup = harness({
+    own: [card('2'), card('2', 'spades')],
+    opponents: [[card('8'), card('7')]]
+  });
+  const guaranteed = throwSetup.decisions.evaluateReplacement(throwSetup.bot, card('3'), 0);
+  assert.equal(guaranteed.eligible, true);
+  assert.equal(guaranteed.metadata.protection.guaranteedThrowIn, true);
+
+  const aceSetup = harness({
+    own: [card('A'), card('2')],
+    opponents: [[card('8'), card('7')]]
+  });
+  const ace = aceSetup.decisions.evaluateReplacement(aceSetup.bot, card('5'), 0);
+  assert.equal(ace.eligible, true);
+  assert.equal(ace.metadata.protection.worthwhileSpecial, true);
+
+  const thresholdSetup = harness({
+    own: [card('2'), card('3')],
+    opponents: [[card('8'), card('7')]],
+    total: 43
+  });
+  const threshold = thresholdSetup.decisions.evaluateReplacement(thresholdSetup.bot, card('4'), 0);
+  assert.equal(threshold.eligible, true);
+  assert.ok(threshold.metadata.protection.thresholdBenefit > 0);
 });
 
 test('bot diagnostics retain hidden decision state outside the public game log', () => {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.28
+- protected confirmed low cards and red Kings from avoidable bot hand degradation
+- required concrete benefits for bot discard-pile choices and discounted speculative throw-ins
+- fixed bots stalling after drawing a deck card when every swap target is protected
+
 ## 1.3.27
 - improved saved-log formatting for score tables, game events, and bot strategy diagnostics
 - moved Deck, Drawn, and Pile labels clear of the card stacks
