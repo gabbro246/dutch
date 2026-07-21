@@ -179,6 +179,127 @@ test('Dutch evaluation preserves a safe exact-50 halving opportunity', () => {
   assert.ok(result.continue.expectedGameScore < result.call.expectedGameScore);
 });
 
+test('a strong Dutch-ready hand freezes draws and unnecessary special actions', () => {
+  const setup = harness({
+    own: [card('2'), card('3')],
+    opponents: [[card('10'), card('9')]],
+    pile: card('A')
+  });
+
+  const draw = setup.decisions.evaluateDrawSources(setup.bot);
+  assert.equal(draw.deck.metadata.dutchFreeze.active, true);
+  assert.equal(draw.selected.actionType, 'draw-deck');
+  assert.equal(setup.decisions.shouldBotSwapDrawn(setup.bot, card('K', 'hearts')), false);
+  assert.equal(setup.decisions.botAceTarget(setup.bot), null);
+  assert.equal(setup.decisions.botQueenTarget(setup.bot), null);
+  assert.deepEqual(setup.decisions.botJackCandidates(setup.bot), []);
+  assert.equal(setup.decisions.botShouldCallDutch(setup.bot), true);
+});
+
+test('exact total strategy prevents freezing or calling an otherwise strong hand', () => {
+  const setup = harness({
+    own: [card('2'), card('2')],
+    opponents: [[card('10'), card('9')]],
+    total: 46
+  });
+
+  const draw = setup.decisions.evaluateDrawSources(setup.bot);
+  assert.equal(draw.deck.metadata.dutchFreeze.active, false);
+  assert.equal(setup.decisions.botShouldCallDutch(setup.bot), false);
+});
+
+test('Dutch calls expose explicit final-turn and post-halving outcome arithmetic', () => {
+  const setup = harness({
+    own: [card('2'), card('3')],
+    opponents: [[card('8')]],
+    opponentTotals: [30]
+  });
+  const result = setup.decisions.evaluateDutch(setup.bot);
+  const model = result.call.metadata.deliberateCallModel;
+
+  assert.equal(result.call.metadata.simulatedFinalTurns, true);
+  assert.equal(result.call.metadata.finalOpponentExpectedScores.length, 1);
+  assert.ok(result.call.metadata.finalOpponentExpectedScores[0].score < 8);
+  assert.equal(model.samples > 0, true);
+  assert.equal(model.outcomes.length > 0, true);
+  assert.ok(model.outcomes.every((outcome) => (
+    Number.isFinite(outcome.finalHandScore) &&
+    Number.isFinite(outcome.doubledScore) &&
+    Number.isFinite(outcome.rawTotal) &&
+    Number.isFinite(outcome.totalAfterHalving) &&
+    Number.isFinite(outcome.gameWinProbability)
+  )));
+});
+
+test('Dutch above five is rejected without a guaranteed throw-in or beneficial exact total', () => {
+  const setup = harness({
+    own: [card('6')],
+    opponents: [[card('A')]],
+    total: 0
+  });
+  const result = setup.decisions.evaluateDutch(setup.bot);
+
+  assert.equal(result.call.metadata.callEligibility.startsAboveFive, true);
+  assert.equal(result.call.eligible, false);
+  assert.equal(setup.decisions.botShouldCallDutch(setup.bot), false);
+});
+
+test('a guaranteed final throw-in can make an above-five Dutch call eligible', () => {
+  const setup = harness({
+    own: [card('6')],
+    opponents: [[card('9')]],
+    pile: card('6'),
+    throwIn: { open: true, rank: '6' }
+  });
+  const result = setup.decisions.evaluateDutch(setup.bot);
+
+  assert.equal(result.call.metadata.callEligibility.startsAboveFive, true);
+  assert.equal(result.call.metadata.callEligibility.guaranteedFinalThrowIn, true);
+  assert.equal(result.call.metadata.deliberateCallModel.finalHandAtMostFiveProbability, 1);
+  assert.equal(result.call.eligible, true);
+});
+
+test('a deliberate failed Dutch call requires exact arithmetic that lowers the total', () => {
+  const beneficial = harness({
+    own: [card('6')],
+    opponents: [[card('A')]],
+    total: 38
+  });
+  const beneficialResult = beneficial.decisions.evaluateDutch(beneficial.bot);
+  const beneficialModel = beneficialResult.call.metadata.deliberateCallModel;
+
+  assert.ok(beneficialModel.beneficialFailureProbability >= 0.9);
+  assert.equal(beneficialResult.call.metadata.callEligibility.beneficialExactFailure, true);
+  assert.ok(beneficialModel.outcomes.some((outcome) => (
+    !outcome.success && outcome.doubledScore === 12 && outcome.rawTotal === 50 &&
+    outcome.exactThreshold && outcome.totalAfterHalving === 25 && outcome.beneficialFailure
+  )));
+  assert.equal(beneficial.decisions.botShouldCallDutch(beneficial.bot), true);
+
+  const nonExact = harness({
+    own: [card('6')],
+    opponents: [[card('A')]],
+    total: 39
+  });
+  const nonExactResult = nonExact.decisions.evaluateDutch(nonExact.bot);
+  assert.equal(nonExactResult.call.metadata.callEligibility.beneficialExactFailure, false);
+  assert.equal(nonExactResult.call.eligible, false);
+  assert.equal(nonExact.decisions.botShouldCallDutch(nonExact.bot), false);
+});
+
+test('a high-probability Dutch win penalizes needless continuation variance', () => {
+  const setup = harness({
+    own: [card('2'), card('2')],
+    opponents: [[card('10'), card('9')]]
+  });
+  const result = setup.decisions.evaluateDutch(setup.bot);
+
+  assert.equal(result.call.metadata.strongReadyHand, true);
+  assert.equal(result.call.metadata.continuingImprovesGameTotal, false);
+  assert.ok(result.continue.metadata.winningPositionVariancePenalty >= 0);
+  assert.equal(setup.decisions.botShouldCallDutch(setup.bot), true);
+});
+
 test('Queen uses information value and Ace targets expected damage rather than cumulative lead alone', () => {
   const queen = harness({
     own: [card('2'), card('3'), card('8')],

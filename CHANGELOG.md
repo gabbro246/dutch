@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.29
+- froze confidently known Dutch-ready hands and avoided unnecessary special actions or added variance
+- evaluated Dutch calls against opponents' estimated hands after their final turns
+- restricted calls above five and deliberate failed calls to guaranteed throw-ins or beneficial exact score arithmetic
+- modeled doubled failures, 50/100 halving, resulting totals, and projected game-win outcomes explicitly
+
 ## 1.3.28
 - protected confirmed low cards and red Kings from avoidable bot hand degradation
 - required concrete benefits for bot discard-pile choices and discounted speculative throw-ins
