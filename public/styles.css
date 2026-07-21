@@ -31,22 +31,32 @@
   --system-log-color: #777;
   --spectator-border: #8ab4f8;
   --spectator-text: #174ea6;
-  --player-badge-text: #07514b;
-  --player-badge-bg: #d9f7ef;
-  --winner-badge-text: #7a4b00;
-  --winner-badge-bg: #fff1bf;
+  --player-badge-text: #4c258f;
+  --player-badge-bg: #e9ddff;
+  --winner-badge-text: #07514b;
+  --winner-badge-bg: #d9f7ef;
 
   --current-border: #1a73e8;
   --current-bg: #eef4ff;
   --current-ring: rgba(26, 115, 232, 0.12);
-  --dutch-border: #0f766e;
-  --dutch-bg: #e9fbf7;
-  --dutch-ring: rgba(15, 118, 110, 0.12);
+  --dutch-border: #6f42c1;
+  --dutch-bg: #f5f0ff;
+  --dutch-ring: rgba(111, 66, 193, 0.16);
+  --wrong-dutch-border: #c5221f;
+  --wrong-dutch-bg: #fff0ef;
+  --wrong-dutch-ring: rgba(197, 34, 31, 0.14);
+  --wrong-dutch-badge-text: #8c1d18;
+  --wrong-dutch-badge-bg: #fce8e6;
   --done-bg: #eceff1;
   --done-ring: rgba(95, 99, 104, 0.14);
-  --winner-border: #d28b00;
-  --winner-bg: #fff8e6;
-  --winner-ring: rgba(210, 139, 0, 0.14);
+  --winner-border: #0f766e;
+  --winner-bg: #e9fbf7;
+  --winner-ring: rgba(15, 118, 110, 0.12);
+  --game-winner-border: #d28b00;
+  --game-winner-bg: #fff8e6;
+  --game-winner-ring: rgba(210, 139, 0, 0.14);
+  --game-winner-badge-text: #7a4b00;
+  --game-winner-badge-bg: #fff1bf;
 }
 
 :root[data-theme="dark"] {
@@ -70,20 +80,30 @@
   --current-border: #69a7f5;
   --current-bg: #081a2d;
   --current-ring: rgba(105, 167, 245, 0.2);
-  --dutch-border: #45b8aa;
-  --dutch-bg: #081e1a;
-  --dutch-ring: rgba(69, 184, 170, 0.2);
+  --dutch-border: #b69cff;
+  --dutch-bg: #211534;
+  --dutch-ring: rgba(182, 156, 255, 0.24);
+  --wrong-dutch-border: #f28b82;
+  --wrong-dutch-bg: #2b1010;
+  --wrong-dutch-ring: rgba(242, 139, 130, 0.22);
+  --wrong-dutch-badge-text: #f6aea8;
+  --wrong-dutch-badge-bg: #4a1f1d;
   --done-bg: #181a1e;
   --done-ring: rgba(174, 181, 192, 0.18);
-  --winner-border: #e3ad42;
-  --winner-bg: #261b07;
-  --winner-ring: rgba(227, 173, 66, 0.2);
+  --winner-border: #45b8aa;
+  --winner-bg: #081e1a;
+  --winner-ring: rgba(69, 184, 170, 0.2);
+  --game-winner-border: #e3ad42;
+  --game-winner-bg: #261b07;
+  --game-winner-ring: rgba(227, 173, 66, 0.2);
   --spectator-border: #69a7f5;
   --spectator-text: #a8ccff;
-  --player-badge-text: #9ce1d7;
-  --player-badge-bg: #173833;
-  --winner-badge-text: #f3ce81;
-  --winner-badge-bg: #3c3016;
+  --player-badge-text: #d5c5ff;
+  --player-badge-bg: #38275a;
+  --winner-badge-text: #9ce1d7;
+  --winner-badge-bg: #173833;
+  --game-winner-badge-text: #f3ce81;
+  --game-winner-badge-bg: #3c3016;
 }
 
 body {
@@ -726,6 +746,12 @@ summary {
   --surface-bg: linear-gradient(180deg, var(--dutch-bg) 0%, var(--current-bg) 100%);
 }
 
+:is(.player-field, .own-area).wrong-dutch-call {
+  --surface-border: var(--wrong-dutch-border);
+  --surface-bg: var(--wrong-dutch-bg);
+  --surface-shadow: 0 0 0 2px var(--wrong-dutch-ring);
+}
+
 :is(.player-field, .own-area).final-turn-done {
   --surface-border: var(--control-border);
   --surface-bg: var(--done-bg);
@@ -737,15 +763,25 @@ summary {
   --surface-bg: linear-gradient(180deg, var(--done-bg) 0%, var(--current-bg) 100%);
 }
 
-:is(.player-field, .own-area).winner,
-.status.game-ended-status {
+:is(.player-field, .own-area).round-winner {
   --surface-border: var(--winner-border);
   --surface-bg: var(--winner-bg);
   --surface-shadow: 0 0 0 2px var(--winner-ring);
 }
 
-:is(.player-field, .own-area).current.winner {
+:is(.player-field, .own-area).current.round-winner {
   --surface-bg: linear-gradient(180deg, var(--winner-bg) 0%, var(--current-bg) 100%);
+}
+
+:is(.player-field, .own-area).game-winner,
+.status.game-ended-status {
+  --surface-border: var(--game-winner-border);
+  --surface-bg: var(--game-winner-bg);
+  --surface-shadow: 0 0 0 2px var(--game-winner-ring);
+}
+
+:is(.player-field, .own-area).current.game-winner {
+  --surface-bg: linear-gradient(180deg, var(--game-winner-bg) 0%, var(--current-bg) 100%);
 }
 
 .player-title { margin-bottom: 6px; }
@@ -823,11 +859,22 @@ summary {
   background: var(--player-badge-bg);
 }
 
-.round-winner-badge,
-.game-winner-badge {
+.wrong-dutch-badge {
+  border-color: var(--wrong-dutch-border);
+  color: var(--wrong-dutch-badge-text);
+  background: var(--wrong-dutch-badge-bg);
+}
+
+.round-winner-badge {
   border-color: var(--winner-border);
   color: var(--winner-badge-text);
   background: var(--winner-badge-bg);
+}
+
+.game-winner-badge {
+  border-color: var(--game-winner-border);
+  color: var(--game-winner-badge-text);
+  background: var(--game-winner-badge-bg);
 }
 
 /* Cards and piles */

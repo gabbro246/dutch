@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.24
+
+- highlighted wrong Dutch calls
+- synced browser title bar with theme
+
 ## 1.3.15
 
 - fixed partial-name reconnects

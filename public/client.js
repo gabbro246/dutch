@@ -752,13 +752,22 @@ function renderPlayerMeta(player) {
   return `<div class="player-meta">Total: ${player.total}${player.roundPoints === null ? '' : `, round: ${player.roundPoints}`}</div>`;
 }
 
+function isWrongDutchCall(round, player) {
+  return round.dutchCallerId === player.id
+    && ['roundEnd', 'gameEnd'].includes(round.stage)
+    && typeof player.roundPoints === 'number'
+    && player.roundPoints !== 0;
+}
+
 function renderPlayerField(player, state, compact) {
   const current = player.isCurrent ? ' current' : '';
-  const dutchCaller = state.round.dutchCallerId === player.id ? ' dutch-caller' : '';
+  const dutchCaller = state.round.dutchCallerId === player.id
+    ? (isWrongDutchCall(state.round, player) ? ' wrong-dutch-call' : ' dutch-caller')
+    : '';
   const finalTurnDone = player.finalTurnDone ? ' final-turn-done' : '';
   const roundWinner = (state.round.roundWinnerIds || []).includes(player.id);
   const gameWinner = state.round.winnerId === player.id;
-  const winner = roundWinner || gameWinner ? ' winner' : '';
+  const winner = gameWinner ? ' game-winner' : (roundWinner ? ' round-winner' : '');
   const missing = player.connected ? '' : ' (missing)';
   return `
     <div class="player-field${current}${dutchCaller}${finalTurnDone}${winner}" data-player-panel-id="${escapeHtml(player.id)}">
@@ -775,11 +784,13 @@ function renderPlayerField(player, state, compact) {
 
 function renderOwnArea(player, state) {
   const r = state.round;
-  const dutchCaller = r.dutchCallerId === player.id ? ' dutch-caller' : '';
+  const dutchCaller = r.dutchCallerId === player.id
+    ? (isWrongDutchCall(r, player) ? ' wrong-dutch-call' : ' dutch-caller')
+    : '';
   const finalTurnDone = player.finalTurnDone ? ' final-turn-done' : '';
   const roundWinner = (r.roundWinnerIds || []).includes(player.id);
   const gameWinner = r.winnerId === player.id;
-  const winner = roundWinner || gameWinner ? ' winner' : '';
+  const winner = gameWinner ? ' game-winner' : (roundWinner ? ' round-winner' : '');
   const areaLabel = player.isSpectator ? 'spectating' : 'your cards';
   return `
     <section class="own-area${player.isCurrent ? ' current' : ''}${dutchCaller}${finalTurnDone}${winner}" data-player-panel-id="${escapeHtml(player.id)}">
@@ -809,7 +820,11 @@ function playerBadges(state, player) {
   const badges = [];
   if (player.isBot) badges.push('<span class="bot-badge">bot</span>');
   if (player.isSpectator) badges.push('<span class="spectator-badge">spectator</span>');
-  if (r.dutchCallerId === player.id) badges.push('<span class="player-badge dutch-badge">said Dutch</span>');
+  if (r.dutchCallerId === player.id) {
+    badges.push(isWrongDutchCall(r, player)
+      ? `<span class="player-badge wrong-dutch-badge">wrong Dutch call</span>`
+      : `<span class="player-badge dutch-badge">said Dutch</span>`);
+  }
   if ((r.roundWinnerIds || []).includes(player.id)) badges.push('<span class="player-badge round-winner-badge">won this round</span>');
   if (r.winnerId === player.id) badges.push('<span class="player-badge game-winner-badge">won the game</span>');
   return badges.join('');
@@ -1002,7 +1017,7 @@ function renderLog(state) {
         (logExpanded ? '<button type="button" class="log-toggle" data-action="downloadLog">Download game logs</button>' : '') +
         '<button type="button" class="log-toggle" data-action="toggleLog">' + (logExpanded ? 'Show less' : 'Show more') + '</button>' +
       '</div>'
-    : "";
+    : '';
   return '<ol class="log">' + items + '</ol>' + controls;
 }
 

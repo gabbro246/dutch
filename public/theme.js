@@ -9,6 +9,7 @@
   const STORAGE_KEY = 'dutchColorTheme';
   const DEFAULT_THEME = 'light';
   const THEMES = new Set(['light', 'dark']);
+  const THEME_COLORS = { light: '#f6f7f9', dark: '#000000' };
 
   function normalizeTheme(value) {
     return THEMES.has(value) ? value : DEFAULT_THEME;
@@ -26,6 +27,10 @@
     const selectedTheme = normalizeTheme(value);
     if (target && target.document && target.document.documentElement) {
       target.document.documentElement.dataset.theme = selectedTheme;
+      const themeColorMeta = typeof target.document.querySelector === 'function'
+        ? target.document.querySelector('meta[name="theme-color"]')
+        : null;
+      if (themeColorMeta) themeColorMeta.setAttribute('content', THEME_COLORS[selectedTheme]);
     }
     return selectedTheme;
   }
@@ -46,6 +51,7 @@
 
   return {
     STORAGE_KEY,
+    THEME_COLORS,
     normalizeTheme,
     getStoredTheme,
     applyStoredTheme,
