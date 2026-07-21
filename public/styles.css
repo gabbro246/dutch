@@ -975,7 +975,16 @@ summary {
   background: var(--panel-bg);
 }
 
-.card[data-selected="true"],
+.card[data-selected="true"] {
+  position: relative;
+  z-index: 3;
+  transform: translateY(-24px);
+}
+
+.card.small[data-selected="true"] {
+  transform: translateY(-20px);
+}
+
 .card[data-highlight]:not([data-highlight=""]) {
   border-color: var(--winner-border);
   box-shadow: 0 0 0 2px rgba(210, 139, 0, 0.22);

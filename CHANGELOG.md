@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.25
+
+- animated and synchronized the opening discard reveal
+- made Jack swap selections animated and reversible
+
 ## 1.3.24
 
 - highlighted wrong Dutch calls

@@ -11,6 +11,7 @@ const WAITING_ROOM_TIMEOUT_MS = 15 * 60 * 1000;
 const GAME_INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 const BOT_FINISHED_GAME_RESET_MS = 60 * 1000;
 const JACK_SWAP_SELECTION_MS = 500;
+const OPENING_DISCARD_TRAVEL_MS = 500;
 const GAME_LOG_DIR = path.join(__dirname, 'game-logs');
 const ADMIN_LOG_PATH = path.join(GAME_LOG_DIR, 'usage.log');
 const APP_VERSION = packageInfo.version;
@@ -33,7 +34,8 @@ const services = createGameServices({
     waitingRoomTimeoutMs: WAITING_ROOM_TIMEOUT_MS,
     gameInactivityTimeoutMs: GAME_INACTIVITY_TIMEOUT_MS,
     botFinishedGameResetMs: BOT_FINISHED_GAME_RESET_MS,
-    jackSwapSelectionMs: JACK_SWAP_SELECTION_MS
+    jackSwapSelectionMs: JACK_SWAP_SELECTION_MS,
+    openingDiscardTravelMs: OPENING_DISCARD_TRAVEL_MS
   }
 });
 

@@ -219,6 +219,17 @@ test('socket gameplay flow covers turns, throw-ins, specials, Dutch, reconnect, 
   const actorCardBeforeJack = actor.cards[0];
   const targetCardBeforeJack = target.cards[0];
   await actorClient.emit('jackSelect', actorCardBeforeJack.id);
+  await waitFor(() => getState().round.specialQueue[0].selected.length === 1, 'Jack did not select the first card.');
+  await actorClient.emit('jackSelect', actorCardBeforeJack.id);
+  await waitFor(() => getState().round.specialQueue[0].selected.length === 0, 'Jack did not unselect the first card.');
+  await actorClient.emit('jackSelect', actorCardBeforeJack.id);
+  await actorClient.emit('jackSelect', targetCardBeforeJack.id);
+  await waitFor(() => getState().round.specialQueue[0].selected.length === 2, 'Jack did not select the second card.');
+  await actorClient.emit('jackSelect', targetCardBeforeJack.id);
+  await waitFor(() => getState().round.specialQueue[0].selected.length === 1, 'Jack did not unselect the second card.');
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  assert.equal(actor.cards[0].id, actorCardBeforeJack.id);
+  assert.equal(target.cards[0].id, targetCardBeforeJack.id);
   await actorClient.emit('jackSelect', targetCardBeforeJack.id);
   await waitFor(() => actor.cards[0].id === targetCardBeforeJack.id && target.cards[0].id === actorCardBeforeJack.id && getState().round.specialQueue.length === 0, 'Jack did not swap the selected cards and finish.');
   assert.equal(getState().round.stage, 'turn');

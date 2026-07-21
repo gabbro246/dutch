@@ -711,6 +711,8 @@ function renderStatus(state) {
   let textHtml = '';
   if (r.stage === 'peek') {
     text = 'Start peek: each player must look at exactly two own cards.';
+  } else if (r.stage === 'opening') {
+    text = 'Opening card…';
   } else if (r.stage === 'special' && r.special) {
     text = `${r.special.actorName} may use ${specialLabel(r.special.type)} or click Next player.`;
   } else if (r.stage === 'roundEnd') {
@@ -900,7 +902,7 @@ function renderCardCell(card, ownerId, index, state, compact, own) {
   const specialAction = showingStartPeek ? "" : renderCardSpecialAction(card, ownerId, r);
   if (specialAction) buttons.push(specialAction);
 
-  const selected = r.special && r.special.actorId !== state.you && r.special.selected && r.special.selected.includes(card.id);
+  const selected = r.special && r.special.selected && r.special.selected.includes(card.id);
   return `
     <div class="card-cell" data-owner-id="${escapeHtml(ownerId)}" data-card-slot="${escapeHtml(ownerId)}:${index}">
       ${cardHtml(card, compact, { 'data-location-key': `player:${ownerId}:${index}`, 'data-selected': selected ? 'true' : '', 'data-highlight': ['peek', 'wrong-throw'].includes(card.highlight) ? '' : (card.highlight || '') })}
@@ -911,15 +913,15 @@ function renderCardCell(card, ownerId, index, state, compact, own) {
 
 function renderCardSpecialAction(card, ownerId, r) {
   const protectedTarget = (r.protectedSpecialTargetIds || []).includes(ownerId);
+  const selected = r.special && r.special.selected && r.special.selected.includes(card.id);
   if (r.controls.canAceAdd && !protectedTarget) {
     return '<button data-action="aceAdd" data-player-id="' + escapeHtml(ownerId) + '">' + cardActionLabel('A', 'add') + '</button>';
   }
   if (r.controls.canQueenPeek) {
     return '<button data-action="queenPeek" data-card-id="' + escapeHtml(card.id) + '">' + cardActionLabel('Q', 'peek') + '</button>';
   }
-  if (r.controls.canJackSwap && !protectedTarget) {
-    const selected = r.special && r.special.selected && r.special.selected.includes(card.id);
-    return '<button data-action="jackSelect" data-card-id="' + escapeHtml(card.id) + '" ' + (selected ? 'disabled' : '') + '>' + cardActionLabel('J', 'swap') + '</button>';
+  if ((r.controls.canJackSwap || (r.controls.canJackUnselect && selected)) && !protectedTarget) {
+    return '<button data-action="jackSelect" data-card-id="' + escapeHtml(card.id) + '">' + cardActionLabel('J', 'swap') + '</button>';
   }
   return '<button class="special-action-placeholder" disabled>Action</button>';
 }
@@ -1181,6 +1183,7 @@ function animateStateTransition(previousState, state, before, after) {
   if (!previousState.round || !state.round) return;
   if (previousState.roundNumber !== state.roundNumber) return;
   animatePlayerPanelResizes(previousState, state, before, after);
+  animateJackSwapSelections(previousState, state);
   const previousCards = stateCardLocations(previousState);
   const currentCards = stateCardLocations(state);
   const previousWrongThrow = previousState.round.wrongThrowIn;
@@ -1208,6 +1211,15 @@ function animateStateTransition(previousState, state, before, after) {
       const sourceData = before.roles.get('deck-top');
       if (sourceData) {
         animateCardMove(cardId, sourceData, targetData);
+        movedIds.add(cardId);
+      }
+      return;
+    }
+
+    if (!previous && current.locationKey === 'pile-top' && previousState.round.stage === 'peek' && state.round.stage === 'opening') {
+      const sourceData = before.roles.get('deck-top');
+      if (sourceData) {
+        animateCardMove(cardId, sourceData, targetData, 480);
         movedIds.add(cardId);
       }
       return;
@@ -1249,6 +1261,44 @@ function animateStateTransition(previousState, state, before, after) {
     const target = document.querySelector(`.card[data-card-id="${cssEscape(cardId)}"]`);
     const delay = enteringFinishedStage && faceChanged ? (revealDelays.get(cardId) || 0) : 0;
     if (target) animateFaceTurn(target, before.cards.get(cardId), publicPeekStarted ? 420 : 260, delay);
+  });
+}
+
+function animateJackSwapSelections(previousState, state) {
+  const previousSpecial = previousState.round && previousState.round.special;
+  const currentSpecial = state.round && state.round.special;
+  if (!currentSpecial || currentSpecial.type !== 'J') return;
+
+  const previousSelected = new Set(
+    previousSpecial && previousSpecial.type === 'J' && previousSpecial.actorId === currentSpecial.actorId
+      ? (previousSpecial.selected || [])
+      : []
+  );
+  (currentSpecial.selected || []).forEach((cardId) => {
+    if (previousSelected.has(cardId)) return;
+    const card = document.querySelector(`.card[data-card-id="${cssEscape(cardId)}"]`);
+    if (!card || !card.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const selectedTransform = card.classList.contains('small') ? 'translateY(-20px)' : 'translateY(-24px)';
+    card.animate([
+      { transform: 'translateY(0)' },
+      { transform: selectedTransform }
+    ], {
+      duration: 180,
+      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)'
+    });
+  });
+  previousSelected.forEach((cardId) => {
+    if ((currentSpecial.selected || []).includes(cardId)) return;
+    const card = document.querySelector(`.card[data-card-id="${cssEscape(cardId)}"]`);
+    if (!card || !card.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const selectedTransform = card.classList.contains('small') ? 'translateY(-20px)' : 'translateY(-24px)';
+    card.animate([
+      { transform: selectedTransform },
+      { transform: 'translateY(0)' }
+    ], {
+      duration: 180,
+      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)'
+    });
   });
 }
 
@@ -1298,7 +1348,7 @@ function cssEscape(value) {
   return String(value).replace(/"/g, '\\"');
 }
 
-function animateCardMove(cardId, sourceData, targetData) {
+function animateCardMove(cardId, sourceData, targetData, duration = 360) {
   const target = cardElement(cardId, targetData.locationKey) || elementAtRect(targetData.rect, targetData.locationKey);
   let source = sourceData.rect;
   const dest = targetData.rect;
@@ -1338,7 +1388,7 @@ function animateCardMove(cardId, sourceData, targetData) {
     { transform: `translate(${source.left - dest.left}px, ${source.top - dest.top}px) scale(${scaleX}, ${scaleY})` },
     { transform: 'translate(0, 0) scale(1, 1)' }
   ], {
-    duration: 360,
+    duration,
     easing: 'linear',
     fill: 'forwards'
   });

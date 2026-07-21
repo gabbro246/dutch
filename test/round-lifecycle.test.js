@@ -52,7 +52,9 @@ function lifecycleFor(initialState) {
     savedLogs: 0,
     clearedTimers: 0,
     discardObservations: [],
-    synced: 0
+    synced: 0,
+    timeouts: [],
+    broadcasts: 0
   };
   const deps = {
     getState: () => state,
@@ -108,7 +110,10 @@ function lifecycleFor(initialState) {
     },
     specialName: (rank) => rank,
     updateStageAfterQueue: () => {},
-    currentPlayer: () => state.round ? state.players[state.round.currentPlayerIndex] || null : null
+    currentPlayer: () => state.round ? state.players[state.round.currentPlayerIndex] || null : null,
+    openingDiscardTravelMs: 500,
+    setTimeoutFn: (fn, delay) => calls.timeouts.push({ fn, delay }),
+    broadcastState: () => { calls.broadcasts += 1; }
   };
   return {
     lifecycle: createRoundLifecycle(deps),
@@ -134,10 +139,18 @@ test('start game deals a round and begins turns after all peeks', () => {
   for (const item of getState().players) item.startPeekDone = true;
   lifecycle.beginTurnsIfReady();
 
-  assert.equal(getState().round.stage, 'turn');
+  assert.equal(getState().round.stage, 'opening');
   assert.equal(getState().round.discard.length, 1);
+  assert.equal(getState().round.throwIn, null);
+  assert.equal(calls.discardObservations.length, 0);
+  assert.equal(calls.timeouts[0].delay, 500);
+
+  calls.timeouts[0].fn();
+
+  assert.equal(getState().round.stage, 'turn');
   assert.equal(getState().round.throwIn.token, 1);
   assert.equal(calls.discardObservations[0].source, 'opening discard');
+  assert.equal(calls.broadcasts, 1);
 });
 
 test('advance turn completes Dutch queue and ends the round', () => {
