@@ -51,12 +51,25 @@ function harness(options) {
       ? unknownMemory('opponent unknown', 4)
       : cardMemory(item, 'Queen peek', 1, 'known', 4));
   });
-  const memory = { slots, discards: [], removed: [], reshuffles: [], inference: {} };
+  const memory = {
+    slots,
+    discards: [],
+    removed: [],
+    reshuffles: [],
+    inference: {},
+    humanKnowledge: options.humanKnowledge || {},
+    humanKnowledgeRevision: options.humanKnowledgeRevision || 0
+  };
   const decisions = createBotDecisions({
     getState: () => state,
     ensureBotMemory: () => memory,
     botMemoryEntry: (viewer, ownerId, index) => memory.slots[ownerId][index],
     effectiveMemory: (viewer, entry) => effectiveMemory(viewer, entry, 4),
+    effectiveHumanMemory: (viewer, humanId, ownerId, index) => {
+      const model = memory.humanKnowledge[humanId];
+      const entry = model && model.slots && model.slots[ownerId] && model.slots[ownerId][index];
+      return entry || { state: 'unknown', confidence: 0, card: null, source: 'human unknown' };
+    },
     activePlayablePlayers: () => state.players,
     isProtectedSpecialTarget: () => false,
     findActiveIndexFrom: (start) => start % state.players.length,
@@ -381,7 +394,7 @@ test('discard value includes the opponent throw-in it may enable', () => {
   assert.equal(setup.decisions.opponentThrowInBenefit(setup.bot, card('6'), ctx), 0);
 });
 
-test('Jack strategy never spends the special reordering one player hand', () => {
+test('Jack avoids same-hand reordering when it has no disruption benefit', () => {
   const setup = harness({
     own: [card('9'), card('2'), card('3')],
     opponents: [[card('8'), card('7'), card('4')]]
@@ -390,6 +403,75 @@ test('Jack strategy never spends the special reordering one player hand', () => 
 
   assert.ok(candidates.length > 0);
   assert.ok(candidates.every((candidate) => candidate.a.player.id !== candidate.b.player.id));
+});
+
+test('Jack prefers the highest known own card for the lowest known opponent card', () => {
+  const setup = harness({
+    own: [card('10'), card('2')],
+    opponents: [[card('A'), card('9')]]
+  });
+  const candidates = setup.decisions.botJackCandidates(setup.bot);
+  const selected = candidates[0];
+  const own = selected.a.player.id === setup.bot.id ? selected.a : selected.b;
+  const incoming = own === selected.a ? selected.b : selected.a;
+
+  assert.equal(own.index, 0);
+  assert.equal(incoming.player.id, setup.opponents[0].id);
+  assert.equal(incoming.index, 0);
+  assert.equal(selected.metadata.directPriority, true);
+  assert.ok(selected.metadata.directHandImprovement > 0);
+});
+
+test('Jack scores human knowledge disruption and allows useful same-hand swaps', () => {
+  const knownTwo = cardMemory({ rank: '2', suit: 'clubs' }, 'start peek', 1, 'known', 4);
+  const knownEight = cardMemory({ rank: '8', suit: 'clubs' }, 'start peek', 0.9, 'known', 4);
+  const setup = harness({
+    own: [card('9'), card('3')],
+    opponents: [[card('2'), card('8')]],
+    humanKnowledge: {
+      'opp-0': {
+        slots: {
+          bot: [unknownMemory('human unknown', 4), unknownMemory('human unknown', 4)],
+          'opp-0': [knownTwo, knownEight]
+        },
+        dutchReadiness: 0.8
+      }
+    },
+    humanKnowledgeRevision: 7
+  });
+  const candidates = setup.decisions.botJackCandidates(setup.bot);
+  const sameHand = candidates.find((candidate) => (
+    candidate.a.player.id === setup.opponents[0].id &&
+    candidate.b.player.id === setup.opponents[0].id
+  ));
+
+  assert.ok(sameHand);
+  assert.equal(sameHand.metadata.humanKnowledgeRevision, 7);
+  assert.equal(sameHand.metadata.disruption.invalidatedPositions, 2);
+  assert.ok(sameHand.metadata.disruption.knowledgeLossValue > 0);
+});
+
+test('Jack gives the largest bonus to a direct improvement that also disrupts a Dutch threat', () => {
+  const knownLow = cardMemory({ rank: '2', suit: 'clubs' }, 'start peek', 1, 'known', 4);
+  const setup = harness({
+    own: [card('10'), card('3')],
+    opponents: [[card('2'), card('8')]],
+    humanKnowledge: {
+      'opp-0': {
+        slots: {
+          bot: [unknownMemory('human unknown', 4), unknownMemory('human unknown', 4)],
+          'opp-0': [knownLow, unknownMemory('human unknown', 4)]
+        },
+        dutchReadiness: 0.9
+      }
+    }
+  });
+  const selected = setup.decisions.botJackCandidates(setup.bot)[0];
+
+  assert.equal(selected.metadata.directPriority, true);
+  assert.equal(selected.metadata.dualPurpose, true);
+  assert.ok(selected.metadata.disruption.knownLowRemovedValue > 0);
+  assert.ok(selected.metadata.disruption.threatDamageValue > 0);
 });
 
 test('Jack strategy values a cross-player swap that creates an own rank pair', () => {

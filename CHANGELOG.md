@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.30
+- prioritized direct Jack hand improvements, especially the highest known bot card for the lowest known opponent card
+- added a separate estimated human-memory model for peeks, reveals, pile acquisitions, and visible card movement
+- scored Jack swaps by human knowledge loss, Dutch threat pressure, and dual-purpose disruption
+- rebuilt Jack candidates from current knowledge after swaps, throw-ins, Aces, reveals, pile takes, and Dutch calls
+
 ## 1.3.29
 - froze confidently known Dutch-ready hands and avoided unnecessary special actions or added variance
 - evaluated Dutch calls against opponents' estimated hands after their final turns

@@ -91,6 +91,34 @@ test('remember, forget, add, remove, and move slot memory mutate all bots', () =
   assert.deepEqual(bot.botMemory.discards.at(-1), { source: 'throw-in', updatedTick: 5 });
 });
 
+test('estimated human memory tracks reveals, visible Jack moves, and confidence decay', () => {
+  const bot = player('bot', [card('b1', '10'), card('b2', '3')], { isBot: true, botType: 'strategic' });
+  const ada = player('ada', [card('a1', '2'), card('a2', '8')]);
+  const state = {
+    roundNumber: 1,
+    round: { strategyTick: 4 },
+    players: [bot, ada]
+  };
+  const memory = memoryFor(state);
+  memory.syncBotMemories();
+
+  memory.rememberHumanSlotForAllBots('ada', 'ada', 0, ada.cards[0], 'start peek', 1);
+  const initiallyKnown = memory.effectiveHumanMemory(bot, 'ada', 'ada', 0);
+  assert.equal(initiallyKnown.card.rank, '2');
+  assert.equal(initiallyKnown.confidence, 1);
+
+  memory.moveHumanKnowledgeForAllBots('ada', 0, 'ada', 1, 'bot');
+  const moved = memory.effectiveHumanMemory(bot, 'ada', 'ada', 1);
+  assert.equal(moved.card.rank, '2');
+  assert.ok(moved.confidence < 1);
+  assert.equal(bot.botMemory.humanKnowledge.ada.swapsObserved, 1);
+
+  state.round.strategyTick = 24;
+  const decayed = memory.effectiveHumanMemory(bot, 'ada', 'ada', 1);
+  assert.ok(decayed.confidence < moved.confidence);
+  assert.ok(bot.botMemory.humanKnowledgeRevision >= 2);
+});
+
 test('observations record discards, pile takes, and Ace attackers', () => {
   const bot = player('bot', [card('b1')], { isBot: true, botType: 'casual' });
   const ada = player('ada', [card('a1')]);
