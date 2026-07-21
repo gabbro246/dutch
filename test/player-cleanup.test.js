@@ -148,6 +148,25 @@ test('expired disconnected players are removed from round state', () => {
   assert.equal(calls.broadcasts, 1);
 });
 
+test('configured inactivity timeout controls game expiry and its message', () => {
+  const timeoutMs = 30 * 60 * 1000;
+  const state = {
+    phase: 'playing',
+    inactivityTimeoutMinutes: 30,
+    lastGameActivityAt: 100,
+    players: [player('ada'), player('ben')],
+    round: { currentPlayerIndex: 0 }
+  };
+  const { cleanup, calls } = cleanupFor(state);
+
+  assert.equal(cleanup.purgeExpiredDisconnectedPlayers(100 + timeoutMs), false);
+  assert.equal(cleanup.purgeExpiredDisconnectedPlayers(101 + timeoutMs), true);
+  assert.deepEqual(calls.resets[0], [
+    true,
+    'game ended after 30 minutes without activity',
+    { adminEvent: 'game_ended_inactivity_timeout' }
+  ]);
+});
 test('cleanup returns false when nobody expired', () => {
   const state = {
     phase: 'waiting',

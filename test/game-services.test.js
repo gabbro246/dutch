@@ -100,9 +100,11 @@ test('registered sockets can join and update waiting-room settings', () => {
     assert.equal(socket.emitted.some((event) => event.event === 'state'), true);
 
     socket.handlers.setGameTarget(50);
+    socket.handlers.setInactivityTimeout(90);
     socket.handlers.setDeckSetting('two');
 
     assert.equal(services.getState().gameTarget, 50);
+    assert.equal(services.getState().inactivityTimeoutMinutes, 90);
     assert.equal(services.getState().deckSetting, 'two');
 
     services.close();

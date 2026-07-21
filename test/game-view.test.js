@@ -106,6 +106,8 @@ test('build view reveals only cards visible to the viewer', () => {
   const view = viewFor(state).buildView('ada');
 
   assert.equal(view.version, 'test-version');
+  assert.equal(view.inactivityTimeoutMinutes, 15);
+  assert.equal(view.canChangeGameTarget, true);
   assert.equal(Object.hasOwn(view, 'botDiagnostics'), false);
   assert.equal(view.round.players[0].cards[0].back, false);
   assert.equal(view.round.players[0].cards[0].rank, '2');
@@ -116,6 +118,9 @@ test('build view reveals only cards visible to the viewer', () => {
   assert.equal(view.round.wrongThrowIn.card.back, false);
   assert.equal(view.round.wrongThrowIn.card.rank, '9');
   assert.equal(view.round.discardTop.rank, 'Q');
+
+  state.gameTargetLocked = true;
+  assert.equal(viewFor(state).buildView('ada').canChangeGameTarget, false);
 
   const observerView = viewFor(state).buildView('ben');
   assert.equal(observerView.round.players[0].cards[1].back, true);

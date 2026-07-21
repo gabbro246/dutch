@@ -56,6 +56,7 @@ test('exact 50 and 100 totals are halved after scoring', () => {
   assert.equal(players[1].total, 50);
   assert.deepEqual(scoring.halvings.map((item) => item.id), ['ada', 'ben']);
   assert.deepEqual(scoring.pointChanges, ['ADA lost 23 points', 'BEN lost 37 points']);
+  assert.equal(scoring.reachedFifty, true);
 });
 
 test('game ends once a player passes the target and lowest total wins', () => {

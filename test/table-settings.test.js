@@ -64,7 +64,7 @@ test('setDeckSetting only accepts valid waiting-room settings and reclamps', () 
   assert.equal(state.deckSetting, 'two');
 });
 
-test('setGameTarget only accepts supported targets in the waiting room', () => {
+test('setGameTarget accepts supported targets until a player reaches 50', () => {
   const state = {
     phase: 'waiting',
     gameTarget: 100,
@@ -80,7 +80,36 @@ test('setGameTarget only accepts supported targets in the waiting room', () => {
 
   state.phase = 'playing';
   settings.setGameTarget(100);
-  assert.equal(state.gameTarget, 50);
+  assert.equal(state.gameTarget, 100);
+
+  state.players = [player('a', { total: 50 })];
+  settings.setGameTarget(50);
+  assert.equal(state.gameTarget, 100);
+
+  state.players[0].total = 25;
+  state.gameTargetLocked = true;
+  settings.setGameTarget(50);
+  assert.equal(state.gameTarget, 100);
+
+  state.gameTargetLocked = false;
+  state.round = { stage: 'gameEnd' };
+  settings.setGameTarget(50);
+  assert.equal(state.gameTarget, 100);
+
+  state.phase = 'invalid';
+  state.round = null;
+  settings.setGameTarget(50);
+  assert.equal(state.gameTarget, 100);
+});
+
+test('setInactivityTimeout accepts only supported minute values', () => {
+  const state = { phase: 'waiting', inactivityTimeoutMinutes: 15, players: [] };
+  const settings = settingsFor(state);
+
+  settings.setInactivityTimeout('60');
+  assert.equal(state.inactivityTimeoutMinutes, 60);
+  settings.setInactivityTimeout(45);
+  assert.equal(state.inactivityTimeoutMinutes, 60);
 });
 
 test('createCombinedDeck sets deck color and advances card ids across calls', () => {

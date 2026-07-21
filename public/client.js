@@ -464,6 +464,7 @@ function renderWaiting(state) {
                   <option value="100" ${state.gameTarget === 100 ? 'selected' : ''}>Full game, 100 points</option>
                 </select>
               </label>
+              ${inactivityTimeoutSettingHtml(state, 'inactivityTimeoutSelect')}
               <label class="setting-row" for="deckSettingSelect">
                 <span>Deck amount</span>
                 <select id="deckSettingSelect">
@@ -555,6 +556,7 @@ function renderWaiting(state) {
       emit('setGameTarget', gameTargetSelect.value);
     });
   }
+  wireInactivityTimeoutSelect('inactivityTimeoutSelect');
   const themeSelect = document.getElementById('themeSelect');
   if (themeSelect) {
     themeSelect.addEventListener('change', () => {
@@ -697,6 +699,14 @@ function renderGame(state) {
   `;
   clientActions.wireGameButtons();
   const gameThemeSelect = document.getElementById('gameThemeSelect');
+  const inGameTargetSelect = document.getElementById('inGameTargetSelect');
+  if (inGameTargetSelect) {
+    inGameTargetSelect.addEventListener('change', () => {
+      clientActions.clearPendingConfirm();
+      emit('setGameTarget', inGameTargetSelect.value);
+    });
+  }
+  wireInactivityTimeoutSelect('gameInactivityTimeoutSelect');
   if (gameThemeSelect) {
     gameThemeSelect.addEventListener('change', () => {
       window.DutchTheme.setTheme(gameThemeSelect.value, window);
@@ -953,6 +963,27 @@ function cardHtml(card, small, extraAttrs = {}) {
   `;
 }
 
+function inactivityTimeoutSettingHtml(state, id) {
+  const minutes = state.inactivityTimeoutMinutes || 15;
+  return `
+    <label class="setting-row" for="${id}">
+      <span>Inactive after</span>
+      <select id="${id}">
+        ${[15, 30, 60, 90].map((value) => `<option value="${value}" ${minutes === value ? 'selected' : ''}>${value} minutes</option>`).join('')}
+      </select>
+    </label>
+  `;
+}
+
+function wireInactivityTimeoutSelect(id) {
+  const select = document.getElementById(id);
+  if (!select) return;
+  select.addEventListener('change', () => {
+    clientActions.clearPendingConfirm();
+    emit('setInactivityTimeout', select.value);
+  });
+}
+
 function renderSideArea(state) {
   const r = state.round;
   const selectedTheme = window.DutchTheme.getStoredTheme(window);
@@ -977,6 +1008,14 @@ function renderSideArea(state) {
           ${renderDetails('rules', 'Complete rules', fullRules(state), false, 'rules-body')}
           ${renderDetails('settings', 'Settings', `
             <div class="drawer-content waiting-selectors">
+              <label class="setting-row" for="inGameTargetSelect">
+                <span>Game length</span>
+                <select id="inGameTargetSelect" ${state.canChangeGameTarget ? '' : 'disabled'}>
+                  <option value="50" ${state.gameTarget === 50 ? 'selected' : ''}>Short game, 50 points</option>
+                  <option value="100" ${state.gameTarget === 100 ? 'selected' : ''}>Full game, 100 points</option>
+                </select>
+              </label>
+              ${inactivityTimeoutSettingHtml(state, 'gameInactivityTimeoutSelect')}
               <label class="setting-row" for="gameThemeSelect">
                 <span>Appearance</span>
                 <select id="gameThemeSelect">
