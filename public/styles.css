@@ -542,9 +542,103 @@ summary {
 .saved-log-view {
   margin: 0;
   color: var(--text-color);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.saved-log-summary h2,
+.saved-log-section h2,
+.saved-log-thought h3 { margin: 0; }
+
+.saved-log-summary h2,
+.saved-log-section h2 {
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--divider-color);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.saved-log-summary dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 8px 0 0;
+}
+
+.saved-log-summary dl div {
+  display: flex;
+  gap: 5px;
+}
+
+.saved-log-summary dt { font-weight: 700; }
+.saved-log-summary dd { margin: 0; }
+
+.saved-log-section {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.saved-log-table-wrap { overflow-x: auto; }
+
+.saved-log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.saved-log-table th,
+.saved-log-table td {
+  border: 1px solid var(--divider-color);
+  padding: 7px 10px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.saved-log-table th:first-child,
+.saved-log-table td:first-child { text-align: left; }
+
+.saved-log-table thead,
+.saved-log-table tbody th { background: var(--control-bg); }
+
+.saved-log-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
   font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+}
+
+.saved-log-lines li {
+  display: grid;
+  grid-template-columns: 7.5em minmax(0, 1fr);
+  padding-left: 5px;
+}
+
+.saved-log-lines time { color: var(--muted-color); }
+.saved-log-lines span { overflow-wrap: anywhere; }
+
+.saved-log-thought {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.saved-log-thought h3 { font-size: 12px; }
+
+.saved-log-code {
+  max-height: 32rem;
+  margin: 0;
+  padding: 10px 0;
+  overflow: auto;
+  border: 1px solid var(--divider-color);
+  border-radius: var(--control-radius);
+  background: var(--control-bg);
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  white-space: pre;
 }
 
 .log-download-row {
@@ -897,6 +991,8 @@ summary {
   text-align: center;
 }
 
+.deck-pile-label { transform: translateY(-5px); }
+
 .stack,
 .drawn-card-slot {
   width: 70px;
@@ -1017,7 +1113,8 @@ summary {
 .card-action-label { white-space: nowrap; }
 
 .card-symbol,
-.saved-log-view {
+.saved-log-code,
+.saved-log-lines {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 

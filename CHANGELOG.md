@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.27
+- improved saved-log formatting for score tables, game events, and bot strategy diagnostics
+- moved Deck, Drawn, and Pile labels clear of the card stacks
+
 ## 1.3.26
 - added in-game switching between 50 and 100 point targets before anyone reaches 50
 - added configurable 15, 30, 60, and 90 minute inactivity timeouts

@@ -5,7 +5,7 @@ const {
   finishedGameLogFilename,
   finishedGameLogText
 } = require('../lib/game-log.js');
-const { logSummaryFromContent } = require('../lib/http-app.js');
+const { logSummaryFromContent, renderSavedLogContent } = require("../lib/http-app.js");
 
 test('game log filename uses the game start time when present', () => {
   const savedAt = new Date(2026, 0, 2, 3, 4, 5);
@@ -81,4 +81,35 @@ test('log list summary ranks players by final score without winner text', () => 
   assert.deepEqual(logSummaryFromContent(text), {
     summaryText: 'Ranking: Ben, Ada, Cal · Rounds: 2'
   });
+});
+
+test("saved log viewer renders the points table and pretty-printed bot thoughts", () => {
+  const content = [
+    "Dutch game log 2026-01-01_01-02-03",
+    "Winner: Ada",
+    "Target: 50",
+    "Rounds: 1",
+    "",
+    "Points table:",
+    "Round | Ada | <Bot>",
+    "--- | --- | ---",
+    "Round 1 | 4 | 8",
+    "",
+    "Game log:",
+    "+00:00.000 1. [system] game started",
+    "",
+    "Bot strategy diagnostics:",
+    "Earlier diagnostics dropped: 2",
+    "1. {\"decision\":\"draw-source\",\"selected\":\"take-pile\"}"
+  ].join("\n");
+
+  const html = renderSavedLogContent(content);
+
+  assert.match(html, /<table class=saved-log-table>/);
+  assert.match(html, /<th scope=col>&lt;Bot&gt;<\/th>/);
+  assert.match(html, /<td>8<\/td>/);
+  assert.match(html, /<time>\+00:00\.000<\/time><span>1\. \[system\] game started<\/span>/);
+  assert.match(html, /<h2>Bot strategy<\/h2>/);
+  assert.match(html, /<code>{\n  &quot;decision&quot;: &quot;draw-source&quot;,\n  &quot;selected&quot;: &quot;take-pile&quot;\n}<\/code>/);
+  assert.doesNotMatch(html, /<Bot>/);
 });

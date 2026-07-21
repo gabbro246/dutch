@@ -847,7 +847,7 @@ function renderDeckPile(state) {
   const drawnCard = r.drawn
     ? cardHtml(r.drawn.card, false, { 'data-anim-role': 'drawn', 'data-location-key': 'drawn' })
     : '<div class="card empty-card drawn-placeholder">empty</div>';
-  const drawnLabel = r.drawn ? '<div>Drawn</div>' : '<div class="drawn-label-spacer" aria-hidden="true">Drawn</div>';
+  const drawnLabel = r.drawn ? '<div class="deck-pile-label">Drawn</div>' : '<div class="deck-pile-label drawn-label-spacer" aria-hidden="true">Drawn</div>';
   const discardButton = r.drawn
     ? `<button data-action="discardDrawn" ${r.controls.canDiscardDrawn ? '' : 'disabled'}>Discard</button>`
     : '<button class="drawn-button-spacer" disabled aria-hidden="true" tabindex="-1">Discard</button>';
@@ -855,7 +855,7 @@ function renderDeckPile(state) {
   return `
     <section class="deck-pile-area">
       <div class="stack-area">
-        <div>Deck (${r.deckCount})</div>
+        <div class="deck-pile-label">Deck (${r.deckCount})</div>
         <div class="stack" data-stack="deck">
           ${stackBacks(r.deckCount, r.deckBack)}
         </div>
@@ -869,7 +869,7 @@ function renderDeckPile(state) {
         ${discardButton}
       </div>
       <div class="stack-area">
-        <div>Pile (${r.discardCount})</div>
+        <div class="deck-pile-label">Pile (${r.discardCount})</div>
         <div class="stack" data-stack="pile">
           ${stackPile(r)}
         </div>
