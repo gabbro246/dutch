@@ -2,6 +2,8 @@
 A card game where players try to finish with the lowest score by remembering, swapping, and revealing cards.
 This project provides a minimal local multiplayer version that you can play in a browser against other players or bots.
 
+![Dutch game screenshot](./SCREENSHOT.png)
+
 ## Run Dutch
 Node.js must be installed first. If it is not installed, see the [Node.js installation instructions](https://nodejs.org/).
 1. Click the green **Code** button near the top of this GitHub page, select **Download ZIP**, and extract the downloaded folder.
