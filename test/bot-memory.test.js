@@ -140,6 +140,12 @@ test('observations record discards, pile takes, and Ace attackers', () => {
   assert.equal(bot.botMemory.pendingPile.rank, 'A');
   assert.equal(bot.botMemory.pendingPile.card.suit, 'spades');
   assert.ok(bot.botMemory.inference.ada.lowCardBelief > 0);
+  assert.equal(bot.botMemory.inference.ada.recentActions.at(-1).type, 'take-pile');
+  assert.equal(bot.botMemory.inference.ada.recentActions.at(-1).low, true);
+
+  memory.observeDecisionForAllBots('ada', 'throw-in', { rank: 'A', valid: true });
+  assert.equal(bot.botMemory.inference.ada.recentActions.at(-1).type, 'throw-in');
+  assert.equal(bot.botMemory.inference.ada.recentActions.at(-1).low, true);
 
   memory.observeDecisionForAllBots('ada', 'call-dutch');
   assert.equal(bot.botMemory.inference.ada.dutchReadiness, 0.65);

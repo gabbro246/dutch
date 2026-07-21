@@ -56,7 +56,7 @@ function harness(options) {
     discards: [],
     removed: [],
     reshuffles: [],
-    inference: {},
+    inference: options.inference || {},
     humanKnowledge: options.humanKnowledge || {},
     humanKnowledgeRevision: options.humanKnowledgeRevision || 0
   };
@@ -310,6 +310,186 @@ test('a high-probability Dutch win penalizes needless continuation variance', ()
   assert.equal(result.call.metadata.strongReadyHand, true);
   assert.equal(result.call.metadata.continuingImprovesGameTotal, false);
   assert.ok(result.continue.metadata.winningPositionVariancePenalty >= 0);
+  assert.equal(setup.decisions.botShouldCallDutch(setup.bot), true);
+});
+
+test('opponent threat mode combines score, recent actions, and remembered self-knowledge', () => {
+  const knownTwo = cardMemory({ rank: '2', suit: 'clubs' }, 'start peek', 1, 'known', 4);
+  const knownThree = cardMemory({ rank: '3', suit: 'clubs' }, 'start peek', 0.95, 'known', 4);
+  const informed = harness({
+    own: [card('10'), card('9')],
+    opponents: [[card('2'), card('3')]],
+    humanKnowledge: {
+      'opp-0': {
+        slots: {
+          bot: [unknownMemory('human unknown', 4), unknownMemory('human unknown', 4)],
+          'opp-0': [knownTwo, knownThree]
+        },
+        dutchReadiness: 0.45
+      }
+    },
+    inference: {
+      'opp-0': {
+        lowCardBelief: 0.5,
+        dutchReadiness: 0.35,
+        rankConfidence: {},
+        targetInterest: {},
+        recentActions: [
+          { type: 'take-pile', low: true, points: 2, valid: true, updatedTick: 3 },
+          { type: 'throw-in', low: true, points: null, valid: true, updatedTick: 4 }
+        ]
+      }
+    }
+  });
+  const poorKnowledge = harness({
+    own: [card('10'), card('9')],
+    opponents: [[card('2'), card('3')]]
+  });
+
+  const informedProfile = informed.decisions.opponentThreatState(informed.bot).primary;
+  const poorProfile = poorKnowledge.decisions.opponentThreatState(poorKnowledge.bot).primary;
+
+  assert.equal(informedProfile.immediate, true);
+  assert.ok(informedProfile.callBeforeNextProbability >= 0.58);
+  assert.ok(informedProfile.recentLowPressure > 0.5);
+  assert.ok(informedProfile.selfKnowledge.knownLowPositions > 1.5);
+  assert.ok(informedProfile.score > poorProfile.score + 0.05);
+});
+
+test('threat mode favors immediate reduction and discounts future throw-in plans', () => {
+  const setup = harness({
+    own: [card('5'), card('9'), card('2')],
+    opponents: [[card('2'), card('3')]],
+    inference: {
+      'opp-0': {
+        lowCardBelief: 0.6,
+        dutchReadiness: 0.5,
+        rankConfidence: {},
+        targetInterest: {},
+        recentActions: [
+          { type: 'take-pile', low: true, points: 2, valid: true, updatedTick: 4 },
+          { type: 'throw-in', low: true, points: null, valid: true, updatedTick: 4 }
+        ]
+      }
+    }
+  });
+  const replacement = setup.decisions.evaluateReplacement(setup.bot, card('5', 'spades'), 1);
+  const smallImprovement = setup.decisions.evaluateReplacement(setup.bot, card('8', 'hearts'), 1);
+  const adjustment = replacement.metadata.opponentThreatMode;
+
+  assert.equal(adjustment.active, true);
+  assert.ok(replacement.immediatePointReduction > 3);
+  assert.ok(adjustment.immediateReductionBonus > 0);
+  assert.ok(adjustment.futureThrowInMultiplier < 0.5);
+  assert.ok(smallImprovement.metadata.opponentThreatMode.smallImprovementPenalty > 0);
+});
+
+test('threat mode strengthens discard denial and targets specials at the threat', () => {
+  const threatOptions = {
+    own: [card('10'), card('4')],
+    opponents: [[card('2'), card('3')], [card('10', 'spades'), card('9', 'spades')]],
+    inference: {
+      'opp-0': {
+        lowCardBelief: 0.7,
+        dutchReadiness: 0.55,
+        rankConfidence: {},
+        targetInterest: {},
+        recentActions: [
+          { type: 'take-pile', low: true, points: 2, valid: true, updatedTick: 4 },
+          { type: 'throw-in', low: true, points: null, valid: true, updatedTick: 4 }
+        ]
+      }
+    }
+  };
+  const setup = harness(threatOptions);
+  const baseline = harness({
+    own: [card('10'), card('4')],
+    opponents: [[card('2'), card('3')], [card('10', 'spades'), card('9', 'spades')]]
+  });
+  const threatenedDiscard = setup.decisions.evaluateDeckDiscard(
+    setup.bot,
+    card('2', 'hearts'),
+    setup.decisions.contextFor(setup.bot)
+  );
+  const baselineDiscard = baseline.decisions.evaluateDeckDiscard(
+    baseline.bot,
+    card('2', 'hearts'),
+    baseline.decisions.contextFor(baseline.bot)
+  );
+  const ace = setup.decisions.botAceTarget(setup.bot);
+  const jack = setup.decisions.botJackCandidates(setup.bot)[0];
+
+  assert.ok(threatenedDiscard.opponentBenefit > baselineDiscard.opponentBenefit);
+  assert.equal(ace.player.id, setup.opponents[0].id);
+  assert.ok(ace.metadata.threatAttackBonus > 0);
+  assert.ok(jack.metadata.jackThreatBonus > 0);
+});
+
+test('threat mode values uncertainty reduction about the threatening human', () => {
+  const knownTwo = cardMemory({ rank: '2', suit: 'clubs' }, 'start peek', 1, 'known', 4);
+  const knownThree = cardMemory({ rank: '3', suit: 'clubs' }, 'start peek', 1, 'known', 4);
+  const setup = harness({
+    own: [card('10'), card('9')],
+    opponents: [[card('2'), card('3')], [card('9'), card('10')]],
+    opponentsUnknown: true,
+    humanKnowledge: {
+      'opp-0': {
+        slots: {
+          bot: [unknownMemory('human unknown', 4), unknownMemory('human unknown', 4)],
+          'opp-0': [knownTwo, knownThree],
+          'opp-1': [unknownMemory('human unknown', 4), unknownMemory('human unknown', 4)]
+        },
+        dutchReadiness: 0.9
+      },
+      'opp-1': {
+        slots: {
+          bot: [unknownMemory('human unknown', 4), unknownMemory('human unknown', 4)],
+          'opp-0': [unknownMemory('human unknown', 4), unknownMemory('human unknown', 4)],
+          'opp-1': [unknownMemory('human unknown', 4), unknownMemory('human unknown', 4)]
+        },
+        dutchReadiness: 0
+      }
+    },
+    inference: {
+      'opp-0': {
+        lowCardBelief: 1,
+        dutchReadiness: 1,
+        rankConfidence: {},
+        targetInterest: {},
+        recentActions: [
+          { type: 'take-pile', low: true, points: 2, valid: true, updatedTick: 4 },
+          { type: 'throw-in', low: true, points: null, valid: true, updatedTick: 4 }
+        ]
+      }
+    }
+  });
+  const queen = setup.decisions.botQueenTarget(setup.bot);
+
+  assert.equal(queen.player.id, setup.opponents[0].id);
+  assert.equal(queen.metadata.opponentThreatMode.active, true);
+  assert.ok(queen.metadata.opponentThreatMode.informationMultiplier > 1);
+});
+
+test('threat mode adds value to calling Dutch before an opponent can call', () => {
+  const setup = harness({
+    own: [card('2'), card('3')],
+    opponents: [[card('5')]],
+    inference: {
+      'opp-0': {
+        lowCardBelief: 0.5,
+        dutchReadiness: 0.8,
+        rankConfidence: {},
+        targetInterest: {},
+        recentActions: [
+          { type: 'take-pile', low: true, points: 5, valid: true, updatedTick: 4 }
+        ]
+      }
+    }
+  });
+  const result = setup.decisions.evaluateDutch(setup.bot);
+
+  assert.ok(result.call.metadata.callFirstBonus > 0);
+  assert.equal(result.call.metadata.opponentThreatMode.active, true);
   assert.equal(setup.decisions.botShouldCallDutch(setup.bot), true);
 });
 

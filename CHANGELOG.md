@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.31
+- added early opponent-threat detection using hand size, estimated score, known low cards, and call timing
+- tracked recent low pile takes and throw-ins with recency decay
+- treated opponents with reliable knowledge of their low-card positions as more dangerous
+- shifted threat-mode priorities toward immediate reduction, discard denial, special attacks, useful reveals, and calling Dutch first
+- discounted speculative throw-ins, unrelated information, small improvements, and long-term card plans while under threat
+
 ## 1.3.30
 - prioritized direct Jack hand improvements, especially the highest known bot card for the lowest known opponent card
 - added a separate estimated human-memory model for peeks, reveals, pile acquisitions, and visible card movement
