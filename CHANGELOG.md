@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.39
+- kept the amber discard-pile highlight for valid throw-ins
+- highlighted cards that enter or change hands until the receiving player's next turn, including deck and pile swaps, Ace additions, Jack swaps, and wrong throw-in penalties
+- added a shared in-game setting for turning changed-card highlights on or off for everyone at the table
+
 ## 1.3.38
 - saved every bot tournament in its own timestamped `game-logs` subfolder
 - wrote a compressed full post-game replay log for every tournament game as it completes, avoiding loss of completed logs if a later game stops

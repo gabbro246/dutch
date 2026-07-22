@@ -51,6 +51,7 @@ function actionsFor(state) {
     unknownSlots: [],
     aceObservations: [],
     cardHighlights: [],
+    changedCards: [],
     pileHighlights: [],
     reveals: [],
     scheduled: [],
@@ -69,6 +70,7 @@ function actionsFor(state) {
       state.round.discard.push(discardedCard);
     },
     highlightCardForAll: (cardId, kind, ms, options = {}) => calls.cardHighlights.push({ cardId, kind, ms, options }),
+    markHandCardChanged: (ownerId, cardId) => calls.changedCards.push({ ownerId, cardId }),
     rememberSlotForAllBots: (ownerId, index, rememberedCard, source, confidence) => calls.rememberedAll.push({ ownerId, index, card: rememberedCard, source, confidence }),
     rememberSlotForBot: (bot, ownerId, index, rememberedCard, source, confidence) => calls.rememberedBot.push({ bot, ownerId, index, card: rememberedCard, source, confidence }),
     forgetSlotForAllBots: (ownerId, index, source) => calls.forgottenAll.push({ ownerId, index, source }),
@@ -139,6 +141,7 @@ test('discarding and swapping drawn cards complete the turn', () => {
   assert.equal(state.players[0].cards[0].id, 'd4');
   assert.equal(state.round.turnComplete, true);
   assert.deepEqual(calls.forgottenAll, [{ ownerId: 'ada', index: 0, source: 'deck swap' }]);
+  assert.deepEqual(calls.changedCards, [{ ownerId: 'ada', cardId: 'd4' }]);
 });
 
 test('throw-in handles valid and wrong cards', () => {
@@ -165,6 +168,7 @@ test('throw-in handles valid and wrong cards', () => {
   calls.scheduled.at(-1).fn();
   assert.equal(state.players[0].cards.at(-1).id, 'd2');
   assert.deepEqual(calls.unknownSlots.at(-1), { ownerId: 'ada', source: 'wrong throw-in penalty' });
+  assert.deepEqual(calls.changedCards.at(-1), { ownerId: 'ada', cardId: 'd2' });
   assert.equal(calls.logs.at(-1), 'ADA made a wrong throw-in and took a penalty card');
   assert.equal(calls.broadcasts, 1);
 });
@@ -179,6 +183,7 @@ test('Ace and Queen special actions mutate targets and finish the special', () =
   assert.equal(aceUsed, true);
   assert.equal(state.players[1].cards.at(-1).id, 'd2');
   assert.deepEqual(calls.aceObservations, [{ actorId: 'ada', targetId: 'ben' }]);
+  assert.deepEqual(calls.changedCards, [{ ownerId: 'ben', cardId: 'd2' }]);
   assert.equal(state.round.specialQueue.length, 0);
 
   state.round.specialQueue = [{ type: 'Q', actorId: 'ada' }];

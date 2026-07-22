@@ -103,15 +103,41 @@ test('registered sockets can join and update waiting-room settings', () => {
     socket.handlers.setGameTarget(50);
     socket.handlers.setInactivityTimeout(90);
     socket.handlers.setDeckSetting('two');
+    socket.handlers.setHighlightChangedCards(false);
 
     assert.equal(services.getState().gameTarget, 50);
     assert.equal(services.getState().inactivityTimeoutMinutes, 90);
     assert.equal(services.getState().deckSetting, 'two');
+    assert.equal(services.getState().highlightChangedCards, true);
 
     services.close();
     assert.deepEqual(calls.clearedIntervals, calls.intervals);
   } finally {
     if (calls.clearedIntervals.length === 0) services.close();
+  }
+});
+
+test('changed-card highlighting is a shared in-game setting', () => {
+  const { services, io } = serviceFor();
+  try {
+    const ada = fakeSocket('socket-a');
+    const ben = fakeSocket('socket-b');
+    io.sockets.sockets.set(ada.id, ada);
+    io.sockets.sockets.set(ben.id, ben);
+    io.handlers.connection(ada);
+    io.handlers.connection(ben);
+    ada.handlers.join({ name: 'Ada', token: 'ada-token' });
+    ben.handlers.join({ name: 'Ben', token: 'ben-token' });
+    ada.handlers.startGame();
+
+    ben.handlers.setHighlightChangedCards('false');
+
+    assert.equal(services.getState().phase, 'playing');
+    assert.equal(services.getState().highlightChangedCards, false);
+    const latestAdaState = ada.emitted.filter((event) => event.event === 'state').at(-1).payload;
+    assert.equal(latestAdaState.highlightChangedCards, false);
+  } finally {
+    services.close();
   }
 });
 

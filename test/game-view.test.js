@@ -71,6 +71,7 @@ test('build view reveals only cards visible to the viewer', () => {
     deckSetting: 'one',
     deckColor: 'blue',
     gameTarget: 100,
+    highlightChangedCards: true,
     players: [
       player('ada', [card('a1', '2'), card('a2', '3')]),
       player('ben', [card('b1', '9'), card('b2', 'K', 'hearts')])
@@ -97,6 +98,7 @@ test('build view reveals only cards visible to the viewer', () => {
         { public: true, kind: 'wrong-throw', cardId: 'b1', exceptViewerId: '', playerId: 'ben', until: Date.now() + 60_000 }
       ],
       pileHighlight: null,
+      handHighlights: [{ ownerId: 'ben', cardId: 'b2' }],
       dutchCallerId: null,
       dutchQueue: [],
       roundWinnerIds: [],
@@ -108,6 +110,7 @@ test('build view reveals only cards visible to the viewer', () => {
 
   assert.equal(view.version, 'test-version');
   assert.equal(view.inactivityTimeoutMinutes, 15);
+  assert.equal(view.highlightChangedCards, true);
   assert.equal(view.canChangeGameTarget, true);
   assert.equal(Object.hasOwn(view, 'botDiagnostics'), false);
   assert.equal(Object.hasOwn(view, 'replayArchive'), false);
@@ -127,7 +130,13 @@ test('build view reveals only cards visible to the viewer', () => {
   const observerView = viewFor(state).buildView('ben');
   assert.equal(observerView.round.players[0].cards[1].back, true);
   assert.equal(observerView.round.players[0].cards[1].highlight, 'peek');
+  assert.equal(observerView.round.players[1].cards[1].highlight, 'changed');
   assert.equal(Object.hasOwn(observerView.round.players[0].cards[1], 'rank'), false);
+
+  state.highlightChangedCards = false;
+  const disabledView = viewFor(state).buildView('ben');
+  assert.equal(disabledView.highlightChangedCards, false);
+  assert.equal(disabledView.round.players[1].cards[1].highlight, '');
 });
 
 test('controls reflect current player draw and turn-complete states', () => {

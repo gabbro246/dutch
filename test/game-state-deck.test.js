@@ -15,6 +15,7 @@ test('fresh state creates independent waiting tables', () => {
   assert.equal(first.phase, 'waiting');
   assert.equal(first.deckSetting, 'one');
   assert.equal(first.gameTarget, 100);
+  assert.equal(first.highlightChangedCards, true);
   assert.equal(first.waitingMessage, 'A game is already active. Join after the game ends.');
   first.players.push({ id: 'ada' });
   first.log.push({ text: 'hello' });

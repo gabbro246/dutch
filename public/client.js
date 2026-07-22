@@ -700,6 +700,7 @@ function renderGame(state) {
   clientActions.wireGameButtons();
   const gameThemeSelect = document.getElementById('gameThemeSelect');
   const inGameTargetSelect = document.getElementById('inGameTargetSelect');
+  const highlightChangedCardsSelect = document.getElementById('highlightChangedCardsSelect');
   if (inGameTargetSelect) {
     inGameTargetSelect.addEventListener('change', () => {
       clientActions.clearPendingConfirm();
@@ -707,6 +708,11 @@ function renderGame(state) {
     });
   }
   wireInactivityTimeoutSelect('gameInactivityTimeoutSelect');
+  if (highlightChangedCardsSelect) {
+    highlightChangedCardsSelect.addEventListener('change', () => {
+      emit('setHighlightChangedCards', highlightChangedCardsSelect.value);
+    });
+  }
   if (gameThemeSelect) {
     gameThemeSelect.addEventListener('change', () => {
       window.DutchTheme.setTheme(gameThemeSelect.value, window);
@@ -1016,6 +1022,13 @@ function renderSideArea(state) {
                 </select>
               </label>
               ${inactivityTimeoutSettingHtml(state, 'gameInactivityTimeoutSelect')}
+              <label class="setting-row" for="highlightChangedCardsSelect">
+                <span>Changed cards</span>
+                <select id="highlightChangedCardsSelect">
+                  <option value="true" ${state.highlightChangedCards !== false ? 'selected' : ''}>Highlight</option>
+                  <option value="false" ${state.highlightChangedCards === false ? 'selected' : ''}>Don't highlight</option>
+                </select>
+              </label>
               <label class="setting-row" for="gameThemeSelect">
                 <span>Appearance</span>
                 <select id="gameThemeSelect">

@@ -22,6 +22,7 @@ function turnStateFor(state, overrides = {}) {
     logs: [],
     broadcasts: 0,
     movedSlots: [],
+    changedCards: [],
     advancedTurns: 0,
     timeouts: []
   };
@@ -37,6 +38,7 @@ function turnStateFor(state, overrides = {}) {
     },
     isProtectedSpecialTarget: () => false,
     moveSlotMemoryForAllBots: (...args) => calls.movedSlots.push(args),
+    markHandCardChanged: (ownerId, cardId) => calls.changedCards.push({ ownerId, cardId }),
     addLog: (text) => calls.logs.push(text),
     nameOf: (playerId) => {
       const found = state.players.find((item) => item.id === playerId);
@@ -106,6 +108,10 @@ test('Jack swap resolution swaps cards, moves memory, logs, and finishes the spe
   assert.deepEqual(state.players[0].cards, [b1]);
   assert.deepEqual(state.players[1].cards, [a1]);
   assert.deepEqual(calls.movedSlots, [['ada', 0, 'ben', 0, 'Jack swap']]);
+  assert.deepEqual(calls.changedCards, [
+    { ownerId: 'ada', cardId: 'b1' },
+    { ownerId: 'ben', cardId: 'a1' }
+  ]);
   assert.deepEqual(calls.logs, ['ADA used Jack swap']);
   assert.equal(state.round.specialQueue.length, 0);
   assert.equal(state.round.stage, 'turn');

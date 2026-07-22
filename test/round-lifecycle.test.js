@@ -54,7 +54,8 @@ function lifecycleFor(initialState) {
     discardObservations: [],
     synced: 0,
     timeouts: [],
-    broadcasts: 0
+    broadcasts: 0,
+    clearedHandHighlights: []
   };
   const deps = {
     getState: () => state,
@@ -111,6 +112,10 @@ function lifecycleFor(initialState) {
     specialName: (rank) => rank,
     updateStageAfterQueue: () => {},
     currentPlayer: () => state.round ? state.players[state.round.currentPlayerIndex] || null : null,
+    clearHandHighlightsForPlayer: (playerId) => {
+      calls.clearedHandHighlights.push(playerId);
+      state.round.handHighlights = (state.round.handHighlights || []).filter((item) => item.ownerId !== playerId);
+    },
     openingDiscardTravelMs: 500,
     setTimeoutFn: (fn, delay) => calls.timeouts.push({ fn, delay }),
     broadcastState: () => { calls.broadcasts += 1; }
@@ -172,21 +177,63 @@ test('advance turn completes Dutch queue and ends the round', () => {
     specialQueue: [],
     reveals: [],
     pileHighlight: null,
+    handHighlights: [
+      { ownerId: 'ada', cardId: 'a1' },
+      { ownerId: 'ben', cardId: 'b1' }
+    ],
     dutchCallerId: 'ada',
     dutchQueue: ['ben'],
     roundWinnerIds: [],
     winnerId: null
   };
-  const { lifecycle, getState } = lifecycleFor(state);
+  const { lifecycle, calls, getState } = lifecycleFor(state);
 
   lifecycle.advanceTurn();
   assert.equal(getState().round.currentPlayerIndex, 1);
+  assert.deepEqual(getState().round.handHighlights, [{ ownerId: 'ada', cardId: 'a1' }]);
+  assert.deepEqual(calls.clearedHandHighlights, ['ben']);
 
   lifecycle.advanceTurn();
   assert.equal(getState().round.stage, 'roundEnd');
   assert.equal(getState().players[0].roundPoints, 0);
   assert.equal(getState().players[1].roundPoints, 9);
   assert.equal(getState().scoreHistory.length, 1);
+});
+
+test('normal turn rotation clears changed-card highlights for the incoming player', () => {
+  const state = freshState();
+  state.phase = 'playing';
+  state.players = [
+    player('ada', [card('a1')]),
+    player('ben', [card('b1')])
+  ];
+  state.round = {
+    stage: 'turn',
+    deck: [],
+    discard: [],
+    currentPlayerIndex: 0,
+    drawn: null,
+    turnComplete: true,
+    throwIn: null,
+    specialQueue: [],
+    reveals: [],
+    pileHighlight: null,
+    handHighlights: [
+      { ownerId: 'ada', cardId: 'a1' },
+      { ownerId: 'ben', cardId: 'b1' }
+    ],
+    dutchCallerId: null,
+    dutchQueue: [],
+    roundWinnerIds: [],
+    winnerId: null
+  };
+  const { lifecycle, calls, getState } = lifecycleFor(state);
+
+  lifecycle.advanceTurn();
+
+  assert.equal(getState().round.currentPlayerIndex, 1);
+  assert.deepEqual(getState().round.handHighlights, [{ ownerId: 'ada', cardId: 'a1' }]);
+  assert.deepEqual(calls.clearedHandHighlights, ['ben']);
 });
 
 test('reset to waiting replaces state and keeps connected players', () => {

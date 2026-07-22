@@ -136,3 +136,20 @@ test('reveal and highlight helpers schedule cleanup and remove expired state', (
   flow.removeExpiredReveals();
   assert.equal(state.round.pileHighlight, null);
 });
+
+test('hand change highlights follow a card owner and clear at that owners next turn', () => {
+  const state = { round: { handHighlights: [] } };
+  const { flow } = flowFor(state);
+
+  flow.markHandCardChanged('ada', 'c1');
+  flow.markHandCardChanged('ben', 'c2');
+  flow.markHandCardChanged('ben', 'c1');
+
+  assert.deepEqual(state.round.handHighlights, [
+    { ownerId: 'ben', cardId: 'c2' },
+    { ownerId: 'ben', cardId: 'c1' }
+  ]);
+
+  flow.clearHandHighlightsForPlayer('ben');
+  assert.deepEqual(state.round.handHighlights, []);
+});
