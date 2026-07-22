@@ -133,6 +133,8 @@ test('discarding and swapping drawn cards complete the turn', () => {
   assert.equal(state.round.drawn, null);
   assert.equal(state.round.turnComplete, true);
   assert.equal(calls.pushDiscard.reason, 'drew {card} from deck but discarded it');
+  assert.deepEqual(calls.pushDiscard.options, { observationSource: 'discarded', observationActorId: 'ada' });
+  assert.deepEqual(calls.discards, []);
 
   state.round.turnComplete = false;
   state.round.drawn = { playerId: 'ada', source: 'deck', card: card('d4', 'A') };
@@ -142,6 +144,8 @@ test('discarding and swapping drawn cards complete the turn', () => {
   assert.equal(state.round.turnComplete, true);
   assert.deepEqual(calls.forgottenAll, [{ ownerId: 'ada', index: 0, source: 'deck swap' }]);
   assert.deepEqual(calls.changedCards, [{ ownerId: 'ada', cardId: 'd4' }]);
+  assert.deepEqual(calls.pushDiscard.options, { observationSource: 'swap discard', observationActorId: 'ada' });
+  assert.deepEqual(calls.discards, []);
 });
 
 test('throw-in handles valid and wrong cards', () => {
@@ -152,8 +156,16 @@ test('throw-in handles valid and wrong cards', () => {
   assert.equal(valid.valid, true);
   assert.equal(state.players[0].cards.some((item) => item.id === 'a1'), false);
   assert.equal(state.round.throwIn.open, false);
+  assert.deepEqual(calls.pushDiscard.options, {
+    allowThrowIn: false,
+    observationSource: 'throw-in',
+    observationActorId: 'ada',
+    removedSlotOwnerId: 'ada',
+    removedSlotIndex: 0,
+    removedSlotSource: 'throw-in'
+  });
   assert.equal(calls.pushDiscard.reason, 'threw in');
-  assert.deepEqual(calls.removedAll, [{ ownerId: 'ada', index: 0, source: 'throw-in' }]);
+  assert.deepEqual(calls.removedAll, []);
 
   state.round.throwIn = { open: true, rank: 'K' };
   const wrong = actions.throwInForPlayer(state.players[0], 'a2');

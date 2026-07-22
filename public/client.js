@@ -13,6 +13,7 @@ let currentDetailsMode = '';
 let logExpanded = false;
 const activeCardMoves = new Map();
 const activeWrongThrows = new Map();
+const activeFaceTurns = new Map();
 const detailPreferencesByMode = {};
 const waitingDrawerPreferences = { bots: false, settings: false };
 const SPECTATOR_TRIGGER_NAME = 'spectator';
@@ -242,6 +243,7 @@ socket.on('state', (state) => {
   } else {
     cancelAllCardMoves();
     cancelAllWrongThrows();
+    cancelAllFaceTurns();
   }
   const afterSnapshot = captureAnimationSnapshot();
   if (previousState && hasRenderedGame && state.phase === 'playing') {
@@ -750,6 +752,8 @@ function renderStatus(state) {
     text = 'Start peek: each player must look at exactly two own cards.';
   } else if (r.stage === 'opening') {
     text = 'Opening card…';
+  } else if (r.stage === 'revealing') {
+    text = 'Revealing card…';
   } else if (r.stage === 'special' && r.special) {
     text = `${r.special.actorName} may use ${specialLabel(r.special.type)} or click Next player.`;
   } else if (r.stage === 'roundEnd') {
@@ -1274,7 +1278,32 @@ function animateStateTransition(previousState, state, before, after) {
     if (previous && previous.locationKey !== current.locationKey) {
       const sourceData = before.cards.get(cardId) || before.locations.get(previous.locationKey);
       if (sourceData) {
-        animateCardMove(cardId, sourceData, targetData);
+        const pendingReveal = state.round.pendingPileReveal;
+        const isPendingPileReveal = current.locationKey === 'pile-top'
+          && pendingReveal
+          && pendingReveal.cardId === cardId;
+        if (isPendingPileReveal) {
+          const moveDuration = Number(pendingReveal.moveMs) || 360;
+          const flipDuration = Number(pendingReveal.flipMs) || 260;
+          const backHtml = cardHtml({
+            id: cardId,
+            back: true,
+            deckColor: (state.round.discardTop && state.round.discardTop.deckColor) || 'blue'
+          }, false);
+          const move = animateCardMove(cardId, sourceData, targetData, moveDuration, backHtml);
+          const turnAtDestination = () => {
+            const latestTarget = cardElement(cardId, current.locationKey);
+            if (latestTarget) {
+              animateFaceTurn(latestTarget, { html: backHtml }, flipDuration, 0, (details = {}) => {
+                emit('pileRevealMidpoint', { cardId, reducedMotion: !!details.reducedMotion });
+              });
+            }
+          };
+          if (move) move.afterFinish = turnAtDestination;
+          else turnAtDestination();
+        } else {
+          animateCardMove(cardId, sourceData, targetData);
+        }
         movedIds.add(cardId);
       }
       return;
@@ -1340,16 +1369,27 @@ function animateStateTransition(previousState, state, before, after) {
     const delay = enteringFinishedStage && faceChanged ? (revealDelays.get(cardId) || 0) : 0;
     if (!target) return;
     const previousData = before.cards.get(cardId);
-    const duration = publicPeekStarted ? 420 : 260;
+    const isOpeningReveal = faceChanged
+      && current.locationKey === 'pile-top'
+      && previousState.round.stage === 'opening'
+      && state.round.stage === 'opening'
+      && previousState.round.discardCount === 1
+      && state.round.discardCount === 1;
+    const duration = isOpeningReveal
+      ? (Number(state.round.openingDiscardFlipMs) || 260)
+      : (publicPeekStarted ? 420 : 260);
+    const openingRevealMidpoint = isOpeningReveal ? (details = {}) => {
+      emit('openingRevealMidpoint', { cardId, reducedMotion: !!details.reducedMotion });
+    } : null;
     const activeMove = activeCardMoves.get(cardId);
     if (activeMove) {
       activeMove.afterFinish = () => {
         const latestTarget = cardElement(cardId, current.locationKey);
-        if (latestTarget) animateFaceTurn(latestTarget, previousData, duration, delay);
+        if (latestTarget) animateFaceTurn(latestTarget, previousData, duration, delay, openingRevealMidpoint);
       };
       return;
     }
-    animateFaceTurn(target, previousData, duration, delay);
+    animateFaceTurn(target, previousData, duration, delay, openingRevealMidpoint);
   });
 }
 
@@ -1437,12 +1477,12 @@ function cssEscape(value) {
   return String(value).replace(/"/g, '\\"');
 }
 
-function animateCardMove(cardId, sourceData, targetData, duration = 360) {
+function animateCardMove(cardId, sourceData, targetData, duration = 360, cloneHtml = '') {
   const target = cardElement(cardId, targetData.locationKey) || elementAtRect(targetData.rect, targetData.locationKey);
   let source = sourceData.rect;
   const dest = targetData.rect;
-  if (!target) return;
-  if (Math.abs(source.left - dest.left) < 2 && Math.abs(source.top - dest.top) < 2) return;
+  if (!target) return null;
+  if (Math.abs(source.left - dest.left) < 2 && Math.abs(source.top - dest.top) < 2) return null;
 
   const existingMove = activeCardMoves.get(cardId);
   if (existingMove) {
@@ -1458,17 +1498,20 @@ function animateCardMove(cardId, sourceData, targetData, duration = 360) {
     cancelCardMove(existingMove);
   }
 
-  const clone = target.cloneNode(true);
-  clone.classList.add('moving-card');
-  clone.removeAttribute('data-card-id');
-  clone.removeAttribute('data-action');
+  const clone = cloneHtml ? movingFaceFromHtml(cloneHtml, dest) : target.cloneNode(true);
+  if (!clone) return null;
+  if (!cloneHtml) {
+    clone.classList.add('moving-card');
+    clone.removeAttribute('data-card-id');
+    clone.removeAttribute('data-action');
+    document.body.appendChild(clone);
+  }
   clone.style.left = `${dest.left}px`;
   clone.style.top = `${dest.top}px`;
   clone.style.width = `${dest.width}px`;
   clone.style.height = `${dest.height}px`;
   clone.style.margin = '0';
   clone.style.transformOrigin = 'top left';
-  document.body.appendChild(clone);
 
   target.classList.add('anim-target-hidden');
   const scaleX = source.width / dest.width;
@@ -1485,6 +1528,7 @@ function animateCardMove(cardId, sourceData, targetData, duration = 360) {
   activeCardMoves.set(cardId, move);
   animation.onfinish = () => finishCardMove(move);
   animation.oncancel = () => finishCardMove(move);
+  return move;
 }
 
 function setMovingFaceRect(face, rect) {
@@ -1502,6 +1546,8 @@ function movingFaceFromHtml(html, rect) {
   const face = template.content.firstElementChild;
   if (!face) return null;
   face.classList.add("moving-card");
+  face.classList.remove("anim-target-hidden", "turning-card");
+  face.style.removeProperty("visibility");
   face.removeAttribute("data-card-id");
   face.removeAttribute("data-action");
   setMovingFaceRect(face, rect);
@@ -1653,6 +1699,10 @@ function hideActiveCardMoveTargets() {
     const target = cardElement(move.cardId, move.locationKey);
     if (target) target.classList.add('anim-target-hidden');
   });
+  activeFaceTurns.forEach((turn) => {
+    const target = cardElement(turn.cardId, turn.locationKey);
+    if (target) target.classList.add('anim-target-hidden');
+  });
   activeWrongThrows.forEach((move) => {
     const target = cardElement(move.cardId, move.locationKey);
     if (target) target.classList.add('anim-target-hidden');
@@ -1680,6 +1730,31 @@ function cancelAllCardMoves() {
   Array.from(activeCardMoves.values()).forEach(cancelCardMove);
 }
 
+function finishFaceTurn(turn) {
+  turn.clones.forEach((clone) => clone.remove());
+  turn.clones.clear();
+  if (activeFaceTurns.get(turn.cardId) !== turn) return;
+  activeFaceTurns.delete(turn.cardId);
+  const target = cardElement(turn.cardId, turn.locationKey);
+  if (target && !activeCardMoves.has(turn.cardId) && !activeWrongThrows.has(turn.cardId)) {
+    target.classList.remove('anim-target-hidden');
+  }
+}
+
+function cancelFaceTurn(turn) {
+  turn.cancelled = true;
+  if (turn.animation) {
+    turn.animation.onfinish = null;
+    turn.animation.oncancel = null;
+    turn.animation.cancel();
+  }
+  finishFaceTurn(turn);
+}
+
+function cancelAllFaceTurns() {
+  Array.from(activeFaceTurns.values()).forEach(cancelFaceTurn);
+}
+
 function elementAtRect(rect, locationKey) {
   if (locationKey) {
     const byLocation = document.querySelector(`.card[data-location-key="${cssEscape(locationKey)}"]`);
@@ -1691,43 +1766,70 @@ function elementAtRect(rect, locationKey) {
   return el ? el.closest('.card') : null;
 }
 
-function animateFaceTurn(el, previousData, duration = 260, delay = 0) {
+function animateFaceTurn(el, previousData, duration = 260, delay = 0, onMidpoint = null) {
   const halfDuration = duration / 2;
-  if (!el.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (!el.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (onMidpoint) onMidpoint({ reducedMotion: true });
+    return;
+  }
 
   const rect = el.getBoundingClientRect();
-  const template = document.createElement("template");
-  template.innerHTML = previousData && previousData.html ? previousData.html.trim() : "";
-  const previousFace = template.content.firstElementChild;
+  const previousFace = movingFaceFromHtml(previousData && previousData.html, rect);
   if (!previousFace || !rect.width || !rect.height) {
+    if (previousFace) previousFace.remove();
+    if (onMidpoint) onMidpoint({ reducedMotion: true });
     el.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: halfDuration, delay, easing: "linear", fill: "backwards" });
     return;
   }
 
-  const cardCell = el.closest(".card-cell");
-  previousFace.classList.add(cardCell ? "turning-card" : "moving-card");
-  previousFace.removeAttribute("data-card-id");
-  previousFace.removeAttribute("data-action");
-  previousFace.style.left = `${cardCell ? el.offsetLeft : rect.left}px`;
-  previousFace.style.top = `${cardCell ? el.offsetTop : rect.top}px`;
-  previousFace.style.width = `${rect.width}px`;
-  previousFace.style.height = `${rect.height}px`;
-  previousFace.style.margin = "0";
-  previousFace.style.transformOrigin = "center";
-  el.style.visibility = "hidden";
-  (cardCell || document.body).appendChild(previousFace);
+  const cardId = el.dataset.cardId || '';
+  const locationKey = el.dataset.locationKey || '';
+  const existingTurn = activeFaceTurns.get(cardId);
+  if (existingTurn) cancelFaceTurn(existingTurn);
+  const turn = {
+    cardId,
+    locationKey,
+    clones: new Set([previousFace]),
+    animation: null,
+    cancelled: false,
+    midpointSent: false
+  };
+  activeFaceTurns.set(cardId, turn);
+  el.classList.add('anim-target-hidden');
 
   const revealNextFace = () => {
+    if (turn.cancelled || activeFaceTurns.get(cardId) !== turn) return;
     previousFace.remove();
-    if (!el.isConnected) return;
-    el.style.removeProperty("visibility");
-    el.animate([
+    turn.clones.delete(previousFace);
+    if (!turn.midpointSent) {
+      turn.midpointSent = true;
+      if (onMidpoint) onMidpoint({ reducedMotion: false });
+    }
+    const target = cardElement(cardId, locationKey);
+    if (!target) {
+      finishFaceTurn(turn);
+      return;
+    }
+    target.classList.add('anim-target-hidden');
+    const latestRect = target.getBoundingClientRect();
+    const nextFace = movingFaceFromHtml(target.outerHTML, latestRect);
+    if (!nextFace) {
+      finishFaceTurn(turn);
+      return;
+    }
+    turn.clones.add(nextFace);
+    const nextAnimation = nextFace.animate([
       { transform: "scaleX(0)" },
       { transform: "scaleX(1)" }
     ], {
       duration: halfDuration,
       easing: "linear"
     });
+    turn.animation = nextAnimation;
+    nextAnimation.onfinish = () => finishFaceTurn(turn);
+    nextAnimation.oncancel = () => {
+      if (!turn.cancelled) finishFaceTurn(turn);
+    };
   };
   const previousAnimation = previousFace.animate([
     { transform: "scaleX(1)" },
@@ -1737,6 +1839,9 @@ function animateFaceTurn(el, previousData, duration = 260, delay = 0) {
     delay,
     easing: "linear"
   });
+  turn.animation = previousAnimation;
   previousAnimation.onfinish = revealNextFace;
-  previousAnimation.oncancel = revealNextFace;
+  previousAnimation.oncancel = () => {
+    if (!turn.cancelled) finishFaceTurn(turn);
+  };
 }

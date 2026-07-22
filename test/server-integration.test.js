@@ -103,6 +103,17 @@ async function openPollingClient() {
   };
 }
 
+async function completePendingPileReveal(client) {
+  await waitFor(() => getState().round && getState().round.pendingPileReveal, 'Pile card did not begin revealing.');
+  const pending = getState().round.pendingPileReveal;
+  await waitFor(
+    () => Date.now() >= pending.midpointEligibleAt,
+    'Pile reveal did not reach its midpoint.'
+  );
+  await client.emit('pileRevealMidpoint', pending.cardId);
+  await waitFor(() => getState().round && !getState().round.pendingPileReveal, 'Pile reveal did not complete.');
+}
+
 test('socket gameplay flow covers turns, throw-ins, specials, Dutch, reconnect, and leave', async (t) => {
   await new Promise((resolve) => startServer(0, resolve));
 
@@ -132,7 +143,14 @@ test('socket gameplay flow covers turns, throw-ins, specials, Dutch, reconnect, 
   await ben.emit('peekStart', benCards[0].id);
   await ben.emit('peekStart', benCards[1].id);
 
-  await waitFor(() => getState().round && getState().round.stage === 'turn', 'Round did not enter turn stage.', 2200);
+  await waitFor(() => getState().round && getState().round.openingDiscardAwaitingMidpoint, 'Opening card did not begin revealing.', 2200);
+  const openingCardId = getState().round.openingDiscardAwaitingMidpoint;
+  await waitFor(
+    () => Date.now() >= getState().round.openingDiscardMidpointEligibleAt,
+    'Opening reveal did not reach its midpoint.'
+  );
+  await ada.emit('openingRevealMidpoint', openingCardId);
+  await waitFor(() => getState().round && getState().round.stage === 'turn', 'Round did not enter turn stage.');
   assert.equal(getState().phase, 'playing');
   assert.equal(getState().round.deck.length, 43);
   assert.equal(getState().round.discard.length, 1);
@@ -154,6 +172,7 @@ test('socket gameplay flow covers turns, throw-ins, specials, Dutch, reconnect, 
 
   await firstClient.emit('discardDrawn');
   await waitFor(() => !getState().round.drawn && getState().round.turnComplete && getState().round.discard.length === 2, 'Current player did not discard drawn card.');
+  await completePendingPileReveal(firstClient);
 
   await firstClient.emit('endTurn');
   await waitFor(() => getState().round.stage === 'turn' && !getState().round.turnComplete && getState().players[getState().round.currentPlayerIndex].id !== firstPlayerId, 'Turn did not advance to the next player.');
@@ -170,6 +189,7 @@ test('socket gameplay flow covers turns, throw-ins, specials, Dutch, reconnect, 
 
   await secondClient.emit('swapDrawn', swapTargetId);
   await waitFor(() => !getState().round.drawn && getState().round.turnComplete && getState().round.discard.length === 2, 'Next player did not swap pile card into their hand.');
+  await completePendingPileReveal(secondClient);
   assert.equal(getState().players.find((player) => player.id === secondPlayerId).cards.length, 4);
   assert.equal(getState().round.throwIn.open, true);
 
@@ -190,6 +210,7 @@ test('socket gameplay flow covers turns, throw-ins, specials, Dutch, reconnect, 
   getState().round.throwIn.rank = throwCard.rank;
   await secondClient.emit('throwIn', throwCard.id);
   await waitFor(() => getState().players.find((player) => player.id === secondPlayerId).cards.length === 4 && getState().round.discard.length === discardBeforeValidThrow + 1, 'Valid throw-in did not remove the card and add it to discard.');
+  await completePendingPileReveal(secondClient);
   assert.equal(getState().round.throwIn.open, false);
 
   const actorClient = secondClient;

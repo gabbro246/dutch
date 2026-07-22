@@ -45,6 +45,7 @@ function player(id, cards = [], extra = {}) {
 function lifecycleFor(initialState) {
   let state = initialState;
   let nextToken = 1;
+  let now = 1000;
   const calls = {
     logs: [],
     admin: [],
@@ -118,20 +119,23 @@ function lifecycleFor(initialState) {
     },
     openingDiscardDelayMs: 500,
     openingDiscardTravelMs: 500,
+    openingDiscardFlipHalfMs: 130,
+    nowFn: () => now,
     setTimeoutFn: (fn, delay) => calls.timeouts.push({ fn, delay }),
     broadcastState: () => { calls.broadcasts += 1; }
   };
   return {
     lifecycle: createRoundLifecycle(deps),
     calls,
-    getState: () => state
+    getState: () => state,
+    advanceNow: (ms) => { now += ms; }
   };
 }
 
 test('start game deals a round and begins turns after all peeks', () => {
   const state = freshState();
   state.players = [player('ada'), player('ben')];
-  const { lifecycle, calls, getState } = lifecycleFor(state);
+  const { lifecycle, calls, getState, advanceNow } = lifecycleFor(state);
 
   lifecycle.startGame();
 
@@ -161,10 +165,28 @@ test('start game deals a round and begins turns after all peeks', () => {
 
   calls.timeouts[1].fn();
 
+  const openingCardId = getState().round.discard[0].id;
+  assert.equal(getState().round.stage, 'opening');
+  assert.equal(getState().round.openingDiscardPending, null);
+  assert.equal(getState().round.openingDiscardAwaitingMidpoint, openingCardId);
+  assert.equal(getState().round.throwIn, null);
+  assert.equal(calls.discardObservations.length, 0);
+  assert.equal(calls.broadcasts, 2);
+  assert.equal(calls.timeouts[2].delay, 1500);
+
+  assert.equal(lifecycle.completeOpeningDiscardReveal('missing', openingCardId), false);
+  assert.equal(calls.discardObservations.length, 0);
+  assert.equal(lifecycle.completeOpeningDiscardReveal('ada', openingCardId), false);
+  assert.equal(calls.discardObservations.length, 0);
+  advanceNow(130);
+  assert.equal(lifecycle.completeOpeningDiscardReveal('ada', openingCardId), true);
   assert.equal(getState().round.stage, 'turn');
   assert.equal(getState().round.throwIn.token, 1);
   assert.equal(calls.discardObservations[0].source, 'opening discard');
-  assert.equal(calls.broadcasts, 2);
+  assert.equal(calls.broadcasts, 3);
+  assert.equal(lifecycle.completeOpeningDiscardReveal('ben', openingCardId), false);
+  calls.timeouts[2].fn();
+  assert.equal(calls.discardObservations.length, 1);
 });
 
 test('advance turn completes Dutch queue and ends the round', () => {

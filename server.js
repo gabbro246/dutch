@@ -13,6 +13,8 @@ const BOT_FINISHED_GAME_RESET_MS = 60 * 1000;
 const JACK_SWAP_SELECTION_MS = 500;
 const OPENING_DISCARD_DELAY_MS = 1000;
 const OPENING_DISCARD_TRAVEL_MS = 500;
+const OPENING_DISCARD_FLIP_HALF_MS = 130;
+const PILE_REVEAL_MOVE_MS = 360;
 const GAME_LOG_DIR = path.join(__dirname, 'game-logs');
 const ADMIN_LOG_PATH = path.join(GAME_LOG_DIR, 'usage.log');
 const APP_VERSION = packageInfo.version;
@@ -37,7 +39,9 @@ const services = createGameServices({
     botFinishedGameResetMs: BOT_FINISHED_GAME_RESET_MS,
     jackSwapSelectionMs: JACK_SWAP_SELECTION_MS,
     openingDiscardDelayMs: OPENING_DISCARD_DELAY_MS,
-    openingDiscardTravelMs: OPENING_DISCARD_TRAVEL_MS
+    openingDiscardTravelMs: OPENING_DISCARD_TRAVEL_MS,
+    openingDiscardFlipHalfMs: OPENING_DISCARD_FLIP_HALF_MS,
+    pileRevealMoveMs: PILE_REVEAL_MOVE_MS
   }
 });
 

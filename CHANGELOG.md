@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.43
+* Fixed stuttery pile reveals and preserved flips during rerenders.
+* Cards now move face-down and reveal at the 50% rotation point.
+* Bots, reactions, effects, logs, and controls activate only at that midpoint.
+* Applied to opening cards, discards, swaps, throw-ins, and special cards.
+* Focused tests passed. Full final suite rerun was blocked by quota.
+
 ## 1.3.42
 - fixed the Start game button becoming unresponsive after ending a game manually
 - increased the post-peek pause before the opening card travels to the pile

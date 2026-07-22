@@ -14,6 +14,9 @@ function flowFor(state, overrides = {}) {
     logs: [],
     stages: 0,
     broadcasts: 0,
+    discards: [],
+    remembered: [],
+    removed: [],
     timeouts: []
   };
   const deps = {
@@ -28,6 +31,10 @@ function flowFor(state, overrides = {}) {
     updateStageAfterQueue: () => {
       calls.stages += 1;
     },
+    findPlayer: (playerId) => (state.players || []).find((player) => player.id === playerId),
+    rememberSlotForAllBots: (ownerId, index, rememberedCard, source) => calls.remembered.push({ ownerId, index, card: rememberedCard, source }),
+    removeSlotForAllBots: (ownerId, index, source) => calls.removed.push({ ownerId, index, source }),
+    observeDiscardForAllBots: (discarded, source, actorId) => calls.discards.push({ card: discarded, source, actorId }),
     broadcastState: () => {
       calls.broadcasts += 1;
     },
@@ -68,17 +75,31 @@ test('drawFromDeck reshuffles discard under the top card when the deck is empty'
 
 test('pushDiscard creates throw-in state, queues specials, logs, and updates stage', () => {
   const state = {
+    players: [{ id: 'ada', connected: true, left: false, isBot: false, isSpectator: false }],
     round: {
+      stage: 'turn',
       discard: [],
       throwIn: null,
       specialQueue: []
     }
   };
-  const { flow, calls } = flowFor(state);
+  const { flow, calls, setNow } = flowFor(state);
 
-  flow.pushDiscard(card('q1', 'Q', 'hearts'), 'ada', 'discarded');
+  const queen = card('q1', 'Q', 'hearts');
+  flow.pushDiscard(queen, 'ada', 'discarded', { observationSource: 'discarded', observationActorId: 'ada' });
 
   assert.deepEqual(state.round.discard.map((item) => item.id), ['q1']);
+  assert.equal(state.round.stage, 'revealing');
+  assert.equal(state.round.throwIn, null);
+  assert.deepEqual(state.round.specialQueue, []);
+  assert.deepEqual(calls.logs, []);
+  assert.deepEqual(calls.discards, []);
+  assert.equal(calls.stages, 0);
+  assert.equal(calls.timeouts[0].delay, 1800);
+  assert.equal(flow.completePileReveal('ada', 'q1'), false);
+
+  setNow(1490);
+  assert.equal(flow.completePileReveal('ada', 'q1'), true);
   assert.deepEqual(state.round.throwIn, {
     open: true,
     token: 1,
@@ -87,9 +108,22 @@ test('pushDiscard creates throw-in state, queues specials, logs, and updates sta
   });
   assert.deepEqual(state.round.specialQueue, [{ type: 'Q', actorId: 'ada', selected: [] }]);
   assert.deepEqual(calls.logs, ['Ada discarded QH and may use Queen']);
+  assert.deepEqual(calls.discards, [{ card: queen, source: 'discarded', actorId: 'ada' }]);
   assert.equal(calls.stages, 1);
+  assert.equal(calls.broadcasts, 1);
 
-  flow.pushDiscard(card('n1', '4'), 'ben', 'threw in', { allowThrowIn: false });
+  const thrown = card('n1', '4');
+  flow.pushDiscard(thrown, 'ben', 'threw in', {
+    allowThrowIn: false,
+    removedSlotOwnerId: 'ben',
+    removedSlotIndex: 2,
+    removedSlotSource: 'throw-in'
+  });
+  assert.equal(state.round.stage, 'revealing');
+  assert.deepEqual(calls.removed, []);
+  calls.timeouts[1].fn();
+  assert.deepEqual(calls.remembered, [{ ownerId: 'ben', index: 2, card: thrown, source: 'throw-in' }]);
+  assert.deepEqual(calls.removed, [{ ownerId: 'ben', index: 2, source: 'throw-in' }]);
   assert.equal(state.round.throwIn.open, false);
 });
 
