@@ -605,6 +605,145 @@ test('Ace strong bonuses require material round impact against an immediate thre
   assert.ok(threat.metadata.aceImpact.roundWinProbabilityReduction >= safe.metadata.aceImpact.roundWinProbabilityReduction);
 });
 
+test('Queen skips peeks that are known, committed, or too late to change a decision', () => {
+  const known = harness({
+    own: [card('10'), card('9')],
+    opponents: [[card('8'), card('7')]]
+  });
+  assert.equal(known.decisions.botQueenTarget(known.bot), null);
+
+  const committed = harness({
+    own: [card('2'), card('3')],
+    opponents: [[card('10'), card('9')]],
+    opponentsUnknown: true
+  });
+  committed.state.round.dutchCallerId = committed.bot.id;
+  const committedTarget = committed.decisions.evaluateQueenTarget(
+    committed.bot,
+    committed.opponents[0],
+    0
+  );
+  assert.equal(committedTarget.eligible, false);
+  assert.equal(committedTarget.rejectionReason, 'queen-dutch-committed');
+  assert.equal(committed.decisions.botQueenTarget(committed.bot), null);
+
+  const finalTurn = harness({
+    own: [card('10'), card('9')],
+    ownUnknown: true,
+    opponents: [[card('8'), card('7')]],
+    opponentsUnknown: true
+  });
+  finalTurn.state.round.dutchCallerId = finalTurn.opponents[0].id;
+  finalTurn.state.round.dutchQueue = [];
+  finalTurn.state.round.specialQueue = [{ type: 'Q', actorId: finalTurn.bot.id }];
+  finalTurn.state.round.throwIn = { open: false, rank: 'Q' };
+  const lateTarget = finalTurn.decisions.evaluateQueenTarget(finalTurn.bot, finalTurn.bot, 0);
+
+  assert.equal(lateTarget.eligible, false);
+  assert.equal(lateTarget.rejectionReason, 'queen-final-turn-no-usable-choice');
+  assert.equal(finalTurn.decisions.botQueenTarget(finalTurn.bot), null);
+});
+
+test('Queen prioritizes an uncertain own position with the greatest high-card exposure', () => {
+  const setup = harness({
+    own: [card('10'), card('2')],
+    opponents: [[card('6'), card('6', 'spades')]],
+    total: 40
+  });
+  setup.memory.slots.bot = [
+    cardMemory(setup.bot.cards[0], 'uncertain own card', 0.45, 'guessed', 4),
+    cardMemory(setup.bot.cards[1], 'uncertain own card', 0.45, 'guessed', 4)
+  ];
+
+  const target = setup.decisions.botQueenTarget(setup.bot);
+  const alternatives = setup.decisions.botQueenTargets(setup.bot).ownUnknown;
+
+  assert.equal(target.player.id, setup.bot.id);
+  assert.equal(target.index, 0);
+  assert.ok(target.queenDecisionImpact.reasons.includes('replacement'));
+  assert.ok(target.queenDecisionImpact.reasons.includes('scoreThreshold'));
+  assert.ok(target.queenDecisionImpact.thresholdSwing > 0);
+  assert.ok(
+    target.queenDecisionImpact.highCardExposure >
+    alternatives.find((item) => item.index === 1).queenDecisionImpact.highCardExposure
+  );
+});
+
+test('Queen keeps final-turn peeks only when an immediate throw-in or queued special can use them', () => {
+  const throwIn = harness({
+    own: [card('Q'), card('9')],
+    ownUnknown: true,
+    opponents: [[card('8'), card('7')]]
+  });
+  throwIn.state.round.dutchCallerId = throwIn.opponents[0].id;
+  throwIn.state.round.specialQueue = [{ type: 'Q', actorId: throwIn.bot.id }];
+  throwIn.state.round.throwIn = { open: true, rank: 'Q' };
+  const throwInTarget = throwIn.decisions.botQueenTarget(throwIn.bot);
+
+  assert.equal(throwInTarget.player.id, throwIn.bot.id);
+  assert.ok(throwInTarget.queenDecisionImpact.reasons.includes('throwIn'));
+  assert.ok(throwInTarget.queenDecisionImpact.matchingThrowInProbability > 0);
+
+  const queuedJack = harness({
+    own: [card('10'), card('9')],
+    ownUnknown: true,
+    opponents: [[card('2'), card('3')]],
+    opponentsUnknown: true
+  });
+  queuedJack.state.round.dutchCallerId = queuedJack.opponents[0].id;
+  queuedJack.state.round.specialQueue = [
+    { type: 'Q', actorId: queuedJack.bot.id },
+    { type: 'J', actorId: queuedJack.bot.id }
+  ];
+  queuedJack.state.round.throwIn = { open: false, rank: 'Q' };
+  const jackTarget = queuedJack.decisions.botQueenTarget(queuedJack.bot);
+
+  assert.ok(jackTarget);
+  assert.ok(jackTarget.queenDecisionImpact.reasons.includes('jackTarget'));
+});
+
+test('Queen inspects the threatening human position that best clarifies Dutch readiness', () => {
+  const setup = harness({
+    own: [card('10'), card('9')],
+    opponents: [[card('2'), card('3')], [card('9'), card('10')]],
+    opponentsUnknown: true,
+    inference: {
+      'opp-0': {
+        lowCardBelief: 0.9,
+        dutchReadiness: 0.9,
+        rankConfidence: {},
+        targetInterest: {},
+        recentActions: [
+          { type: 'take-pile', low: true, points: 2, valid: true, updatedTick: 4 },
+          { type: 'throw-in', low: true, points: null, valid: true, updatedTick: 4 }
+        ]
+      }
+    }
+  });
+  setup.memory.humanKnowledge['opp-0'] = {
+    slots: {
+      'opp-0': [
+        cardMemory(setup.opponents[0].cards[0], 'opening peek', 1, 'known', 4),
+        cardMemory(setup.opponents[0].cards[1], 'opening peek', 1, 'known', 4)
+      ]
+    },
+    dutchReadiness: 0.9
+  };
+
+  const target = setup.decisions.botQueenTarget(setup.bot);
+  const threatTargets = setup.decisions.botQueenTargets(setup.bot).opponentUnknown
+    .filter((item) => item.player.id === setup.opponents[0].id);
+
+  assert.equal(target.player.id, setup.opponents[0].id);
+  assert.equal(target.queenDecisionImpact.humanOpponent, true);
+  assert.equal(target.queenDecisionImpact.immediateThreat, true);
+  assert.ok(target.queenDecisionImpact.reasons.includes('threatClassification'));
+  assert.equal(
+    target.queenDecisionImpact.threatClassification,
+    Math.max(...threatTargets.map((item) => item.queenDecisionImpact.threatClassification))
+  );
+});
+
 test('Queen uses information value and Ace targets expected damage rather than cumulative lead alone', () => {
   const queen = harness({
     own: [card('2'), card('3'), card('8')],

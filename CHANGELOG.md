@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.33
+- limited Queen peeks to information that can change replacements, specials, throw-ins, Dutch calls, threat classification, or exact score thresholds
+- skipped Queen actions for known cards, Dutch-committed hands, and final turns with no remaining decision that can use the result
+- prioritized uncertain bot cards with the greatest high-card exposure
+- inspected the most informative card position of threatening humans when direct hand information has little value
+
 ## 1.3.32
 - evaluated the full cost of Ace discards, including hand degradation, target recovery, retaliation risk, and pile exposure
 - rejected Ace actions when the bot's guaranteed score increase exceeds the opponent's expected disadvantage
