@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.36
+- optimized bot actions around expected post-round totals, threshold adjustments, target-crossing risk, opponent totals, and estimated game-win probability
+- stored confidence-aware estimates for every card position, including remembered rank, knowledge source, and the last position-changing event
+- removed actual hidden card objects from live bot decision candidates while retaining actual hands for diagnostics
+- added a safety margin that favors lower variance, protected low cards, safe discards, reliable sequences, and Dutch-ready hands when action values are close
+
 ## 1.3.35
 - added a dedicated bot evaluator for final turns after another player calls Dutch
 - prioritized guaranteed score reductions, immediate throw-ins, and protection of confirmed low cards

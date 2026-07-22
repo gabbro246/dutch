@@ -42,3 +42,41 @@ test('character selection cannot override a clearly better common action', () =>
   assert.ok(strategyLimits({ botType: 'roswell' }, true).samples > strategyLimits(weak, true).samples);
   assert.ok(strategyLimits({ botType: 'roswell' }, true).depth > strategyLimits({ botType: 'roswell' }, false).depth);
 });
+
+test('close action values use the lower-variance safety-preserving option', () => {
+  const risky = {
+    actionType: 'risky',
+    actionValue: 10,
+    actionVariance: 9,
+    opponentBenefit: 2,
+    futureThrowInScoreSaving: 3,
+    metadata: {
+      protection: {
+        confirmedLow: true,
+        worsensConfirmedCard: true,
+        guaranteedThrowIn: false
+      },
+      discardGiftAssessment: { totalPenalty: 4 },
+      dutchFreeze: { active: true }
+    }
+  };
+  const safe = {
+    actionType: 'safe',
+    actionValue: 9,
+    actionVariance: 0,
+    opponentBenefit: 0,
+    futureThrowInScoreSaving: 0,
+    metadata: {}
+  };
+
+  assert.equal(
+    chooseCharacterAction({ botType: 'roswell' }, [risky, safe], () => 0.99).actionType,
+    'safe'
+  );
+
+  risky.actionValue = 12;
+  assert.equal(
+    chooseCharacterAction({ botType: 'roswell' }, [risky, safe], () => 0.99).actionType,
+    'risky'
+  );
+});

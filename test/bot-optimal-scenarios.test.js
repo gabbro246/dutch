@@ -746,7 +746,7 @@ test('Queen inspects the threatening human position that best clarifies Dutch re
   );
 });
 
-test('Queen uses information value and Ace targets expected damage rather than cumulative lead alone', () => {
+test('Queen uses information value and Ace includes cumulative game position in target selection', () => {
   const queen = harness({
     own: [card('2'), card('3'), card('8')],
     ownUnknown: true,
@@ -768,8 +768,14 @@ test('Queen uses information value and Ace targets expected damage rather than c
     opponentTotals: [5, 35]
   });
   const aceTarget = ace.decisions.botAceTarget(ace.bot);
-  assert.equal(aceTarget.player.id, ace.opponents[1].id);
-  assert.notEqual(aceTarget.player.total, Math.min(...ace.opponents.map((player) => player.total)));
+  const aceActions = ace.opponents.map((player) => (
+    ace.decisions.evaluateAceTarget(ace.bot, player)
+  )).filter((action) => action && action.eligible);
+  assert.equal(aceTarget.player.id, ace.opponents[0].id);
+  assert.equal(
+    aceTarget.estimatedGameWinProbability,
+    Math.max(...aceActions.map((action) => action.estimatedGameWinProbability))
+  );
 });
 
 test('throw-in is selected only when expected value is positive', () => {
@@ -1266,4 +1272,65 @@ test('final-turn Jacks keep only swaps that materially change the round outcome'
   harmful.state.round.dutchCallerId = harmful.opponents[0].id;
   harmful.state.round.dutchQueue = [];
   assert.deepEqual(harmful.decisions.botJackCandidates(harmful.bot), []);
+});
+
+test('live position estimates store confidence and the last knowledge-changing event', () => {
+  const setup = harness({
+    own: [card('9')],
+    opponents: [[card('2')]],
+    opponentsUnknown: true
+  });
+  const ctx = setup.decisions.contextFor(setup.bot);
+  const own = ctx.positionEstimateFor(setup.bot, 0);
+  const opponent = ctx.positionEstimateFor(setup.opponents[0], 0);
+
+  assert.equal(own.expectedValue, 9);
+  assert.equal(own.knownRank, '9');
+  assert.equal(own.confidence, 1);
+  assert.equal(own.source, 'own peek');
+  assert.equal(own.lastChangedEvent, 'own peek');
+  assert.equal(own.lastChangedTick, 4);
+
+  assert.notEqual(opponent.expectedValue, 2);
+  assert.equal(opponent.knownRank, null);
+  assert.equal(opponent.confidence, 0);
+  assert.equal(opponent.source, 'opponent unknown');
+  assert.equal(opponent.lastChangedEvent, 'opponent unknown');
+  assert.deepEqual(setup.memory.positionEstimates[setup.opponents[0].id][0], opponent);
+});
+
+test('unknown actual cards cannot change live decisions built from identical memories', () => {
+  const lowActual = harness({
+    own: [card('A'), card('2')],
+    ownUnknown: true,
+    opponents: [[card('2'), card('3')]],
+    opponentsUnknown: true,
+    pile: card('6')
+  });
+  const highActual = harness({
+    own: [card('K', 'clubs'), card('10')],
+    ownUnknown: true,
+    opponents: [[card('K', 'clubs'), card('Q')]],
+    opponentsUnknown: true,
+    pile: card('6')
+  });
+
+  const lowDecision = lowActual.decisions.evaluateDrawSources(lowActual.bot);
+  const highDecision = highActual.decisions.evaluateDrawSources(highActual.bot);
+
+  assert.equal(lowDecision.selected.actionType, highDecision.selected.actionType);
+  assert.equal(lowDecision.deck.expectedRawHandScore, highDecision.deck.expectedRawHandScore);
+  assert.equal(lowDecision.deck.estimatedGameWinProbability, highDecision.deck.estimatedGameWinProbability);
+  assert.equal(lowDecision.deck.actionValue, highDecision.deck.actionValue);
+
+  const jackSetup = harness({
+    own: [card('10')],
+    opponents: [[card('2')]],
+    ownUnknown: true,
+    opponentsUnknown: true
+  });
+  const jackCandidates = jackSetup.decisions.botJackCandidates(jackSetup.bot);
+  assert.equal(jackCandidates.every((candidate) => (
+    candidate.a.card === null && candidate.b.card === null
+  )), true);
 });

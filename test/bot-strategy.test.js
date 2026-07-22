@@ -29,9 +29,13 @@ test('memory entries carry source, rank, confidence, and tick', () => {
     state: 'unknown',
     card: null,
     rank: null,
+    knownRank: null,
+    expectedValue: 6.4,
     confidence: 0,
     source: 'reshuffle',
-    updatedTick: 7
+    updatedTick: 7,
+    lastChangedEvent: 'reshuffle',
+    lastChangedTick: 7
   });
 
   assert.deepEqual(cardMemory(card('A', 'spades'), 'peek', 0.82, 'known', 11), {
@@ -43,9 +47,13 @@ test('memory entries carry source, rank, confidence, and tick', () => {
       points: 1
     },
     rank: 'A',
+    knownRank: 'A',
+    expectedValue: 1,
     confidence: 0.82,
     source: 'peek',
-    updatedTick: 11
+    updatedTick: 11,
+    lastChangedEvent: 'peek',
+    lastChangedTick: 11
   });
 });
 
@@ -68,7 +76,12 @@ test('unknown effective memory preserves rank and source when present', () => {
     confidence: 0,
     card: null,
     rank: 'J',
-    source: 'throw-in'
+    knownRank: 'J',
+    expectedValue: 6.4,
+    source: 'throw-in',
+    updatedTick: 0,
+    lastChangedEvent: 'throw-in',
+    lastChangedTick: 0
   });
   assert.equal(botProfile({ botType: 'missing' }).label, 'casual');
 });

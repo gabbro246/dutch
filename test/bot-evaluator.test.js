@@ -158,3 +158,70 @@ test('final-turn evaluation exposes exact totals for the bot and both Dutch call
   assert.equal(successfulCall.metadata.finalTurnOutcome.callerFailureProbability, 0);
   assert.equal(successfulCall.metadata.finalTurnOutcome.callerExpectedTotal, 40);
 });
+
+test('game outcome metrics prefer a threshold-adjusted win over a lower raw hand', () => {
+  const bot = player('bot', 45);
+  const opponent = player('opponent', 30);
+  const state = {
+    gameTarget: 100,
+    players: [bot, opponent],
+    round: { deck: Array(20), dutchCallerId: null }
+  };
+  const lowerRawHand = evaluateAction({
+    state,
+    bot,
+    actionType: 'lower-raw',
+    ownDistribution: [{ value: 4, probability: 1 }],
+    opponentDistributions: [{ player: opponent, distribution: [{ value: 8, probability: 1 }] }]
+  });
+  const exactThreshold = evaluateAction({
+    state,
+    bot,
+    actionType: 'exact-threshold',
+    ownDistribution: [{ value: 5, probability: 1 }],
+    opponentDistributions: [{ player: opponent, distribution: [{ value: 8, probability: 1 }] }]
+  });
+
+  assert.ok(exactThreshold.expectedRawHandScore > lowerRawHand.expectedRawHandScore);
+  assert.equal(exactThreshold.expectedPostRoundTotal, 50);
+  assert.equal(exactThreshold.expectedThresholdAdjustedTotal, 25);
+  assert.equal(exactThreshold.expectedThresholdAdjustment, 25);
+  assert.ok(exactThreshold.estimatedGameWinProbability > lowerRawHand.estimatedGameWinProbability);
+  assert.ok(exactThreshold.actionValue > lowerRawHand.actionValue);
+});
+
+test('game outcome metrics include target crossing and opponent post-round totals', () => {
+  const bot = player('bot', 99);
+  const opponent = player('opponent', 20);
+  const result = evaluateAction({
+    state: {
+      gameTarget: 100,
+      players: [bot, opponent],
+      round: { deck: Array(20), dutchCallerId: null }
+    },
+    bot,
+    actionType: 'cross-target',
+    ownDistribution: [{ value: 2, probability: 1 }],
+    opponentDistributions: [{
+      player: opponent,
+      distribution: [{ value: 5, probability: 1 }]
+    }]
+  });
+
+  assert.equal(result.expectedPostRoundTotal, 101);
+  assert.equal(result.expectedThresholdAdjustedTotal, 101);
+  assert.equal(result.probabilityCrossingTarget, 1);
+  assert.equal(result.probabilityGameEnds, 1);
+  assert.equal(result.estimatedGameWinProbability, 0);
+  assert.deepEqual(result.opponentTotalEstimates.map((estimate) => ({
+    playerId: estimate.playerId,
+    expectedPostRoundTotal: estimate.expectedPostRoundTotal,
+    expectedThresholdAdjustedTotal: estimate.expectedThresholdAdjustedTotal,
+    probabilityCrossingTarget: estimate.probabilityCrossingTarget
+  })), [{
+    playerId: opponent.id,
+    expectedPostRoundTotal: 25,
+    expectedThresholdAdjustedTotal: 25,
+    probabilityCrossingTarget: 0
+  }]);
+});
