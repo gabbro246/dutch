@@ -1338,7 +1338,18 @@ function animateStateTransition(previousState, state, before, after) {
     if (!['front', 'back'].includes(previous.faceKind) || !['front', 'back'].includes(current.faceKind)) return;
     const target = document.querySelector(`.card[data-card-id="${cssEscape(cardId)}"]`);
     const delay = enteringFinishedStage && faceChanged ? (revealDelays.get(cardId) || 0) : 0;
-    if (target) animateFaceTurn(target, before.cards.get(cardId), publicPeekStarted ? 420 : 260, delay);
+    if (!target) return;
+    const previousData = before.cards.get(cardId);
+    const duration = publicPeekStarted ? 420 : 260;
+    const activeMove = activeCardMoves.get(cardId);
+    if (activeMove) {
+      activeMove.afterFinish = () => {
+        const latestTarget = cardElement(cardId, current.locationKey);
+        if (latestTarget) animateFaceTurn(latestTarget, previousData, duration, delay);
+      };
+      return;
+    }
+    animateFaceTurn(target, previousData, duration, delay);
   });
 }
 
@@ -1654,6 +1665,7 @@ function finishCardMove(move) {
   activeCardMoves.delete(move.cardId);
   const target = cardElement(move.cardId, move.locationKey);
   if (target) target.classList.remove('anim-target-hidden');
+  if (move.afterFinish) move.afterFinish();
 }
 
 function cancelCardMove(move) {

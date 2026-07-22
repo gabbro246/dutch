@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.42
+- fixed the Start game button becoming unresponsive after ending a game manually
+- increased the post-peek pause before the opening card travels to the pile
+- fixed the opening-card reveal being skipped when a browser processes its travel and reveal updates together
+
 ## 1.3.41
 - fixed the manual rejoin screen appearing too late when a connection drops during the opening peek, without allowing connected players to be reclaimed
 - fixed the in-game game-length selector staying locked after exact-score halving or after a high-scoring player leaves

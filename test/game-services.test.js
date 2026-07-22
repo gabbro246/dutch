@@ -142,6 +142,34 @@ test('changed-card highlighting is a shared in-game setting', () => {
 });
 
 
+test('connected players can start again immediately after manually ending a game', () => {
+  const { services, io } = serviceFor();
+  try {
+    const ada = fakeSocket('socket-a');
+    const ben = fakeSocket('socket-b');
+    io.sockets.sockets.set(ada.id, ada);
+    io.sockets.sockets.set(ben.id, ben);
+    io.handlers.connection(ada);
+    io.handlers.connection(ben);
+    ada.handlers.join({ name: 'Ada', token: 'ada-token' });
+    ben.handlers.join({ name: 'Ben', token: 'ben-token' });
+    ada.handlers.startGame();
+
+    ada.handlers.endGameForAll();
+
+    assert.equal(services.getState().phase, 'waiting');
+    assert.equal(services.getState().players.find((player) => player.id === 'ada-token').socketId, ada.id);
+    assert.equal(services.getState().players.find((player) => player.id === 'ben-token').socketId, ben.id);
+
+    ada.handlers.startGame();
+
+    assert.equal(services.getState().phase, 'playing');
+    assert.equal(services.getState().roundNumber, 1);
+  } finally {
+    services.close();
+  }
+});
+
 test('fixed-seed games record the full private shuffle and initial state without exposing it live', () => {
   function startedGame() {
     const setup = serviceFor({ gameSeed: 424242 });
