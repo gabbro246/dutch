@@ -124,8 +124,12 @@ test('build view reveals only cards visible to the viewer', () => {
   assert.equal(view.round.wrongThrowIn.card.rank, '9');
   assert.equal(view.round.discardTop.rank, 'Q');
 
-  state.gameTargetLocked = true;
+  state.players[0].total = 50;
   assert.equal(viewFor(state).buildView('ada').canChangeGameTarget, false);
+  state.players[0].left = true;
+  assert.equal(viewFor(state).buildView('ada').canChangeGameTarget, true);
+  state.players[0].left = false;
+  state.players[0].total = 0;
 
   const observerView = viewFor(state).buildView('ben');
   assert.equal(observerView.round.players[0].cards[1].back, true);

@@ -7,6 +7,7 @@ const PLAYER_TAB_WINDOW_PREFIX = 'dutch-tab:';
 const PLAYER_NAME_KEY = 'dutchPlayerName';
 const playerToken = getPlayerToken();
 let lastState = null;
+let pendingManualRejoin = null;
 let hasRenderedGame = false;
 let currentDetailsMode = '';
 let logExpanded = false;
@@ -215,6 +216,21 @@ function rememberPlayerName(name) {
 
 socket.on('connect', () => {
   socket.emit('identify', playerToken);
+  if (pendingManualRejoin) {
+    socket.emit('join', pendingManualRejoin);
+    pendingManualRejoin = null;
+  }
+});
+
+socket.on('disconnect', () => {
+  if (!lastState || !lastState.joined || lastState.phase !== 'playing') return;
+  render({
+    ...lastState,
+    joined: false,
+    players: (lastState.players || []).map((player) => (
+      player.id === lastState.you ? { ...player, connected: false } : player
+    ))
+  });
 });
 
 socket.on('state', (state) => {
@@ -331,7 +347,12 @@ function bindActiveGameRejoin(missingPlayers = []) {
     if (!canRejoinMissingPlayer(missingPlayers, name)) return;
     rememberPlayerName(name);
     rememberPlayerTokenBackup(playerToken);
-    emit('join', { name, token: playerToken });
+    const payload = { name, token: playerToken };
+    if (socket.connected) emit('join', payload);
+    else {
+      pendingManualRejoin = payload;
+      socket.connect();
+    }
   };
   update();
   nameInput.addEventListener('input', update);
@@ -345,8 +366,8 @@ function render(state) {
   if (!state.joined && state.phase === 'playing') {
     const gameStarted = gameStartedText(state.gameStartedAt);
     const gameSummary = activeGameSummary(state);
-    const missingPlayers = (state.players || []).filter((player) => !player.isBot && !player.connected);
-    const rejoinAvailable = missingPlayers.length > 0;
+    const rejoinPlayers = (state.players || []).filter((player) => !player.isBot && !player.connected);
+    const rejoinAvailable = rejoinPlayers.length > 0;
     const activeGameMessage = rejoinAvailable
       ? 'A game is already active. If you were disconnected, enter your name to rejoin.'
       : 'A game is already active. Join after the game ends.';
@@ -368,7 +389,7 @@ function render(state) {
         ${repoLink(state.version)}
       </div>
     `;
-    bindActiveGameRejoin(missingPlayers);
+    bindActiveGameRejoin(rejoinPlayers);
     return;
   }
   if (state.phase === 'waiting') renderWaiting(state);

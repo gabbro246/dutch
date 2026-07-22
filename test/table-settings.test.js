@@ -86,20 +86,19 @@ test('setGameTarget accepts supported targets until a player reaches 50', () => 
   settings.setGameTarget(50);
   assert.equal(state.gameTarget, 100);
 
-  state.players[0].total = 25;
-  state.gameTargetLocked = true;
+  state.players[0].left = true;
   settings.setGameTarget(50);
-  assert.equal(state.gameTarget, 100);
+  assert.equal(state.gameTarget, 50);
 
-  state.gameTargetLocked = false;
+  state.players[0].left = false;
   state.round = { stage: 'gameEnd' };
-  settings.setGameTarget(50);
-  assert.equal(state.gameTarget, 100);
+  settings.setGameTarget(100);
+  assert.equal(state.gameTarget, 50);
 
   state.phase = 'invalid';
   state.round = null;
-  settings.setGameTarget(50);
-  assert.equal(state.gameTarget, 100);
+  settings.setGameTarget(100);
+  assert.equal(state.gameTarget, 50);
 });
 
 test('setInactivityTimeout accepts only supported minute values', () => {
