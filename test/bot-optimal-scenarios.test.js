@@ -825,6 +825,147 @@ test('discard value includes the opponent throw-in it may enable', () => {
   assert.equal(setup.decisions.opponentThrowInBenefit(setup.bot, card('6'), ctx), 0);
 });
 
+test('discard control applies stronger gift penalties to Aces, red Kings, and low cards', () => {
+  const setup = harness({
+    own: [card('10'), card('9')],
+    opponents: [[card('10', 'spades'), card('9', 'spades'), card('8')]]
+  });
+  const ctx = setup.decisions.contextFor(setup.bot);
+  const ace = setup.decisions.discardGiftAssessment(setup.bot, card('A', 'spades'), ctx);
+  const redKing = setup.decisions.discardGiftAssessment(setup.bot, card('K', 'hearts'), ctx);
+  const two = setup.decisions.discardGiftAssessment(setup.bot, card('2', 'hearts'), ctx);
+  const six = setup.decisions.discardGiftAssessment(setup.bot, card('6', 'hearts'), ctx);
+  const aceDiscard = setup.decisions.evaluateDeckDiscard(setup.bot, card('A', 'clubs'), ctx);
+
+  assert.ok(ace.cardClassPenalty > 0);
+  assert.ok(redKing.cardClassPenalty > ace.cardClassPenalty);
+  assert.ok(two.cardClassPenalty > six.cardClassPenalty);
+  assert.ok(ace.totalPenalty > six.totalPenalty);
+  assert.ok(redKing.totalPenalty > six.totalPenalty);
+  assert.ok(two.totalPenalty > six.totalPenalty);
+  assert.equal(
+    aceDiscard.metadata.aceDiscardAssessment.pileExposureCost,
+    aceDiscard.metadata.discardGiftAssessment.totalPenalty
+  );
+});
+
+test('discard control penalizes a rank the next player can throw in', () => {
+  const setup = harness({
+    own: [card('10'), card('8')],
+    opponents: [[card('9'), card('3')], [card('7'), card('4')]]
+  });
+  const ctx = setup.decisions.contextFor(setup.bot);
+  const matching = setup.decisions.discardGiftAssessment(setup.bot, card('9', 'spades'), ctx);
+  const neutral = setup.decisions.discardGiftAssessment(setup.bot, card('6'), ctx);
+  const nextMatch = matching.targets.find((target) => target.playerId === setup.opponents[0].id);
+
+  assert.equal(nextMatch.actsNext, true);
+  assert.equal(nextMatch.matchingThrowInValue, 9);
+  assert.ok(nextMatch.throwInValue > 0);
+  assert.ok(matching.totalPenalty > neutral.totalPenalty);
+});
+
+test('discard control scales with threat pressure and a known high replacement', () => {
+  const options = {
+    own: [card('10'), card('9')],
+    opponents: [[card('K', 'clubs'), card('2'), card('3')]]
+  };
+  const baseline = harness(options);
+  const threatened = harness({
+    ...options,
+    inference: {
+      'opp-0': {
+        lowCardBelief: 0.9,
+        dutchReadiness: 0.9,
+        rankConfidence: {},
+        targetInterest: {},
+        recentActions: [
+          { type: 'take-pile', low: true, points: 2, valid: true, updatedTick: 4 },
+          { type: 'throw-in', low: true, points: null, valid: true, updatedTick: 4 }
+        ]
+      }
+    },
+    humanKnowledge: {
+      'opp-0': {
+        slots: {
+          'opp-0': [
+            unknownMemory('human unknown', 4),
+            cardMemory({ rank: '2', suit: 'clubs' }, 'opening peek', 1, 'known', 4),
+            cardMemory({ rank: '3', suit: 'clubs' }, 'opening peek', 1, 'known', 4)
+          ]
+        },
+        dutchReadiness: 0.9
+      }
+    }
+  });
+  const ordinary = baseline.decisions.discardGiftAssessment(
+    baseline.bot,
+    card('2', 'hearts'),
+    baseline.decisions.contextFor(baseline.bot)
+  );
+  const dangerous = threatened.decisions.discardGiftAssessment(
+    threatened.bot,
+    card('2', 'hearts'),
+    threatened.decisions.contextFor(threatened.bot)
+  );
+  const ordinaryTarget = ordinary.targets[0];
+  const dangerousTarget = dangerous.targets[0];
+
+  assert.ok(dangerousTarget.knownHighReplacementValue >= 11);
+  assert.ok(dangerousTarget.knownLowPressure > 0);
+  assert.ok(dangerousTarget.callProbability > ordinaryTarget.callProbability);
+  assert.ok(dangerousTarget.threatMultiplier > ordinaryTarget.threatMultiplier);
+  assert.ok(dangerous.totalPenalty > ordinary.totalPenalty);
+});
+
+test('discard danger decays when other players act before the threat', () => {
+  const setup = harness({
+    own: [card('10'), card('9')],
+    opponents: [
+      [card('K', 'clubs'), card('2'), card('3')],
+      [card('6'), card('7'), card('8'), card('9')],
+      [card('6', 'spades'), card('7', 'spades'), card('8', 'spades'), card('9', 'spades')]
+    ],
+    inference: {
+      'opp-0': {
+        lowCardBelief: 0.9,
+        dutchReadiness: 0.9,
+        rankConfidence: {},
+        targetInterest: {},
+        recentActions: [
+          { type: 'take-pile', low: true, points: 2, valid: true, updatedTick: 4 },
+          { type: 'throw-in', low: true, points: null, valid: true, updatedTick: 4 }
+        ]
+      }
+    }
+  });
+  const nextAssessment = setup.decisions.discardGiftAssessment(
+    setup.bot,
+    card('2', 'hearts'),
+    setup.decisions.contextFor(setup.bot)
+  );
+  setup.state.players = [
+    setup.bot,
+    setup.opponents[1],
+    setup.opponents[2],
+    setup.opponents[0]
+  ];
+  const delayedAssessment = setup.decisions.discardGiftAssessment(
+    setup.bot,
+    card('2', 'hearts'),
+    setup.decisions.contextFor(setup.bot)
+  );
+  const nextThreat = nextAssessment.targets.find((target) => target.playerId === setup.opponents[0].id);
+  const delayedThreat = delayedAssessment.targets.find((target) => target.playerId === setup.opponents[0].id);
+
+  assert.equal(nextThreat.distance, 1);
+  assert.equal(delayedThreat.distance, 3);
+  assert.equal(nextThreat.pileSurvivalProbability, 1);
+  assert.ok(delayedThreat.pileSurvivalProbability < nextThreat.pileSurvivalProbability);
+  assert.ok(delayedThreat.penalty < nextThreat.penalty);
+  assert.ok(delayedAssessment.totalPenalty < nextAssessment.totalPenalty);
+});
+
 test('Jack avoids same-hand reordering when it has no disruption benefit', () => {
   const setup = harness({
     own: [card('9'), card('2'), card('3')],
