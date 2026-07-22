@@ -24,7 +24,7 @@ function player(id, cards, total = 0, extra = {}) {
 }
 
 function setup() {
-  const bot = player('bot', [card('b1', '10'), card('b2', '2')], 42, { isBot: true, botType: 'strategic' });
+  const bot = player('bot', [card('b1', '10'), card('b2', '2')], 42, { isBot: true, botType: 'athena' });
   const opponent = player('opp', [card('o1', '3'), card('o2', 'Q')], 58);
   const state = {
     deckSetting: 'one',

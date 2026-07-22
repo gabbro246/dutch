@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.40
+- renamed bot profile identifiers to Athena, Roswell, Norman, and Dory internally
+- ordered the bot picker from weakest to strongest
+- added a 500 ms pause before the opening card travels from the deck to the pile, preserving the movement and reveal sequence
+
 ## 1.3.39
 - kept the amber discard-pile highlight for valid throw-ins
 - highlighted cards that enter or change hands until the receiving player's next turn, including deck and pile swaps, Ace additions, Jack swaps, and wrong throw-in penalties

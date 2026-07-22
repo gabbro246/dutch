@@ -45,8 +45,8 @@ function sessionsFor(state) {
     playerNameMaxLength: 24,
     spectatorTriggerName: 'spectator',
     botProfiles: {
-      strategic: { name: 'Athena' },
-      casual: { name: 'Norman' }
+      athena: { name: 'Athena' },
+      norman: { name: 'Norman' }
     },
     gameView: {
       buildView: (playerId) => ({ you: playerId })
@@ -157,14 +157,14 @@ test('waiting-room actions remove, move, and add players', () => {
   assert.equal(sessions.moveWaitingPlayer('ben', 'up'), true);
   assert.deepEqual(state.players.map((item) => item.id), ['ben', 'ada']);
 
-  const botResult = sessions.addBotPlayer('strategic');
+  const botResult = sessions.addBotPlayer('athena');
   assert.equal(botResult.ok, true);
-  assert.equal(state.players.at(-1).id, 'bot-strategic');
+  assert.equal(state.players.at(-1).id, 'bot-athena');
   assert.equal(state.players.at(-1).isBot, true);
   assert.equal(typeof state.players.at(-1).joinedAt, 'number');
 
   assert.equal(sessions.removeWaitingPlayer('ada', 'left'), true);
-  assert.deepEqual(state.players.map((item) => item.id), ['ben', 'bot-strategic']);
+  assert.deepEqual(state.players.map((item) => item.id), ['ben', 'bot-athena']);
   assert.equal(calls.logs.at(-1).text, 'Ada left');
   assert.ok(calls.clamps >= 2);
 });
@@ -174,11 +174,11 @@ test('leave and disconnect update session state for active games', () => {
     phase: 'playing',
     players: [
       player('ada', 'Ada', { socketId: 'socket-1', cards: [{ id: 'a1' }] }),
-      player('bot-strategic', 'Athena', { isBot: true, cards: [{ id: 'b1' }] })
+      player('bot-athena', 'Athena', { isBot: true, cards: [{ id: 'b1' }] })
     ],
     round: {
       stage: 'special',
-      dutchQueue: ['ada', 'bot-strategic'],
+      dutchQueue: ['ada', 'bot-athena'],
       specialQueue: [{ type: 'Q', actorId: 'ada' }],
       roundWinnerIds: ['ada'],
       dutchCallerId: 'ada',

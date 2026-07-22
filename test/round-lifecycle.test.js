@@ -116,6 +116,7 @@ function lifecycleFor(initialState) {
       calls.clearedHandHighlights.push(playerId);
       state.round.handHighlights = (state.round.handHighlights || []).filter((item) => item.ownerId !== playerId);
     },
+    openingDiscardDelayMs: 500,
     openingDiscardTravelMs: 500,
     setTimeoutFn: (fn, delay) => calls.timeouts.push({ fn, delay }),
     broadcastState: () => { calls.broadcasts += 1; }
@@ -145,17 +146,25 @@ test('start game deals a round and begins turns after all peeks', () => {
   lifecycle.beginTurnsIfReady();
 
   assert.equal(getState().round.stage, 'opening');
-  assert.equal(getState().round.discard.length, 1);
+  assert.equal(getState().round.discard.length, 0);
   assert.equal(getState().round.throwIn, null);
   assert.equal(calls.discardObservations.length, 0);
   assert.equal(calls.timeouts[0].delay, 500);
 
   calls.timeouts[0].fn();
 
+  assert.equal(getState().round.stage, 'opening');
+  assert.equal(getState().round.discard.length, 1);
+  assert.equal(calls.discardObservations.length, 0);
+  assert.equal(calls.broadcasts, 1);
+  assert.equal(calls.timeouts[1].delay, 500);
+
+  calls.timeouts[1].fn();
+
   assert.equal(getState().round.stage, 'turn');
   assert.equal(getState().round.throwIn.token, 1);
   assert.equal(calls.discardObservations[0].source, 'opening discard');
-  assert.equal(calls.broadcasts, 1);
+  assert.equal(calls.broadcasts, 2);
 });
 
 test('advance turn completes Dutch queue and ends the round', () => {
@@ -242,7 +251,7 @@ test('reset to waiting replaces state and keeps connected players', () => {
   state.players = [
     player('ada', [card('a1')]),
     player('ben', [card('b1')], { connected: false }),
-    player('bot-casual', [card('c1')], { isBot: true })
+    player('bot-norman', [card('c1')], { isBot: true })
   ];
   state.round = { stage: 'turn' };
   const { lifecycle, calls, getState } = lifecycleFor(state);
@@ -250,7 +259,7 @@ test('reset to waiting replaces state and keeps connected players', () => {
   lifecycle.resetToWaiting(true, 'table reset', { adminEvent: 'manual_reset' });
 
   assert.equal(getState().phase, 'waiting');
-  assert.deepEqual(getState().players.map((item) => item.id), ['ada', 'bot-casual']);
+  assert.deepEqual(getState().players.map((item) => item.id), ['ada', 'bot-norman']);
   assert.deepEqual(getState().players.map((item) => item.cards.length), [0, 0]);
   assert.equal(getState().players.every((item) => typeof item.joinedAt === 'number'), true);
   assert.equal(calls.clearedTimers, 1);

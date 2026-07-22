@@ -132,7 +132,7 @@ test('socket gameplay flow covers turns, throw-ins, specials, Dutch, reconnect, 
   await ben.emit('peekStart', benCards[0].id);
   await ben.emit('peekStart', benCards[1].id);
 
-  await waitFor(() => getState().round && getState().round.stage === 'turn', 'Round did not enter turn stage.');
+  await waitFor(() => getState().round && getState().round.stage === 'turn', 'Round did not enter turn stage.', 1500);
   assert.equal(getState().phase, 'playing');
   assert.equal(getState().round.deck.length, 43);
   assert.equal(getState().round.discard.length, 1);

@@ -11,14 +11,14 @@
   const RED_SUITS = ['hearts', 'diamonds'];
 
   const BOT_LABELS = {
-    strategic: '🦉 Athena',
+    athena: '🦉 Athena',
     roswell: '👽 Roswell',
-    casual: '🐑 Norman',
-    distracted: '🐠 Dory'
+    norman: '🐑 Norman',
+    dory: '🐠 Dory'
   };
 
   const BOT_PERSONALITIES = {
-    strategic: {
+    athena: {
       summary: 'Tracks cards carefully, waits for strong swaps, and rarely moves without a reason.',
       stats: [
         ['Memory', 9],
@@ -38,7 +38,7 @@
         ['Discipline', 10]
       ]
     },
-    casual: {
+    norman: {
       summary: 'Makes balanced choices with a relaxed read of the table and a steady sense of timing.',
       stats: [
         ['Memory', 6],
@@ -48,7 +48,7 @@
         ['Discipline', 5]
       ]
     },
-    distracted: {
+    dory: {
       summary: 'Plays erratically and boldly, with loose card tracking and a weakness for tempting moves.',
       stats: [
         ['Memory', 3],

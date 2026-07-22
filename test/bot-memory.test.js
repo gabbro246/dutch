@@ -28,7 +28,7 @@ function memoryFor(state) {
 }
 
 test('ensureBotMemory initializes and sizes slots for playable players', () => {
-  const bot = player('bot', [card('b1'), card('b2')], { isBot: true, botType: 'strategic' });
+  const bot = player('bot', [card('b1'), card('b2')], { isBot: true, botType: 'athena' });
   const state = {
     roundNumber: 3,
     round: { botTick: 12 },
@@ -55,7 +55,7 @@ test('ensureBotMemory initializes and sizes slots for playable players', () => {
 });
 
 test('remember, forget, add, remove, and move slot memory mutate all bots', () => {
-  const bot = player('bot', [card('b1'), card('b2')], { isBot: true, botType: 'strategic' });
+  const bot = player('bot', [card('b1'), card('b2')], { isBot: true, botType: 'athena' });
   const ada = player('ada', [card('a1', '9'), card('a2', '2')]);
   const state = {
     roundNumber: 1,
@@ -92,7 +92,7 @@ test('remember, forget, add, remove, and move slot memory mutate all bots', () =
 });
 
 test('estimated human memory tracks reveals, visible Jack moves, and confidence decay', () => {
-  const bot = player('bot', [card('b1', '10'), card('b2', '3')], { isBot: true, botType: 'strategic' });
+  const bot = player('bot', [card('b1', '10'), card('b2', '3')], { isBot: true, botType: 'athena' });
   const ada = player('ada', [card('a1', '2'), card('a2', '8')]);
   const state = {
     roundNumber: 1,
@@ -120,7 +120,7 @@ test('estimated human memory tracks reveals, visible Jack moves, and confidence 
 });
 
 test('observations record discards, pile takes, and Ace attackers', () => {
-  const bot = player('bot', [card('b1')], { isBot: true, botType: 'casual' });
+  const bot = player('bot', [card('b1')], { isBot: true, botType: 'norman' });
   const ada = player('ada', [card('a1')]);
   const state = {
     roundNumber: 1,
@@ -158,7 +158,7 @@ test('observations record discards, pile takes, and Ace attackers', () => {
 });
 
 test('botMemoryEntry and effectiveMemory use the current bot tick', () => {
-  const bot = player('bot', [card('b1')], { isBot: true, botType: 'distracted' });
+  const bot = player('bot', [card('b1')], { isBot: true, botType: 'dory' });
   const state = {
     roundNumber: 1,
     round: { botTick: 0 },

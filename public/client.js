@@ -401,7 +401,7 @@ function renderBotPersonality(type) {
 
 function renderWaiting(state) {
   const selectedTheme = window.DutchTheme.getStoredTheme(window);
-  const botTypes = ['strategic', 'roswell', 'casual', 'distracted'];
+  const botTypes = ['dory', 'norman', 'athena', 'roswell'];
   const usedBotTypes = new Set(state.players.filter((p) => p.isBot).map((p) => p.botType));
   const firstAvailableBot = botTypes.find((type) => !usedBotTypes.has(type));
   let startDisabled = state.canStart === false || state.joined === false;
@@ -1268,7 +1268,12 @@ function animateStateTransition(previousState, state, before, after) {
       return;
     }
 
-    if (!previous && current.locationKey === 'pile-top' && previousState.round.stage === 'peek' && state.round.stage === 'opening') {
+    const openingDiscardAdded = !previous
+      && current.locationKey === 'pile-top'
+      && previousState.round.discardCount === 0
+      && state.round.discardCount === 1
+      && state.round.stage === 'opening';
+    if (openingDiscardAdded) {
       const sourceData = before.roles.get('deck-top');
       if (sourceData) {
         animateCardMove(cardId, sourceData, targetData, 480);

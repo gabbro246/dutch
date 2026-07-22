@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { BOT_PROFILES } = require('../lib/bot-profiles.js');
 const {
   botProfile,
   publicMemoryCard,
@@ -12,6 +13,10 @@ const {
 function card(rank = '8', suit = 'hearts') {
   return { id: rank + suit, rank, suit, deckColor: 'red' };
 }
+
+test('bot profiles use character names as canonical identifiers', () => {
+  assert.deepEqual(Object.keys(BOT_PROFILES), ['athena', 'roswell', 'norman', 'dory']);
+});
 
 test('public memory cards keep only gameplay-visible card details', () => {
   assert.deepEqual(publicMemoryCard(card('K', 'diamonds')), {
@@ -59,12 +64,12 @@ test('memory entries carry source, rank, confidence, and tick', () => {
 
 test('effective memory decays confidence by bot profile and age', () => {
   const fresh = cardMemory(card('4', 'clubs'), 'own peek', 0.9, 'known', 10);
-  const known = effectiveMemory({ botType: 'strategic' }, fresh, 10);
+  const known = effectiveMemory({ botType: 'athena' }, fresh, 10);
   assert.equal(known.state, 'known');
   assert.equal(known.card.rank, '4');
   assert.equal(known.confidence, 0.9);
 
-  const stale = effectiveMemory({ botType: 'distracted' }, fresh, 60);
+  const stale = effectiveMemory({ botType: 'dory' }, fresh, 60);
   assert.equal(stale.state, 'stale');
   assert.equal(stale.card, null);
   assert.ok(stale.confidence < 0.46);
@@ -83,5 +88,5 @@ test('unknown effective memory preserves rank and source when present', () => {
     lastChangedEvent: 'throw-in',
     lastChangedTick: 0
   });
-  assert.equal(botProfile({ botType: 'missing' }).label, 'casual');
+  assert.equal(botProfile({ botType: 'missing' }).label, 'norman');
 });
