@@ -493,6 +493,118 @@ test('threat mode adds value to calling Dutch before an opponent can call', () =
   assert.equal(setup.decisions.botShouldCallDutch(setup.bot), true);
 });
 
+test('Ace discard assessment includes replacement, retention, target escape, retaliation, and pile exposure', () => {
+  const setup = harness({
+    own: [card('A'), card('9')],
+    opponents: [[card('2'), card('3')]],
+    inference: {
+      'opp-0': {
+        lowCardBelief: 0.7,
+        dutchReadiness: 0.7,
+        rankConfidence: {},
+        targetInterest: {},
+        recentActions: [
+          { type: 'take-pile', low: true, points: 2, valid: true, updatedTick: 4 }
+        ]
+      }
+    }
+  });
+  setup.memory.aceAttackers = { 'opp-0': 2 };
+  const replacement = setup.decisions.evaluateReplacement(setup.bot, card('3', 'spades'), 0);
+  const assessment = replacement.metadata.aceDiscardAssessment;
+  const target = assessment.targets.find((item) => item.playerId === setup.opponents[0].id);
+  const deckDiscard = setup.decisions.evaluateDeckDiscard(
+    setup.bot,
+    card('A', 'hearts'),
+    setup.decisions.contextFor(setup.bot)
+  );
+
+  assert.equal(assessment.incomingCard.rank, '3');
+  assert.equal(assessment.guaranteedScoreIncrease, 2);
+  assert.equal(assessment.aceLowCardRetentionValue, 1);
+  assert.ok(assessment.opponentExpectedDisadvantage > 0);
+  assert.ok(assessment.pileExposureCost > 0);
+  assert.ok(assessment.retaliationCost > 0);
+  assert.ok(target.discardAddedChance > 0);
+  assert.ok(target.discardAddedChance < 1);
+  assert.ok(target.callProbabilityReduction > 0);
+  assert.equal(deckDiscard.metadata.aceDiscardAssessment.guaranteedScoreIncrease, 0);
+  assert.ok(deckDiscard.metadata.aceDiscardAssessment.pileExposureCost > 0);
+});
+
+test('Ace discard is rejected when its guaranteed score increase exceeds opponent disadvantage', () => {
+  const setup = harness({
+    own: [card('A'), card('2')],
+    opponents: [[card('10'), card('9')]]
+  });
+  const replacement = setup.decisions.evaluateReplacement(
+    setup.bot,
+    card('K', 'clubs'),
+    0
+  );
+  const assessment = replacement.metadata.aceDiscardAssessment;
+
+  assert.ok(assessment.guaranteedScoreIncrease > assessment.opponentExpectedDisadvantage);
+  assert.equal(assessment.eligible, false);
+  assert.equal(replacement.eligible, false);
+  assert.equal(replacement.rejectionReason, 'ace-cost-exceeds-opponent-disadvantage');
+
+  setup.memory.pendingAceDiscardAssessment = assessment;
+  const target = setup.decisions.evaluateAceTarget(setup.bot, setup.opponents[0]);
+  assert.equal(target.metadata.aceImpact.costExceedsDisadvantage, true);
+  assert.equal(target.eligible, false);
+});
+
+test('Ace retaliation history raises expected retaliation cost', () => {
+  const baseline = harness({
+    own: [card('10'), card('9')],
+    opponents: [[card('2'), card('3')]]
+  });
+  const retaliatory = harness({
+    own: [card('10'), card('9')],
+    opponents: [[card('2'), card('3')]]
+  });
+  baseline.memory.aceAttackers = {};
+  retaliatory.memory.aceAttackers = { 'opp-0': 3 };
+
+  const ordinaryImpact = baseline.decisions.aceTargetImpact(baseline.bot, baseline.opponents[0]);
+  const retaliatoryImpact = retaliatory.decisions.aceTargetImpact(retaliatory.bot, retaliatory.opponents[0]);
+
+  assert.ok(retaliatoryImpact.retaliationChance > ordinaryImpact.retaliationChance);
+  assert.ok(retaliatoryImpact.retaliationCost > ordinaryImpact.retaliationCost);
+});
+
+test('Ace strong bonuses require material round impact against an immediate threat', () => {
+  const setup = harness({
+    own: [card('10'), card('9')],
+    opponents: [[card('2'), card('3')], [card('10', 'spades'), card('9', 'spades')]],
+    inference: {
+      'opp-0': {
+        lowCardBelief: 0.8,
+        dutchReadiness: 0.8,
+        rankConfidence: {},
+        targetInterest: {},
+        recentActions: [
+          { type: 'take-pile', low: true, points: 2, valid: true, updatedTick: 4 },
+          { type: 'throw-in', low: true, points: null, valid: true, updatedTick: 4 }
+        ]
+      }
+    }
+  });
+  const threat = setup.decisions.evaluateAceTarget(setup.bot, setup.opponents[0]);
+  const safe = setup.decisions.evaluateAceTarget(setup.bot, setup.opponents[1]);
+  const selected = setup.decisions.botAceTarget(setup.bot);
+
+  assert.equal(threat.metadata.aceImpact.immediateThreat, true);
+  assert.equal(threat.metadata.aceImpact.materialRoundImpact, true);
+  assert.ok(threat.metadata.aceImpact.strongThreatBonus > 0);
+  assert.equal(safe.metadata.aceImpact.strongThreatBonus, 0);
+  assert.ok(safe.metadata.aceImpact.nonThreatPenalty > 0);
+  assert.equal(selected.player.id, setup.opponents[0].id);
+  assert.ok(threat.metadata.aceImpact.callProbabilityReduction > safe.metadata.aceImpact.callProbabilityReduction);
+  assert.ok(threat.metadata.aceImpact.roundWinProbabilityReduction >= safe.metadata.aceImpact.roundWinProbabilityReduction);
+});
+
 test('Queen uses information value and Ace targets expected damage rather than cumulative lead alone', () => {
   const queen = harness({
     own: [card('2'), card('3'), card('8')],

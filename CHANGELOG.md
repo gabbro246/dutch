@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.32
+- evaluated the full cost of Ace discards, including hand degradation, target recovery, retaliation risk, and pile exposure
+- rejected Ace actions when the bot's guaranteed score increase exceeds the opponent's expected disadvantage
+- reserved strong Ace bonuses for immediate threats whose Dutch-call or round-win chances are materially reduced
+- selected Ace targets by score impact, Dutch disruption, round-win reduction, and loss of reliable card-position knowledge
+
 ## 1.3.31
 - added early opponent-threat detection using hand size, estimated score, known low cards, and call timing
 - tracked recent low pile takes and throw-ins with recency decay
