@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { evaluateAction, scoreAfterRound } = require('../lib/bot-evaluator.js');
+const { evaluateAction, evaluateFinalTurnAction, scoreAfterRound } = require('../lib/bot-evaluator.js');
 
 function player(id, total, cards = 4) {
   return { id, total, cards: Array(cards).fill({}) };
@@ -108,4 +108,53 @@ test('Dutch action variance includes zero-or-double scoring outcomes', () => {
   assert.equal(result.expectedRawHandScore, 4);
   assert.equal(result.expectedRoundScore, 4);
   assert.equal(result.actionVariance, 16);
+});
+
+test('final-turn evaluation exposes exact totals for the bot and both Dutch caller outcomes', () => {
+  const bot = player('bot', 46);
+  const caller = player('caller', 40);
+  const state = {
+    gameTarget: 100,
+    players: [bot, caller],
+    round: { deck: Array(20), dutchCallerId: caller.id, dutchQueue: [] }
+  };
+  const failedCall = evaluateFinalTurnAction({
+    state,
+    bot,
+    actionType: 'final-hold',
+    ownDistribution: [{ value: 4, probability: 1 }],
+    opponentDistributions: [{ player: caller, distribution: [{ value: 5, probability: 1 }] }]
+  });
+
+  assert.equal(failedCall.turnsRemaining, 0);
+  assert.equal(failedCall.informationValue, 0);
+  assert.equal(failedCall.futureThrowInScoreSaving, 0);
+  assert.equal(failedCall.metadata.finalTurnOutcome.dedicated, true);
+  assert.equal(failedCall.metadata.finalTurnOutcome.expectedOwnTotal, 25);
+  assert.equal(failedCall.metadata.finalTurnOutcome.ownExactThresholdProbability, 1);
+  assert.equal(failedCall.metadata.finalTurnOutcome.ownThresholdSaving, 25);
+  assert.equal(failedCall.metadata.finalTurnOutcome.callerFailureProbability, 1);
+  assert.equal(failedCall.metadata.finalTurnOutcome.callerExpectedTotal, 25);
+  assert.equal(failedCall.metadata.finalTurnOutcome.callerExactThresholdProbability, 1);
+  assert.deepEqual(failedCall.metadata.finalTurnOutcome.callerOutcomes[0], {
+    handScore: 5,
+    probability: 1,
+    successProbability: 0,
+    successfulTotal: 40,
+    failedRoundScore: 10,
+    failedRawTotal: 50,
+    failedTotal: 25,
+    failedExactThreshold: true
+  });
+
+  const successfulCall = evaluateFinalTurnAction({
+    state,
+    bot,
+    actionType: 'final-hold',
+    ownDistribution: [{ value: 6, probability: 1 }],
+    opponentDistributions: [{ player: caller, distribution: [{ value: 5, probability: 1 }] }]
+  });
+  assert.equal(successfulCall.metadata.finalTurnOutcome.callerSuccessProbability, 1);
+  assert.equal(successfulCall.metadata.finalTurnOutcome.callerFailureProbability, 0);
+  assert.equal(successfulCall.metadata.finalTurnOutcome.callerExpectedTotal, 40);
 });

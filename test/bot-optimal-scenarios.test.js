@@ -71,7 +71,9 @@ function harness(options) {
       return entry || { state: 'unknown', confidence: 0, card: null, source: 'human unknown' };
     },
     activePlayablePlayers: () => state.players,
-    isProtectedSpecialTarget: () => false,
+    isProtectedSpecialTarget: (playerId) => !!(
+      state.round.dutchCallerId && state.round.dutchCallerId === playerId
+    ),
     findActiveIndexFrom: (start) => start % state.players.length,
     randomBetween: (min, max) => (min + max) / 2,
     random: () => 0.5
@@ -1183,4 +1185,85 @@ test('bot diagnostics retain hidden decision state outside the public game log',
   assert.equal(setup.state.botDiagnostics[0].decision, 'draw-source');
   assert.equal(setup.state.botDiagnostics[1].decision, 'dutch');
   assert.equal(setup.state.botDiagnostics[1].actualHands[0].score, 3);
+});
+
+test('forced final turns use the dedicated evaluator and preserve a confirmed low card', () => {
+  const setup = harness({
+    own: [card('2')],
+    opponents: [[card('5')]],
+    pile: card('4')
+  });
+  setup.state.round.dutchCallerId = setup.opponents[0].id;
+  setup.state.round.dutchQueue = [];
+
+  const hold = setup.decisions.currentEvaluation(setup.bot, 'final-hold');
+  const draw = setup.decisions.evaluateDrawSources(setup.bot);
+
+  assert.equal(hold.turnsRemaining, 0);
+  assert.equal(hold.metadata.finalTurnOutcome.dedicated, true);
+  assert.equal(hold.metadata.finalTurnOutcome.ignoresLongTermValue, true);
+  assert.equal(draw.pile, null);
+  assert.equal(draw.selected.actionType, 'draw-deck');
+});
+
+test('final-turn pile cards require guaranteed improvement when the replaced card is uncertain', () => {
+  const uncertain = harness({
+    own: [card('10'), card('2')],
+    ownUnknown: true,
+    opponents: [[card('5')]],
+    pile: card('5')
+  });
+  uncertain.state.round.dutchCallerId = uncertain.opponents[0].id;
+  uncertain.state.round.dutchQueue = [];
+  assert.equal(uncertain.decisions.evaluateDrawSources(uncertain.bot).pile, null);
+
+  const guaranteed = harness({
+    own: [card('10'), card('2')],
+    opponents: [[card('5')]],
+    pile: card('5')
+  });
+  guaranteed.state.round.dutchCallerId = guaranteed.opponents[0].id;
+  guaranteed.state.round.dutchQueue = [];
+  const pile = guaranteed.decisions.evaluateDrawSources(guaranteed.bot).pile;
+  assert.ok(pile);
+  assert.equal(pile.metadata.finalTurnPile.guaranteedScoreReduction, true);
+});
+
+test('final-turn throw-ins are evaluated as immediate score outcomes without future value', () => {
+  const setup = harness({
+    own: [card('9'), card('2')],
+    opponents: [[card('5')]],
+    throwIn: { open: true, rank: '9' }
+  });
+  setup.state.round.dutchCallerId = setup.opponents[0].id;
+  setup.state.round.dutchQueue = [];
+
+  const candidate = setup.decisions.botThrowInCandidate(setup.bot);
+  assert.ok(candidate);
+  assert.equal(candidate.index, 0);
+  assert.equal(candidate.futureThrowInScoreSaving, 0);
+  assert.equal(candidate.metadata.finalTurnOutcome.dedicated, true);
+  assert.ok(candidate.metadata.finalTurnOutcome.expectedOwnTotal < setup.bot.total + 11);
+});
+
+test('final-turn Jacks keep only swaps that materially change the round outcome', () => {
+  const useful = harness({
+    own: [card('9')],
+    opponents: [[card('5')], [card('2')]]
+  });
+  useful.state.round.dutchCallerId = useful.opponents[0].id;
+  useful.state.round.dutchQueue = [];
+  const candidates = useful.decisions.botJackCandidates(useful.bot);
+
+  assert.ok(candidates.length > 0);
+  assert.equal(candidates.every((candidate) => candidate.metadata.finalTurnMaterialImpact), true);
+  assert.ok(candidates[0].metadata.finalTurnOutcome.expectedOwnTotal < useful.bot.total + 9);
+
+  const harmful = harness({
+    own: [card('2')],
+    opponents: [[card('5')], [card('9')]]
+  });
+  harmful.state.round.dutchCallerId = harmful.opponents[0].id;
+  harmful.state.round.dutchQueue = [];
+  assert.deepEqual(harmful.decisions.botJackCandidates(harmful.bot), []);
 });

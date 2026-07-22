@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.35
+- added a dedicated bot evaluator for final turns after another player calls Dutch
+- prioritized guaranteed score reductions, immediate throw-ins, and protection of confirmed low cards
+- required discard-pile takes and special actions to produce a concrete final-round or score-threshold benefit
+- compared normal scoring, Dutch success and failure, and exact 50/100 halving outcomes for final-turn actions
+
 ## 1.3.34
 - increased discard-gift penalties for Aces, red Kings, low cards, and ranks the next player can throw in
 - scaled discard danger using card count, known low cards, Dutch-call probability, and known high-card replacement value
