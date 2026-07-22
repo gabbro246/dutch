@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.38
+- saved every bot tournament in its own timestamped `game-logs` subfolder
+- wrote a compressed full post-game replay log for every tournament game as it completes, avoiding loss of completed logs if a later game stops
+- added a `tournament-summary.json` with the benchmark report and complete game-log list
+- allowed the bot replay CLI to load the compressed tournament logs directly
+
 ## 1.3.37
 - added deterministic game RNG recording with complete shuffled deck order, initial hands, bot memory, strategy candidates, selected actions, and rollout seeds
 - added post-game counterfactual replay checkpoints and a CLI for evaluating every legal action from the same hidden deck and initial state

@@ -14,6 +14,19 @@ Node.js must be installed first. If it is not installed, see the [Node.js instal
 
 It can also be hosted on Home Assistant OS using [gabbro246/dutch-haos](https://github.com/gabbro246/dutch-haos).
 
+## Bot replay tooling
+
+Finished-game logs contain a post-game-only deterministic replay archive with the shuffled deck, initial hands, RNG state, bot memory, evaluated candidates, and selected actions. This private data is never included in a live player or spectator view.
+
+Bot benchmark tournaments create a timestamped subfolder inside `game-logs`. Every simulated game is saved there as a gzip-compressed full post-game log, alongside `tournament-summary.json`. The replay command accepts these `.txt.gz` logs directly.
+
+Inspect every legal counterfactual recorded at a strategy tick with:
+
+```sh
+npm run replay:bots -- <finished-log.txt> <strategy-tick> [round] [bot-id]
+```
+
+Code-based replay tests can import `counterfactualReplay` from `lib/bot-replay.js` and supply an evaluator callback. Every candidate receives an isolated copy of the same checkpoint, hidden deck, bot memory, initial state, and RNG position.
 
 ## How to Play
 
