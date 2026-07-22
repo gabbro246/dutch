@@ -14,6 +14,7 @@ Node.js must be installed first. If it is not installed, see the [Node.js instal
 
 It can also be hosted on Home Assistant OS using [gabbro246/dutch-haos](https://github.com/gabbro246/dutch-haos).
 
+
 ## How to Play
 
 **Goal** Finish each round with as few points as possible. The player with the lowest total score at the end of the game wins.

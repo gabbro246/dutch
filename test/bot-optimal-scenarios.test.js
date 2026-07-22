@@ -290,6 +290,12 @@ test('a deliberate failed Dutch call requires exact arithmetic that lowers the t
     outcome.exactThreshold && outcome.totalAfterHalving === 25 && outcome.beneficialFailure
   )));
   assert.equal(beneficial.decisions.botShouldCallDutch(beneficial.bot), true);
+  const exception = beneficial.state.botDiagnostics.at(-1).exception;
+  assert.ok(exception.types.includes('above-five-dutch-call'));
+  assert.ok(exception.types.includes('deliberate-round-loss'));
+  assert.ok(exception.reasons.includes('exact-threshold-beneficial-failure'));
+  assert.ok(exception.calculatedScoreConsequence.exactThresholdOutcomeProbability >= 0.9);
+  assert.equal(typeof exception.calculatedScoreConsequence.actionValueDifference, 'number');
 
   const nonExact = harness({
     own: [card('6')],
@@ -1333,4 +1339,46 @@ test('unknown actual cards cannot change live decisions built from identical mem
   assert.equal(jackCandidates.every((candidate) => (
     candidate.a.card === null && candidate.b.card === null
   )), true);
+});
+
+
+test('regression: a Dutch-ready three is not replaced by a four', () => {
+  const setup = harness({
+    own: [card('3'), card('2')],
+    opponents: [[card('10'), card('9')]]
+  });
+  const replacement = setup.decisions.evaluateReplacement(setup.bot, card('4'), 0);
+
+  assert.equal(replacement.metadata.protection.worsensConfirmedCard, true);
+  assert.equal(replacement.eligible, false);
+  assert.equal(replacement.rejectionReason, 'protected-confirmed-low-card');
+});
+
+test('regression: weak three-or-four draws do not justify replacing an Ace', () => {
+  for (const rank of ['3', '4']) {
+    const setup = harness({
+      own: [card('A'), card('2')],
+      opponents: [[card('10'), card('9'), card('8'), card('7')]]
+    });
+    assert.equal(setup.decisions.shouldBotSwapDrawn(setup.bot, card(rank)), false);
+    const selected = setup.state.botDiagnostics.at(-1);
+    assert.equal(selected.decision, 'draw-response');
+    assert.equal(selected.selected, 'discard-drawn');
+  }
+});
+
+test('regression: a two is not replaced by a three on the final turn', () => {
+  const setup = harness({
+    own: [card('2')],
+    opponents: [[card('5')]],
+    pile: card('3')
+  });
+  setup.state.round.dutchCallerId = setup.opponents[0].id;
+  setup.state.round.dutchQueue = [];
+
+  const replacement = setup.decisions.evaluateReplacement(setup.bot, setup.state.round.discard.at(-1), 0);
+  const draw = setup.decisions.evaluateDrawSources(setup.bot);
+  assert.equal(replacement.eligible, false);
+  assert.equal(draw.pile, null);
+  assert.equal(draw.selected.actionType, 'draw-deck');
 });

@@ -77,6 +77,7 @@ test('build view reveals only cards visible to the viewer', () => {
     ],
     log: [],
     botDiagnostics: [{ actualHands: [{ score: 2 }] }],
+    replayArchive: { gameSeed: 123, rounds: [{ shuffledDeckOrder: ['secret'] }] },
     roundNumber: 1,
     scoreHistory: [],
     gameStartedAt: 0,
@@ -109,6 +110,7 @@ test('build view reveals only cards visible to the viewer', () => {
   assert.equal(view.inactivityTimeoutMinutes, 15);
   assert.equal(view.canChangeGameTarget, true);
   assert.equal(Object.hasOwn(view, 'botDiagnostics'), false);
+  assert.equal(Object.hasOwn(view, 'replayArchive'), false);
   assert.equal(view.round.players[0].cards[0].back, false);
   assert.equal(view.round.players[0].cards[0].rank, '2');
   assert.equal(view.round.players[0].cards[1].back, true);

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.37
+- added deterministic game RNG recording with complete shuffled deck order, initial hands, bot memory, strategy candidates, selected actions, and rollout seeds
+- added post-game counterfactual replay checkpoints and a CLI for evaluating every legal action from the same hidden deck and initial state
+- kept replay archives and actual hidden-card diagnostics out of all live player and spectator views, exposing them only in finished-game logs
+- logged exact reasons and score consequences when bots worsen known cards, call Dutch above five, deliberately lose, or expose a red King
+- added regressions for protected low cards and Aces, final-turn degradation, red Kings, speculative Dutch calls, exact-50 failures, and disruptive Jack swaps
+
 ## 1.3.36
 - optimized bot actions around expected post-round totals, threshold adjustments, target-crossing risk, opponent totals, and estimated game-win probability
 - stored confidence-aware estimates for every card position, including remembered rank, knowledge source, and the last position-changing event

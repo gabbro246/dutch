@@ -43,7 +43,7 @@ function fakeSocket(id) {
   };
 }
 
-function serviceFor() {
+function serviceFor(options = {}) {
   const io = fakeIo();
   const calls = {
     intervals: [],
@@ -66,7 +66,8 @@ function serviceFor() {
     },
     clearIntervalFn(interval) {
       calls.clearedIntervals.push(interval);
-    }
+    },
+    ...options
   });
   return { services, io, calls };
 }
@@ -111,5 +112,50 @@ test('registered sockets can join and update waiting-room settings', () => {
     assert.deepEqual(calls.clearedIntervals, calls.intervals);
   } finally {
     if (calls.clearedIntervals.length === 0) services.close();
+  }
+});
+
+
+test('fixed-seed games record the full private shuffle and initial state without exposing it live', () => {
+  function startedGame() {
+    const setup = serviceFor({ gameSeed: 424242 });
+    const first = fakeSocket('socket-a');
+    const second = fakeSocket('socket-b');
+    setup.io.sockets.sockets.set(first.id, first);
+    setup.io.sockets.sockets.set(second.id, second);
+    setup.io.handlers.connection(first);
+    setup.io.handlers.connection(second);
+    first.handlers.join({ name: 'Ada', token: 'ada-seed-token' });
+    second.handlers.join({ name: 'Ben', token: 'ben-seed-token' });
+    first.handlers.startGame();
+    return { ...setup, first, second };
+  }
+
+  const one = startedGame();
+  const two = startedGame();
+  try {
+    const firstArchive = one.services.getState().replayArchive;
+    const secondArchive = two.services.getState().replayArchive;
+    assert.equal(firstArchive.gameSeed, 424242);
+    assert.equal(firstArchive.rounds.length, 1);
+    assert.equal(firstArchive.rounds[0].shuffledDeckOrder.length, 52);
+    assert.deepEqual(
+      firstArchive.rounds[0].initialHands.map((entry) => entry.cards.length),
+      [4, 4]
+    );
+    assert.deepEqual(
+      firstArchive.rounds[0].shuffledDeckOrder,
+      secondArchive.rounds[0].shuffledDeckOrder
+    );
+    assert.deepEqual(firstArchive.initialState.round.deck, secondArchive.initialState.round.deck);
+    const liveStatePayloads = one.first.emitted
+      .filter((event) => event.event === 'state')
+      .map((event) => event.payload);
+    assert.ok(liveStatePayloads.length > 0);
+    assert.ok(liveStatePayloads.every((view) => !Object.hasOwn(view, 'replayArchive')));
+    assert.ok(liveStatePayloads.every((view) => !Object.hasOwn(view, 'botDiagnostics')));
+  } finally {
+    one.services.close();
+    two.services.close();
   }
 });
