@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.46
+- allowed throw-ins while a player decides what to do with a card drawn from the deck
+- kept drawn cards face-up when their player discards them, while hiding them from everyone else until the reveal
+
 ## 1.3.45
 - added clear descriptions beneath every game setting to explain game length, inactivity timeouts, deck amounts, changed-card highlights, and appearance options
 

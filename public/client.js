@@ -1306,22 +1306,34 @@ function animateStateTransition(previousState, state, before, after) {
         if (isPendingPileReveal) {
           const moveDuration = Number(pendingReveal.moveMs) || 360;
           const flipDuration = Number(pendingReveal.flipMs) || 260;
-          const backHtml = cardHtml({
-            id: cardId,
-            back: true,
-            deckColor: (state.round.discardTop && state.round.discardTop.deckColor) || 'blue'
-          }, false);
-          const move = animateCardMove(cardId, sourceData, targetData, moveDuration, backHtml);
-          const turnAtDestination = () => {
-            const latestTarget = cardElement(cardId, current.locationKey);
-            if (latestTarget) {
-              animateFaceTurn(latestTarget, { html: backHtml }, flipDuration, 0, (details = {}) => {
-                emit('pileRevealMidpoint', { cardId, reducedMotion: !!details.reducedMotion });
-              });
-            }
-          };
-          if (move) move.afterFinish = turnAtDestination;
-          else turnAtDestination();
+          const viewerAlreadySawCard = previous.locationKey === 'drawn' && previous.faceKind === 'front';
+          if (viewerAlreadySawCard) {
+            const notifyRevealMidpoint = (delay = flipDuration / 2) => {
+              window.setTimeout(() => {
+                emit('pileRevealMidpoint', { cardId, reducedMotion: false });
+              }, delay);
+            };
+            const move = animateCardMove(cardId, sourceData, targetData, moveDuration);
+            if (move) move.afterFinish = notifyRevealMidpoint;
+            else notifyRevealMidpoint(moveDuration + flipDuration / 2);
+          } else {
+            const backHtml = cardHtml({
+              id: cardId,
+              back: true,
+              deckColor: (state.round.discardTop && state.round.discardTop.deckColor) || 'blue'
+            }, false);
+            const move = animateCardMove(cardId, sourceData, targetData, moveDuration, backHtml);
+            const turnAtDestination = () => {
+              const latestTarget = cardElement(cardId, current.locationKey);
+              if (latestTarget) {
+                animateFaceTurn(latestTarget, { html: backHtml }, flipDuration, 0, (details = {}) => {
+                  emit('pileRevealMidpoint', { cardId, reducedMotion: !!details.reducedMotion });
+                });
+              }
+            };
+            if (move) move.afterFinish = turnAtDestination;
+            else turnAtDestination();
+          }
         } else {
           animateCardMove(cardId, sourceData, targetData);
         }

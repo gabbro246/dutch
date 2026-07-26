@@ -166,7 +166,7 @@ test('socket gameplay flow covers turns, throw-ins, specials, Dutch, reconnect, 
   assert.equal(getState().round.throwIn.open, true);
   await firstClient.emit('takeDeck');
   await waitFor(() => getState().round.drawn && getState().round.drawn.playerId === firstPlayerId && getState().round.drawn.source === 'deck', 'Current player did not draw from deck.');
-  assert.equal(getState().round.throwIn.open, false);
+  assert.equal(getState().round.throwIn.open, true);
   assert.equal(getState().round.deck.length, 42);
   assert.equal(getState().round.discard.length, 1);
 

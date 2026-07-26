@@ -107,7 +107,7 @@ function actionsFor(state) {
   return { actions: createGameActions(deps), calls };
 }
 
-test('taking deck and pile cards sets drawn card and closes throw-in', () => {
+test('taking a deck card keeps throw-in open while taking the pile closes it', () => {
   const state = stateWithTurn();
   const { actions, calls } = actionsFor(state);
 
@@ -115,14 +115,27 @@ test('taking deck and pile cards sets drawn card and closes throw-in', () => {
   assert.equal(deckCard.id, 'd2');
   assert.equal(state.round.drawn.card.id, 'd2');
   assert.equal(state.round.drawn.source, 'deck');
-  assert.equal(state.round.throwIn.open, false);
+  assert.equal(state.round.throwIn.open, true);
 
   state.round.drawn = null;
-  state.round.throwIn.open = true;
   const pileCard = actions.takePileForPlayer(state.players[0]);
   assert.equal(pileCard.id, 'p1');
   assert.equal(state.round.drawn.source, 'pile');
+  assert.equal(state.round.throwIn.open, false);
   assert.deepEqual(calls.pileTakes, [{ playerId: 'ada', card: pileCard }]);
+});
+
+test('a player can throw in after the current player draws from the deck', () => {
+  const state = stateWithTurn();
+  const { actions } = actionsFor(state);
+
+  state.players[1].cards[0].rank = '8';
+  assert.ok(actions.takeDeckForPlayer(state.players[0]));
+  const result = actions.throwInForPlayer(state.players[1], 'b1');
+
+  assert.equal(result.valid, true);
+  assert.equal(state.round.drawn.card.id, 'd2');
+  assert.equal(state.players[1].cards.some((item) => item.id === 'b1'), false);
 });
 
 test('discarding and swapping drawn cards complete the turn', () => {

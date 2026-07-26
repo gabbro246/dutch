@@ -196,4 +196,7 @@ test('controls reflect current player draw and turn-complete states', () => {
   assert.equal(afterDraw.round.controls.canTake, false);
   assert.equal(afterDraw.round.controls.canDiscardDrawn, true);
   assert.equal(afterDraw.round.drawn.card.back, false);
+
+  const observerAfterDraw = viewFor(state).buildView('ben');
+  assert.equal(observerAfterDraw.round.drawn.card.back, true);
 });
