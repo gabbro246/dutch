@@ -481,27 +481,30 @@ function renderWaiting(state) {
             <summary>Settings</summary>
             <div class="drawer-content drawer-animation-content waiting-selectors">
               <label class="setting-row" for="gameTargetSelect">
-                <span>Game length</span>
+                <span class="setting-name">Game length</span>
                 <select id="gameTargetSelect">
                   <option value="single" ${state.singleRound ? 'selected' : ''}>Single round</option>
                   <option value="50" ${!state.singleRound && state.gameTarget === 50 ? 'selected' : ''}>Short game, 50 points</option>
                   <option value="100" ${!state.singleRound && state.gameTarget === 100 ? 'selected' : ''}>Full game, 100 points</option>
                 </select>
+                <span class="setting-description">Choose how long the game lasts: a normal game ends when a player passes 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.</span>
               </label>
               ${inactivityTimeoutSettingHtml(state, 'inactivityTimeoutSelect')}
               <label class="setting-row" for="deckSettingSelect">
-                <span>Deck amount</span>
+                <span class="setting-name">Deck amount</span>
                 <select id="deckSettingSelect">
                   <option value="one" ${state.deckSetting === 'one' ? 'selected' : ''} ${state.oneDeckDisabled ? 'disabled' : ''}>One deck</option>
                   <option value="two" ${state.deckSetting === 'two' ? 'selected' : ''}>Two decks</option>
                 </select>
+                <span class="setting-description">More decks make the game less predictable and add more special cards, though some may remain undealt. Two decks are required for more than four players.</span>
               </label>
               <label class="setting-row" for="themeSelect">
-                <span>Appearance</span>
+                <span class="setting-name">Appearance</span>
                 <select id="themeSelect">
                   <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>Light mode</option>
                   <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>Dark mode</option>
                 </select>
+                <span class="setting-description">Choose the light or dark color theme.</span>
               </label>
             </div>
           </details>
@@ -1011,10 +1014,11 @@ function inactivityTimeoutSettingHtml(state, id) {
   const minutes = state.inactivityTimeoutMinutes || 15;
   return `
     <label class="setting-row" for="${id}">
-      <span>Inactive after</span>
+      <span class="setting-name">Inactive after</span>
       <select id="${id}">
         ${[15, 30, 60, 90].map((value) => `<option value="${value}" ${minutes === value ? 'selected' : ''}>${value} minutes</option>`).join('')}
       </select>
+      <span class="setting-description">If nobody plays for this long, the game ends and the room is freed for new players. Choose a longer time if everyone plans to return.</span>
     </label>
   `;
 }
@@ -1053,27 +1057,30 @@ function renderSideArea(state) {
           ${renderDetails('settings', 'Settings', `
             <div class="drawer-content waiting-selectors">
               <label class="setting-row" for="inGameTargetSelect">
-                <span>Game length</span>
+                <span class="setting-name">Game length</span>
                 <select id="inGameTargetSelect" ${state.canChangeGameTarget ? '' : 'disabled'}>
                   <option value="single" ${state.singleRound ? 'selected' : ''} ${state.canSelectSingleRound ? '' : 'disabled'}>Single round</option>
                   <option value="50" ${!state.singleRound && state.gameTarget === 50 ? 'selected' : ''}>Short game, 50 points</option>
                   <option value="100" ${!state.singleRound && state.gameTarget === 100 ? 'selected' : ''}>Full game, 100 points</option>
                 </select>
+                <span class="setting-description">Choose how long the game lasts: a normal game ends when a player passes 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.</span>
               </label>
               ${inactivityTimeoutSettingHtml(state, 'gameInactivityTimeoutSelect')}
               <label class="setting-row" for="highlightChangedCardsSelect">
-                <span>Changed cards</span>
+                <span class="setting-name">Changed cards</span>
                 <select id="highlightChangedCardsSelect">
                   <option value="true" ${state.highlightChangedCards !== false ? 'selected' : ''}>Highlight</option>
                   <option value="false" ${state.highlightChangedCards === false ? 'selected' : ''}>Don't highlight</option>
                 </select>
+                <span class="setting-description">Highlight cards that were changed recently for all players, making swaps and other changes easier to follow.</span>
               </label>
               <label class="setting-row" for="gameThemeSelect">
-                <span>Appearance</span>
+                <span class="setting-name">Appearance</span>
                 <select id="gameThemeSelect">
                   <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>Light mode</option>
                   <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>Dark mode</option>
                 </select>
+                <span class="setting-description">Choose the light or dark color theme.</span>
               </label>
             </div>
           `, false)}

@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.45
+- added clear descriptions beneath every game setting to explain game length, inactivity timeouts, deck amounts, changed-card highlights, and appearance options
+
 ## 1.3.44
 - added a single-round game option that can only be selected before the first round ends
 - updated in-game information messages to clarify turn state, game results, and temporary gameplay events

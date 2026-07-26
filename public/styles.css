@@ -348,12 +348,20 @@ summary {
 .setting-row {
   display: grid;
   grid-template-columns: 120px minmax(0, 1fr);
-  gap: 10px;
+  column-gap: 10px;
+  row-gap: 3px;
   align-items: center;
   color: var(--subtle-text);
 }
 
-.setting-row span { white-space: nowrap; }
+.setting-name { white-space: nowrap; }
+
+.setting-description {
+  grid-column: 1 / -1;
+  color: var(--muted-color);
+  font-size: 12px;
+  line-height: 1.35;
+}
 
 .waiting-selectors select {
   min-width: 0;
