@@ -200,9 +200,12 @@
   `;
   }
 
-  function fullRulesHtml(gameTarget) {
+  function fullRulesHtml(gameTarget, singleRound = false) {
+    const gameLengthText = singleRound
+      ? 'In a single-round game, the game ends after the first round. The player with the fewest total points wins.'
+      : `The player with the most points in the previous round starts the next round. As soon as a player has more than ${gameTarget} points after scoring and halving, the game ends. The winner is the player with the fewest total points.`;
     return `
-    <p>Dutch is a card game in which players try to collect as few points as possible over several rounds. It is played with a normal deck of cards without jokers. With many players, two decks can be shuffled together.</p>
+    <p>Dutch is a card game in which players try to collect as few points as possible. It is played with a normal deck of cards without jokers. With many players, two decks can be shuffled together.</p>
     <p>At the beginning, each player receives four cards face down. Then each player may look at exactly two of their own cards. These cards are then placed face down again. After every player has finished peeking, one card is turned up from the draw pile to start the face-up discard pile. The remaining cards form the face-down draw pile.</p>
     <p>Play goes in turn order. The player whose turn it is draws one card, either from the draw pile or from the discard pile. If the player takes the card from the discard pile, they must swap it with one of their own cards. If the player takes a card from the draw pile, they may either swap it with one of their own cards or place it directly face up on the discard pile. If one of their own cards is replaced, that card goes face up onto the discard pile.</p>
     <p>Number cards count their value. Ace counts 1 point. Jack counts 11 points. Queen counts 12 points. Heart King and Diamond King count 0 points. Club King and Spade King count 13 points.</p>
@@ -211,7 +214,7 @@
     <p>Anyone who throws in incorrectly takes their card back and receives one unknown face-down penalty card.</p>
     <p>If a player believes they have 5 points or less, they may say <strong>Dutch</strong> at the end of their turn. After that, every other player gets exactly one more turn. Then everyone reveals their cards and counts the points.</p>
     <p>If the Dutch caller has 5 points or less and nobody has fewer points, they receive 0 points for that round. If they have more than 5 points or another player has fewer points, their points are doubled. All other players receive their normal points.</p>
-    <p>After each round, points are added to the total score. If a player reaches exactly 50 or exactly 100 points, their score is halved. The player with the most points in the previous round starts the next round. As soon as a player has more than ${gameTarget} points after scoring and halving, the game ends. The winner is the player with the fewest total points.</p>
+    <p>After each round, points are added to the total score. If a player reaches exactly 50 or exactly 100 points, their score is halved. ${gameLengthText}</p>
   `;
   }
 

@@ -54,6 +54,7 @@ function actionsFor(state) {
     changedCards: [],
     pileHighlights: [],
     reveals: [],
+    infoEvents: [],
     scheduled: [],
     broadcasts: 0
   };
@@ -84,6 +85,7 @@ function actionsFor(state) {
       calls.pileHighlights.push({ kind, ms });
       state.round.pileHighlight = { kind };
     },
+    showInfoEvent: (text) => calls.infoEvents.push(text),
     findPlayer: (playerId) => state.players.find((item) => item.id === playerId),
     isProtectedSpecialTarget: () => false,
     observeAceForAllBots: (actorId, targetId) => calls.aceObservations.push({ actorId, targetId }),
@@ -162,7 +164,8 @@ test('throw-in handles valid and wrong cards', () => {
     observationActorId: 'ada',
     removedSlotOwnerId: 'ada',
     removedSlotIndex: 0,
-    removedSlotSource: 'throw-in'
+    removedSlotSource: 'throw-in',
+    infoEventText: 'ADA threw in an 8c'
   });
   assert.equal(calls.pushDiscard.reason, 'threw in');
   assert.deepEqual(calls.removedAll, []);
@@ -197,11 +200,13 @@ test('Ace and Queen special actions mutate targets and finish the special', () =
   assert.deepEqual(calls.aceObservations, [{ actorId: 'ada', targetId: 'ben' }]);
   assert.deepEqual(calls.changedCards, [{ ownerId: 'ben', cardId: 'd2' }]);
   assert.equal(state.round.specialQueue.length, 0);
+  assert.deepEqual(calls.infoEvents, ['ADA used Ace add']);
 
   state.round.specialQueue = [{ type: 'Q', actorId: 'ada' }];
   const queenUsed = actions.queenPeekForPlayer(state.players[0], 'b1');
   assert.equal(queenUsed, true);
   assert.deepEqual(calls.reveals.at(-1), { playerId: 'ada', cardId: 'b1', ms: 3000 });
   assert.deepEqual(calls.cardHighlights.at(-1), { cardId: 'b1', kind: 'peek', ms: 3000, options: { exceptViewerId: 'ada' } });
+  assert.deepEqual(calls.infoEvents, ['ADA used Ace add', 'ADA used Queen peek']);
   assert.equal(state.round.specialQueue.length, 0);
 });

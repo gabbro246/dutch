@@ -9,6 +9,7 @@ function runtimeFor(overrides = {}) {
     roundNumber: 3
   };
   const calls = {
+    directories: [],
     appended: [],
     logs: [],
     errors: []
@@ -27,6 +28,10 @@ function runtimeFor(overrides = {}) {
     port: 3000,
     now: () => new Date('2026-01-02T03:04:05.000Z'),
     fs: {
+      mkdir: (directory, options, callback) => {
+        calls.directories.push({ directory, options });
+        callback(null);
+      },
       appendFile: (filePath, content, callback) => {
         calls.appended.push({ filePath, content });
         callback(null);
@@ -60,6 +65,7 @@ test('adminLog writes a timestamped JSON line', () => {
   runtime.adminLog('game_started', { players: ['Ada'], target: 50 });
 
   assert.equal(calls.appended.length, 1);
+  assert.deepEqual(calls.directories, [{ directory: '/tmp', options: { recursive: true } }]);
   assert.equal(calls.appended[0].filePath, '/tmp/dutch-usage.log');
   assert.deepEqual(JSON.parse(calls.appended[0].content), {
     datetime: '2026-01-02T03:04:05.000Z',
@@ -73,6 +79,7 @@ test('adminLog writes a timestamped JSON line', () => {
 test('adminLog reports append errors through the injected console', () => {
   const { runtime, calls } = runtimeFor({
     fs: {
+      mkdir: (directory, options, callback) => callback(null),
       appendFile: (filePath, content, callback) => callback(new Error('disk full'))
     }
   });
@@ -82,8 +89,22 @@ test('adminLog reports append errors through the injected console', () => {
   assert.deepEqual(calls.errors, ['Could not write admin usage log: disk full']);
 });
 
+test('adminLog reports directory creation errors without attempting to append', () => {
+  const { runtime, calls } = runtimeFor({
+    fs: {
+      mkdir: (directory, options, callback) => callback(new Error('permission denied')),
+      appendFile: () => calls.appended.push('unexpected')
+    }
+  });
+
+  runtime.adminLog('game_started');
+
+  assert.deepEqual(calls.appended, []);
+  assert.deepEqual(calls.errors, ['Could not create admin usage log directory: permission denied']);
+});
+
 test('terminal helpers format game start, game end, settings, players, and scores', () => {
-  const { runtime, calls } = runtimeFor();
+  const { runtime, calls, state } = runtimeFor();
 
   assert.equal(runtime.terminalSettingsText(), 'two decks, target 50 points');
   assert.equal(runtime.terminalPlayerNames(), 'Ada, Ben (bot)');
@@ -96,6 +117,9 @@ test('terminal helpers format game start, game end, settings, players, and score
     '[Dutch] 2026-01-02T03:04:05.000Z Game started. Players: Ada, Ben (bot). Settings: two decks, target 50 points.',
     '[Dutch] 2026-01-02T03:04:05.000Z Game ended. Winner: Ada. Reason: score target reached. Rounds: 3. Final scores: Ada: 12 pts, round 4; Ben: 20 pts.'
   ]);
+
+  state.singleRound = true;
+  assert.equal(runtime.terminalSettingsText(), 'two decks, single round');
 });
 
 test('hostAddresses and startup logging use external IPv4 addresses', () => {

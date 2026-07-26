@@ -64,6 +64,18 @@ test('hidden bot diagnostics appear only in the finished-game log section', () =
   assert.match(text, new RegExp(JSON.stringify(diagnostic).replace(/[.*+?^$()|[\]\\]/g, '\\$&')));
 });
 
+test('finished game log labels a single-round game', () => {
+  const text = finishedGameLogText({
+    singleRound: true,
+    gameTarget: 100,
+    roundNumber: 1,
+    scoreHistory: [],
+    log: []
+  });
+
+  assert.match(text, /Target: Single round\nRounds: 1\n/);
+});
+
 test('log list summary ranks players by final score without winner text', () => {
   const text = finishedGameLogText({
     savedAt: new Date(2026, 0, 2, 3, 4, 5),

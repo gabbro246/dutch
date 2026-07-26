@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.44
+- added a single-round game option that can only be selected before the first round ends
+- updated in-game information messages to clarify turn state, game results, and temporary gameplay events
+- moved the Next round control from the information panel to the player's action area
+- created the game-log directory automatically before writing the admin usage log
+
 ## 1.3.43
 * Fixed stuttery pile reveals and preserved flips during rerenders.
 * Cards now move face-down and reveal at the 50% rotation point.

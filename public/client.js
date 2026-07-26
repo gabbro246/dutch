@@ -483,8 +483,9 @@ function renderWaiting(state) {
               <label class="setting-row" for="gameTargetSelect">
                 <span>Game length</span>
                 <select id="gameTargetSelect">
-                  <option value="50" ${state.gameTarget === 50 ? 'selected' : ''}>Short game, 50 points</option>
-                  <option value="100" ${state.gameTarget === 100 ? 'selected' : ''}>Full game, 100 points</option>
+                  <option value="single" ${state.singleRound ? 'selected' : ''}>Single round</option>
+                  <option value="50" ${!state.singleRound && state.gameTarget === 50 ? 'selected' : ''}>Short game, 50 points</option>
+                  <option value="100" ${!state.singleRound && state.gameTarget === 100 ? 'selected' : ''}>Full game, 100 points</option>
                 </select>
               </label>
               ${inactivityTimeoutSettingHtml(state, 'inactivityTimeoutSelect')}
@@ -748,40 +749,51 @@ function renderStatus(state) {
   const r = state.round;
   let text = '';
   let textHtml = '';
-  if (r.stage === 'peek') {
+  const temporaryEvent = r.wrongThrowIn
+    ? `${r.wrongThrowIn.playerName || 'A player'} made a wrong throw-in and gets a penalty card.`
+    : (r.infoEvent && r.infoEvent.text ? r.infoEvent.text + '.' : '');
+  if (r.stage === 'roundEnd') {
+    text = 'Round ended. Cards are revealed and points were counted.';
+  } else if (r.stage === 'gameEnd') {
+    const gameLength = state.singleRound ? 'single round' : `${state.gameTarget} point`;
+    textHtml = 'Game ended. <strong>' + escapeHtml(r.winnerName || 'Unknown player') + ' won the ' + escapeHtml(gameLength) + ' game.</strong>';
+  } else if (temporaryEvent) {
+    text = temporaryEvent;
+  } else if (r.stage === 'peek') {
     text = 'Start peek: each player must look at exactly two own cards.';
   } else if (r.stage === 'opening') {
     text = 'Opening card…';
-  } else if (r.stage === 'revealing') {
-    text = 'Revealing card…';
   } else if (r.stage === 'special' && r.special) {
     text = `${r.special.actorName} may use ${specialLabel(r.special.type)} or click Next player.`;
-  } else if (r.stage === 'roundEnd') {
-    text = 'Round ended. Cards are revealed and points were counted.';
-  } else if (r.stage === 'gameEnd') {
-    textHtml = 'Game ended. <strong>Winner: ' + escapeHtml(r.winnerName || 'unknown') + '.</strong>';
   } else if (r.turnComplete && r.currentPlayerId === state.you) {
     text = 'Your turn is complete. Say Dutch or click Next player.';
   } else if (r.turnComplete) {
     text = `${r.currentPlayerName}'s turn is complete. Waiting for Next player.`;
   } else {
-    text = `${r.currentPlayerName}'s move.`;
+    text = r.dutchCallerName ? '' : `${r.currentPlayerName}'s move.`;
   }
   if (!textHtml) textHtml = escapeHtml(text);
   const statusClass = r.stage === 'gameEnd' ? 'status game-ended-status' : 'status';
   const finishActive = r.stage === 'gameEnd';
-  const dutch = r.dutchCallerName ? `<div>${escapeHtml(r.dutchCallerName)} called Dutch. ${r.dutchTurnsRemaining} player turn(s) remaining.</div>` : '';
+  let dutch = '';
+  if (r.dutchCallerName && !temporaryEvent && !['roundEnd', 'gameEnd'].includes(r.stage)) {
+    const callerName = escapeHtml(r.dutchCallerName);
+    const currentPlayerName = escapeHtml(r.currentPlayerName || 'The current player');
+    const playersAfterCurrent = Number(r.dutchTurnsRemaining) || 0;
+    dutch = playersAfterCurrent > 0
+      ? `<div>${callerName} called Dutch. ${currentPlayerName} is taking their final turn, with ${playersAfterCurrent} more ${playersAfterCurrent === 1 ? 'player' : 'players'} still to go afterward.</div>`
+      : `<div>${callerName} called Dutch. ${currentPlayerName} is taking the final turn of the round.</div>`;
+  }
   const buttons = [
     `<button data-action="endGameForAll" ${finishActive ? 'disabled' : ''}>End game for all</button>`,
     `<button data-action="leave" ${finishActive ? 'disabled' : ''}>Leave game</button>`,
-    `<button data-action="nextRound" class="expected-action" ${r.stage === 'roundEnd' ? '' : 'disabled'}>Next round</button>`,
     `<button data-action="newGame" class="expected-action" ${finishActive ? '' : 'disabled'}>Finish</button>`
   ].filter(Boolean).join('');
   return `
     <div class="${statusClass}">
       <div class="status-main">
         <div class="status-info">
-          <div>${textHtml}</div>
+          ${textHtml ? `<div>${textHtml}</div>` : ''}
           ${dutch}
         </div>
         ${buttons ? `<div class="status-actions">${buttons}</div>` : ''}
@@ -847,6 +859,7 @@ function renderOwnArea(player, state) {
       ${player.isSpectator ? '' : `<div class="row own-actions">
         <button data-action="sayDutch" class="expected-action" ${r.controls.canDutch ? '' : 'disabled'}>Dutch</button>
         <button data-action="endTurn" class="expected-action" ${r.controls.canEndTurn ? "" : "disabled"}>${endTurnLabel(state)}</button>
+        <button data-action="nextRound" class="expected-action" ${r.stage === 'roundEnd' ? '' : 'disabled'}>Next round</button>
       </div>`}
     </section>
   `;
@@ -1042,8 +1055,9 @@ function renderSideArea(state) {
               <label class="setting-row" for="inGameTargetSelect">
                 <span>Game length</span>
                 <select id="inGameTargetSelect" ${state.canChangeGameTarget ? '' : 'disabled'}>
-                  <option value="50" ${state.gameTarget === 50 ? 'selected' : ''}>Short game, 50 points</option>
-                  <option value="100" ${state.gameTarget === 100 ? 'selected' : ''}>Full game, 100 points</option>
+                  <option value="single" ${state.singleRound ? 'selected' : ''} ${state.canSelectSingleRound ? '' : 'disabled'}>Single round</option>
+                  <option value="50" ${!state.singleRound && state.gameTarget === 50 ? 'selected' : ''}>Short game, 50 points</option>
+                  <option value="100" ${!state.singleRound && state.gameTarget === 100 ? 'selected' : ''}>Full game, 100 points</option>
                 </select>
               </label>
               ${inactivityTimeoutSettingHtml(state, 'gameInactivityTimeoutSelect')}
@@ -1187,7 +1201,7 @@ function shortInstructions() {
 }
 
 function fullRules(state) {
-  return fullRulesHtml(state.gameTarget);
+  return fullRulesHtml(state.gameTarget, state.singleRound);
 }
 
 function captureAnimationSnapshot() {

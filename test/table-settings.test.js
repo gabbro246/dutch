@@ -68,19 +68,41 @@ test('setGameTarget accepts supported targets until a player reaches 50', () => 
   const state = {
     phase: 'waiting',
     gameTarget: 100,
+    singleRound: false,
+    roundNumber: 0,
     players: []
   };
   const settings = settingsFor(state);
 
+  settings.setGameTarget('single');
+  assert.equal(state.singleRound, true);
+  assert.equal(state.gameTarget, 100);
+
   settings.setGameTarget('50');
+  assert.equal(state.singleRound, false);
   assert.equal(state.gameTarget, 50);
 
   settings.setGameTarget(75);
   assert.equal(state.gameTarget, 50);
 
   state.phase = 'playing';
+  state.roundNumber = 1;
+  state.round = { stage: 'turn' };
+  settings.setGameTarget('single');
+  assert.equal(state.singleRound, true);
+
   settings.setGameTarget(100);
+  assert.equal(state.singleRound, false);
   assert.equal(state.gameTarget, 100);
+
+  state.round.stage = 'roundEnd';
+  settings.setGameTarget('single');
+  assert.equal(state.singleRound, false);
+
+  state.round = { stage: 'turn' };
+  state.roundNumber = 2;
+  settings.setGameTarget('single');
+  assert.equal(state.singleRound, false);
 
   state.players = [player('a', { total: 50 })];
   settings.setGameTarget(50);

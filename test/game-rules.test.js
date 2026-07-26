@@ -72,6 +72,20 @@ test('game ends once a player passes the target and lowest total wins', () => {
   assert.equal(scoring.winnerName, 'BEN');
 });
 
+test('single-round scoring ends after one round and lowest total wins', () => {
+  const players = [
+    player('ada', [card('9')]),
+    player('ben', [card('3')]),
+    player('cy', [card('5')])
+  ];
+
+  const scoring = applyRoundScoring(players, { gameTarget: 100, singleRound: true });
+
+  assert.equal(scoring.gameEnded, true);
+  assert.equal(scoring.winnerId, 'ben');
+  assert.equal(scoring.winnerName, 'BEN');
+});
+
 test('highest previous round score starts the next round', () => {
   const players = [
     player('ada', [], 0, { roundPoints: 7 }),

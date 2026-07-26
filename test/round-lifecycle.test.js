@@ -9,6 +9,7 @@ function freshState() {
     phase: 'waiting',
     deckSetting: 'one',
     gameTarget: 100,
+    singleRound: false,
     players: [],
     log: [],
     roundNumber: 0,
@@ -229,6 +230,43 @@ test('advance turn completes Dutch queue and ends the round', () => {
   assert.equal(getState().players[0].roundPoints, 0);
   assert.equal(getState().players[1].roundPoints, 9);
   assert.equal(getState().scoreHistory.length, 1);
+});
+
+test('single-round game ends when its first round is scored', () => {
+  const state = freshState();
+  state.phase = 'playing';
+  state.singleRound = true;
+  state.players = [
+    player('ada', [card('a1', '7')]),
+    player('ben', [card('b1', '3')])
+  ];
+  state.roundNumber = 1;
+  state.round = {
+    stage: 'turn',
+    deck: [],
+    discard: [],
+    currentPlayerIndex: 0,
+    drawn: null,
+    turnComplete: true,
+    throwIn: { open: true },
+    specialQueue: [],
+    reveals: [],
+    pileHighlight: null,
+    handHighlights: [],
+    dutchCallerId: 'ada',
+    dutchQueue: [],
+    roundWinnerIds: [],
+    winnerId: null
+  };
+  const { lifecycle, calls, getState } = lifecycleFor(state);
+
+  lifecycle.advanceTurn();
+
+  assert.equal(getState().round.stage, 'gameEnd');
+  assert.equal(getState().round.winnerId, 'ben');
+  assert.equal(calls.savedLogs, 1);
+  assert.deepEqual(calls.terminal.at(-1), { reason: 'single round completed', winner: 'BEN' });
+  assert.equal(calls.admin.at(-1).event, 'game_ended_single_round');
 });
 
 test('normal turn rotation clears changed-card highlights for the incoming player', () => {

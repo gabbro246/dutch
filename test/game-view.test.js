@@ -71,6 +71,7 @@ test('build view reveals only cards visible to the viewer', () => {
     deckSetting: 'one',
     deckColor: 'blue',
     gameTarget: 100,
+    singleRound: false,
     highlightChangedCards: true,
     players: [
       player('ada', [card('a1', '2'), card('a2', '3')]),
@@ -98,6 +99,7 @@ test('build view reveals only cards visible to the viewer', () => {
         { public: true, kind: 'wrong-throw', cardId: 'b1', exceptViewerId: '', playerId: 'ben', until: Date.now() + 60_000 }
       ],
       pileHighlight: null,
+      infoEvent: { text: 'BEN used Queen peek', until: Date.now() + 60_000 },
       handHighlights: [{ ownerId: 'ben', cardId: 'b2' }],
       dutchCallerId: null,
       dutchQueue: [],
@@ -112,6 +114,8 @@ test('build view reveals only cards visible to the viewer', () => {
   assert.equal(view.inactivityTimeoutMinutes, 15);
   assert.equal(view.highlightChangedCards, true);
   assert.equal(view.canChangeGameTarget, true);
+  assert.equal(view.canSelectSingleRound, true);
+  assert.equal(view.singleRound, false);
   assert.equal(Object.hasOwn(view, 'botDiagnostics'), false);
   assert.equal(Object.hasOwn(view, 'replayArchive'), false);
   assert.equal(view.round.players[0].cards[0].back, false);
@@ -119,10 +123,12 @@ test('build view reveals only cards visible to the viewer', () => {
   assert.equal(view.round.players[0].cards[1].back, true);
   assert.equal(view.round.players[1].cards[0].back, true);
   assert.equal(view.round.wrongThrowIn.playerId, 'ben');
+  assert.equal(view.round.wrongThrowIn.playerName, 'BEN');
   assert.equal(view.round.wrongThrowIn.cardId, 'b1');
   assert.equal(view.round.wrongThrowIn.card.back, false);
   assert.equal(view.round.wrongThrowIn.card.rank, '9');
   assert.equal(view.round.discardTop.rank, 'Q');
+  assert.deepEqual(view.round.infoEvent, { text: 'BEN used Queen peek' });
 
   state.players[0].total = 50;
   assert.equal(viewFor(state).buildView('ada').canChangeGameTarget, false);
@@ -130,6 +136,13 @@ test('build view reveals only cards visible to the viewer', () => {
   assert.equal(viewFor(state).buildView('ada').canChangeGameTarget, true);
   state.players[0].left = false;
   state.players[0].total = 0;
+
+  state.round.stage = 'roundEnd';
+  assert.equal(viewFor(state).buildView('ada').canSelectSingleRound, false);
+  state.round.stage = 'turn';
+  state.roundNumber = 2;
+  assert.equal(viewFor(state).buildView('ada').canSelectSingleRound, false);
+  state.roundNumber = 1;
 
   const observerView = viewFor(state).buildView('ben');
   assert.equal(observerView.round.players[0].cards[1].back, true);

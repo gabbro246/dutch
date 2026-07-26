@@ -117,7 +117,8 @@ test('pushDiscard creates throw-in state, queues specials, logs, and updates sta
     allowThrowIn: false,
     removedSlotOwnerId: 'ben',
     removedSlotIndex: 2,
-    removedSlotSource: 'throw-in'
+    removedSlotSource: 'throw-in',
+    infoEventText: 'Ben threw in a 4C'
   });
   assert.equal(state.round.stage, 'revealing');
   assert.deepEqual(calls.removed, []);
@@ -125,6 +126,7 @@ test('pushDiscard creates throw-in state, queues specials, logs, and updates sta
   assert.deepEqual(calls.remembered, [{ ownerId: 'ben', index: 2, card: thrown, source: 'throw-in' }]);
   assert.deepEqual(calls.removed, [{ ownerId: 'ben', index: 2, source: 'throw-in' }]);
   assert.equal(state.round.throwIn.open, false);
+  assert.deepEqual(state.round.infoEvent, { text: 'Ben threw in a 4C', until: 4490 });
 });
 
 test('discardLogText replaces explicit card placeholders and labels missing cards', () => {
@@ -169,6 +171,28 @@ test('reveal and highlight helpers schedule cleanup and remove expired state', (
   setNow(1550);
   flow.removeExpiredReveals();
   assert.equal(state.round.pileHighlight, null);
+});
+
+test('temporary info events are exposed until their cleanup time', () => {
+  const state = {
+    round: {
+      reveals: [],
+      pileHighlight: null,
+      infoEvent: null
+    }
+  };
+  const { flow, calls, setNow } = flowFor(state);
+
+  flow.showInfoEvent('Ada used Queen peek', 500);
+
+  assert.deepEqual(state.round.infoEvent, { text: 'Ada used Queen peek', until: 1500 });
+  assert.equal(calls.timeouts[0].delay, 550);
+
+  setNow(1550);
+  calls.timeouts[0].fn();
+
+  assert.equal(state.round.infoEvent, null);
+  assert.equal(calls.broadcasts, 1);
 });
 
 test('hand change highlights follow a card owner and clear at that owners next turn', () => {

@@ -62,5 +62,5 @@ When the Dutch caller has more than five points or another player has a lower sc
 All other players add the normal value of their cards to their total score.
 If a player’s total reaches exactly **50** or **100** points, that total is halved.
 
-**Starting the Next Round** The player who scored the most points in the previous round starts the next round.
-The game ends when a player exceeds 100 points after all scoring and score-halving rules have been applied. The player with the lowest total score wins.
+**Game Length** A game may last one round, use the short 50-point target, or use the full 100-point target. Single-round mode may only be selected before the first round ends.
+In a points game, the player who scored the most points in the previous round starts the next round. The game ends when a player exceeds the selected target after all scoring and score-halving rules have been applied. The player with the lowest total score wins.
