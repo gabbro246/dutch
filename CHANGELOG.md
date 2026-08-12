@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.47
+- added German
+
 ## 1.3.46
 - allowed throw-ins while a player decides what to do with a card drawn from the deck
 - kept drawn cards face-up when their player discards them, while hiding them from everyone else until the reveal

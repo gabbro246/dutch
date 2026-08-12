@@ -57,11 +57,11 @@
             else deps.emit(action);
           };
           if (action === 'leave') {
-            confirmThen(button, 'leave-game', 'Confirm leave', run);
+            confirmThen(button, 'leave-game', deps.translate ? deps.translate('Confirm leave') : 'Confirm leave', run);
             return;
           }
           if (action === 'endGameForAll') {
-            confirmThen(button, 'end-game-for-all', 'Confirm end game', run);
+            confirmThen(button, 'end-game-for-all', deps.translate ? deps.translate('Confirm end game') : 'Confirm end game', run);
             return;
           }
           clearPendingConfirm();

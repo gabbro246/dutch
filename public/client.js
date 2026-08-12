@@ -5,6 +5,9 @@ const PLAYER_TAB_KEY = 'dutchPlayerTabId';
 const PLAYER_TOKEN_BACKUP_PREFIX = 'dutchPlayerSessionToken:';
 const PLAYER_TAB_WINDOW_PREFIX = 'dutch-tab:';
 const PLAYER_NAME_KEY = 'dutchPlayerName';
+const i18n = window.DutchI18n;
+let language = i18n.getStoredLanguage(window);
+i18n.setLanguage(language, window);
 const playerToken = getPlayerToken();
 let lastState = null;
 let pendingManualRejoin = null;
@@ -39,6 +42,14 @@ const {
   fullRulesHtml
 } = window.DutchShared;
 const BOT_NAMES = Object.values(BOT_LABELS);
+
+function t(key, values) {
+  return i18n.translate(language, key, values);
+}
+
+function translatedGameText(value) {
+  return i18n.translateGameText(language, value);
+}
 const clientActions = window.DutchClientActions.create({
   emit,
   render,
@@ -49,7 +60,8 @@ const clientActions = window.DutchClientActions.create({
   getDetailsMode: () => currentDetailsMode,
   getLastState: () => lastState,
   getLogExpanded: () => logExpanded,
-  setLogExpanded: (value) => { logExpanded = value; }
+  setLogExpanded: (value) => { logExpanded = value; },
+  translate: t
 });
 
 function wireAnimatedDrawers(scope, onChange) {
@@ -256,7 +268,7 @@ socket.on('state', (state) => {
 });
 
 socket.on('notice', (message) => {
-  alert(message);
+  alert(translatedGameText(message));
 });
 
 socket.connect();
@@ -291,9 +303,9 @@ function gameStartedText(startedAt) {
   const started = new Date(startedAt);
   if (Number.isNaN(started.getTime())) return '';
   const minutes = Math.max(0, Math.floor((Date.now() - started.getTime()) / 60000));
-  const elapsed = minutes === 0 ? 'just now' : minutes === 1 ? '1 min ago' : minutes + ' min ago';
-  const time = started.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return '<p class="hint">Started ' + escapeHtml(time) + ' (' + escapeHtml(elapsed) + ')</p>';
+  const elapsed = minutes === 0 ? t('just now') : minutes === 1 ? t('1 min ago') : t('{count} min ago', { count: minutes });
+  const time = started.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' });
+  return '<p class="hint">' + escapeHtml(t('Started {time} ({elapsed})', { time, elapsed })) + '</p>';
 }
 
 function activeGameSummary(state) {
@@ -303,8 +315,8 @@ function activeGameSummary(state) {
     .filter(function(player) { return player.isSpectator === false; })
     .map(function(player) { return player.name; })
     .join(", ");
-  const round = state.roundNumber ? "Round " + state.roundNumber : "Round not started";
-  const text = "Players: " + (players || "none") + ". " + round + ".";
+  const round = state.roundNumber ? t('Round {number}', { number: state.roundNumber }) : t('Round not started');
+  const text = t('Players: {players}. {round}.', { players: players || t('none'), round });
   return tag + "p class=\"hint active-game-summary\"" + end + escapeHtml(text) + tag + "/p" + end;
 }
 
@@ -371,18 +383,18 @@ function render(state) {
     const rejoinPlayers = (state.players || []).filter((player) => !player.isBot && !player.connected);
     const rejoinAvailable = rejoinPlayers.length > 0;
     const activeGameMessage = rejoinAvailable
-      ? 'A game is already active. If you were disconnected, enter your name to rejoin.'
-      : 'A game is already active. Join after the game ends.';
+      ? t('A game is already active. If you were disconnected, enter your name to rejoin.')
+      : t('A game is already active. Join after the game ends.');
     const rejoinControls = rejoinAvailable ? `
           <div class="row join-row active-rejoin-row">
-            <input id="rejoinNameInput" placeholder="Name" maxlength="${PLAYER_NAME_MAX_LENGTH}" value="">
-            <button id="rejoinBtn" class="expected-action" disabled>Rejoin</button>
+            <input id="rejoinNameInput" placeholder="${escapeHtml(t('Name'))}" maxlength="${PLAYER_NAME_MAX_LENGTH}" value="">
+            <button id="rejoinBtn" class="expected-action" disabled>${escapeHtml(t('Rejoin'))}</button>
           </div>` : '';
     app.innerHTML = `
       <div class="page waiting-page">
         <h1 class="app-title">Dutch! 🂡</h1>
         <div class="waiting-panel">
-          <p class="waiting-description">${escapeHtml(GAME_DESCRIPTION)}</p>
+          <p class="waiting-description">${escapeHtml(t(GAME_DESCRIPTION))}</p>
           <p>${activeGameMessage}</p>
           ${rejoinControls}
           ${gameStarted}
@@ -403,8 +415,9 @@ function botTypeLabel(type) {
 }
 
 function renderBotPersonality(type) {
-  const personality = BOT_PERSONALITIES[type] || null;
-  const fallbackStats = Object.values(BOT_PERSONALITIES)[0].stats;
+  const basePersonality = BOT_PERSONALITIES[type] || null;
+  const personality = i18n.localizedBotPersonality(language, type, basePersonality);
+  const fallbackStats = i18n.localizedBotPersonality(language, 'dory', Object.values(BOT_PERSONALITIES)[0]).stats;
   const stats = (personality ? personality.stats : fallbackStats).map(([label, value]) => {
     const barWidth = personality ? value * 10 : 0;
     const valueText = personality ? escapeHtml(value + "/10") : "-/--";
@@ -430,21 +443,21 @@ function renderWaiting(state) {
   let startDisabled = state.canStart === false || state.joined === false;
   const botsOpen = waitingDrawerPreferences.bots ? 'open' : '';
   const settingsOpen = waitingDrawerPreferences.settings ? 'open' : '';
-  const botOptions = '<option value="" selected>Choose bot...</option>' + botTypes.map((type) => `
+  const botOptions = '<option value="" selected>' + escapeHtml(t('Choose bot...')) + '</option>' + botTypes.map((type) => `
     <option value="${escapeHtml(type)}" ${usedBotTypes.has(type) ? 'disabled' : ''}>${escapeHtml(botTypeLabel(type))}</option>
   `).join('');
   const players = state.players.map((p, index) => {
     const isMe = p.id === state.you;
     const moveControls = `
       <div class="player-line-actions">
-        ${isMe ? '<button data-action="leaveWaitingPlayer">Leave</button>' : `<button data-action="removeWaitingPlayer" data-player-id="${escapeHtml(p.id)}">Remove</button>`}
-        <button class="icon-button" title="Move up" aria-label="Move ${escapeHtml(p.name)} up" data-action="moveWaitingPlayer" data-player-id="${escapeHtml(p.id)}" data-direction="up" ${index === 0 ? 'disabled' : ''}>↑</button>
-        <button class="icon-button" title="Move down" aria-label="Move ${escapeHtml(p.name)} down" data-action="moveWaitingPlayer" data-player-id="${escapeHtml(p.id)}" data-direction="down" ${index === state.players.length - 1 ? 'disabled' : ''}>↓</button>
+        ${isMe ? '<button data-action="leaveWaitingPlayer">' + escapeHtml(t('Leave')) + '</button>' : `<button data-action="removeWaitingPlayer" data-player-id="${escapeHtml(p.id)}">${escapeHtml(t('Remove'))}</button>`}
+        <button class="icon-button" title="${escapeHtml(t('Move up'))}" aria-label="${escapeHtml(t('Move {name} up', { name: p.name }))}" data-action="moveWaitingPlayer" data-player-id="${escapeHtml(p.id)}" data-direction="up" ${index === 0 ? 'disabled' : ''}>↑</button>
+        <button class="icon-button" title="${escapeHtml(t('Move down'))}" aria-label="${escapeHtml(t('Move {name} down', { name: p.name }))}" data-action="moveWaitingPlayer" data-player-id="${escapeHtml(p.id)}" data-direction="down" ${index === state.players.length - 1 ? 'disabled' : ''}>↓</button>
       </div>
     `;
     return `
       <div class="player-line" data-waiting-player-id="${escapeHtml(p.id)}">
-        <span>${index + 1}. ${escapeHtml(p.name)}${p.isBot ? ' <span class="bot-badge">bot</span>' : ''}${p.isSpectator ? ' <span class="spectator-badge">spectator</span>' : ''}${isMe ? ' <span class="you-badge">you</span>' : ''} ${p.connected ? '' : '(missing)'}</span>
+        <span>${index + 1}. ${escapeHtml(p.name)}${p.isBot ? ' <span class="bot-badge">' + escapeHtml(t('bot')) + '</span>' : ''}${p.isSpectator ? ' <span class="spectator-badge">' + escapeHtml(t('spectator')) + '</span>' : ''}${isMe ? ' <span class="you-badge">' + escapeHtml(t('you')) + '</span>' : ''} ${p.connected ? '' : '(' + escapeHtml(t('missing')) + ')'}</span>
         ${moveControls}
       </div>
     `;
@@ -452,69 +465,70 @@ function renderWaiting(state) {
   const joined = state.joined;
   const me = state.players.find((p) => p.id === state.you);
   const humanCount = state.players.filter((p) => !p.isBot && !p.isSpectator).length;
-  const playerHintText = humanCount === 0 ? 'Waiting for a human player.' : 'Waiting for another human or a bot.';
+  const playerHintText = humanCount === 0 ? t('Waiting for a human player.') : t('Waiting for another human or a bot.');
   const playerHint = state.players.length > 0 && !state.canStart ? `<p class="hint">${playerHintText}</p>` : '';
   app.innerHTML = `
     <div class="page waiting-page">
       <h1 class="app-title">Dutch! 🂡</h1>
       <div class="waiting-panel">
-        <p class="waiting-description">${escapeHtml(GAME_DESCRIPTION)}</p>
+        <p class="waiting-description">${escapeHtml(t(GAME_DESCRIPTION))}</p>
         <div class="waiting-controls">
           <div class="row join-row">
-            <input id="nameInput" placeholder="Name" maxlength="${PLAYER_NAME_MAX_LENGTH}" value="${joined && me ? escapeHtml(me.name) : ''}" ${joined ? 'disabled' : ''}>
-            <button id="joinBtn" disabled>Join</button>
-            <button id="leaveBtn" ${joined ? '' : 'disabled'}>Leave</button>
+            <input id="nameInput" placeholder="${escapeHtml(t('Name'))}" maxlength="${PLAYER_NAME_MAX_LENGTH}" value="${joined && me ? escapeHtml(me.name) : ''}" ${joined ? 'disabled' : ''}>
+            <button id="joinBtn" disabled>${escapeHtml(t('Join'))}</button>
+            <button id="leaveBtn" ${joined ? '' : 'disabled'}>${escapeHtml(t('Leave'))}</button>
           </div>
           <details class="drawer waiting-drawer" data-waiting-drawer="bots" ${botsOpen}>
-            <summary>Bots</summary>
+            <summary>${escapeHtml(t('Bots'))}</summary>
             <div class="drawer-content drawer-animation-content">
               <div class="row bot-row">
                 <select id="botTypeSelect" ${firstAvailableBot && state.players.length < 9 ? '' : 'disabled'}>
                   ${botOptions}
                 </select>
-                <button id="addBotBtn" class="expected-action" disabled>Add bot</button>
+                <button id="addBotBtn" class="expected-action" disabled>${escapeHtml(t('Add bot'))}</button>
               </div>
               <div id="botPersonalitySlot">${renderBotPersonality('')}</div>
             </div>
           </details>
           <details class="drawer waiting-drawer" data-waiting-drawer="settings" ${settingsOpen}>
-            <summary>Settings</summary>
+            <summary>${escapeHtml(t('Settings'))}</summary>
             <div class="drawer-content drawer-animation-content waiting-selectors">
               <label class="setting-row" for="gameTargetSelect">
-                <span class="setting-name">Game length</span>
+                <span class="setting-name">${escapeHtml(t('Game length'))}</span>
                 <select id="gameTargetSelect">
-                  <option value="single" ${state.singleRound ? 'selected' : ''}>Single round</option>
-                  <option value="50" ${!state.singleRound && state.gameTarget === 50 ? 'selected' : ''}>Short game, 50 points</option>
-                  <option value="100" ${!state.singleRound && state.gameTarget === 100 ? 'selected' : ''}>Full game, 100 points</option>
+                  <option value="single" ${state.singleRound ? 'selected' : ''}>${escapeHtml(t('Single round'))}</option>
+                  <option value="50" ${!state.singleRound && state.gameTarget === 50 ? 'selected' : ''}>${escapeHtml(t('Short game, 50 points'))}</option>
+                  <option value="100" ${!state.singleRound && state.gameTarget === 100 ? 'selected' : ''}>${escapeHtml(t('Full game, 100 points'))}</option>
                 </select>
-                <span class="setting-description">Choose how long the game lasts: a normal game ends when a player passes 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.</span>
+                <span class="setting-description">${escapeHtml(t('Choose how long the game lasts: a normal game ends when a player passes 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.'))}</span>
               </label>
               ${inactivityTimeoutSettingHtml(state, 'inactivityTimeoutSelect')}
               <label class="setting-row" for="deckSettingSelect">
-                <span class="setting-name">Deck amount</span>
+                <span class="setting-name">${escapeHtml(t('Deck amount'))}</span>
                 <select id="deckSettingSelect">
-                  <option value="one" ${state.deckSetting === 'one' ? 'selected' : ''} ${state.oneDeckDisabled ? 'disabled' : ''}>One deck</option>
-                  <option value="two" ${state.deckSetting === 'two' ? 'selected' : ''}>Two decks</option>
+                  <option value="one" ${state.deckSetting === 'one' ? 'selected' : ''} ${state.oneDeckDisabled ? 'disabled' : ''}>${escapeHtml(t('One deck'))}</option>
+                  <option value="two" ${state.deckSetting === 'two' ? 'selected' : ''}>${escapeHtml(t('Two decks'))}</option>
                 </select>
-                <span class="setting-description">More decks make the game less predictable and add more special cards, though some may remain undealt. Two decks are required for more than four players.</span>
+                <span class="setting-description">${escapeHtml(t('More decks make the game less predictable and add more special cards, though some may remain undealt. Two decks are required for more than four players.'))}</span>
               </label>
               <label class="setting-row" for="themeSelect">
-                <span class="setting-name">Appearance</span>
+                <span class="setting-name">${escapeHtml(t('Appearance'))}</span>
                 <select id="themeSelect">
-                  <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>Light mode</option>
-                  <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>Dark mode</option>
+                  <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>${escapeHtml(t('Light mode'))}</option>
+                  <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>${escapeHtml(t('Dark mode'))}</option>
                 </select>
-                <span class="setting-description">Choose the light or dark color theme.</span>
+                <span class="setting-description">${escapeHtml(t('Choose the light or dark color theme.'))}</span>
               </label>
+              ${languageSettingHtml('languageSelect')}
             </div>
           </details>
           <section class="waiting-player-list player-list" aria-labelledby="waitingPlayersHeading">
-            <h2 id="waitingPlayersHeading">Players</h2>
-            ${players || "<p class=\"hint\">No players yet.</p>"}
+            <h2 id="waitingPlayersHeading">${escapeHtml(t('Players'))}</h2>
+            ${players || '<p class="hint">' + escapeHtml(t('No players yet.')) + '</p>'}
             ${players ? playerHint : ""}
           </section>
         </div>
-        <button id="startBtn" class="expected-action" ${startDisabled ? 'disabled' : ''}>Start game</button>
+        <button id="startBtn" class="expected-action" ${startDisabled ? 'disabled' : ''}>${escapeHtml(t('Start game'))}</button>
       </div>
       ${repoLink(state.version)}
     </div>
@@ -546,7 +560,7 @@ function renderWaiting(state) {
     });
   }
   const leaveBtn = document.getElementById('leaveBtn');
-  if (leaveBtn) leaveBtn.addEventListener('click', () => clientActions.confirmThen(leaveBtn, 'leave-waiting', 'Confirm leave', () => emit('leave')));
+  if (leaveBtn) leaveBtn.addEventListener('click', () => clientActions.confirmThen(leaveBtn, 'leave-waiting', t('Confirm leave'), () => emit('leave')));
   wireAnimatedDrawers(document, (details, open) => {
     if (details.dataset.waitingDrawer) waitingDrawerPreferences[details.dataset.waitingDrawer] = open;
   });
@@ -590,6 +604,7 @@ function renderWaiting(state) {
       window.DutchTheme.setTheme(themeSelect.value, window);
     });
   }
+  wireLanguageSelect('languageSelect');
   document.querySelectorAll('[data-action="moveWaitingPlayer"]').forEach((button) => {
     button.addEventListener('click', () => {
       clientActions.clearPendingConfirm();
@@ -598,12 +613,12 @@ function renderWaiting(state) {
   });
   document.querySelectorAll('[data-action="removeWaitingPlayer"]').forEach((button) => {
     button.addEventListener('click', () => {
-      clientActions.confirmThen(button, `remove-${button.dataset.playerId}`, 'Confirm remove', () => emit('removeWaitingPlayer', button.dataset.playerId || ''));
+      clientActions.confirmThen(button, `remove-${button.dataset.playerId}`, t('Confirm remove'), () => emit('removeWaitingPlayer', button.dataset.playerId || ''));
     });
   });
   document.querySelectorAll('[data-action="leaveWaitingPlayer"]').forEach((button) => {
     button.addEventListener('click', () => {
-      clientActions.confirmThen(button, 'leave-waiting', 'Confirm leave', () => emit('leave'));
+      clientActions.confirmThen(button, 'leave-waiting', t('Confirm leave'), () => emit('leave'));
     });
   });
   const startBtn = document.getElementById('startBtn');
@@ -745,6 +760,7 @@ function renderGame(state) {
       window.DutchTheme.setTheme(gameThemeSelect.value, window);
     });
   }
+  wireLanguageSelect('gameLanguageSelect');
   restoreRightPanelScroll(rightPanelScroll);
 }
 
@@ -753,27 +769,30 @@ function renderStatus(state) {
   let text = '';
   let textHtml = '';
   const temporaryEvent = r.wrongThrowIn
-    ? `${r.wrongThrowIn.playerName || 'A player'} made a wrong throw-in and gets a penalty card.`
-    : (r.infoEvent && r.infoEvent.text ? r.infoEvent.text + '.' : '');
+    ? t('{name} made a wrong throw-in and gets a penalty card.', { name: r.wrongThrowIn.playerName || t('A player') })
+    : (r.infoEvent && r.infoEvent.text ? translatedGameText(r.infoEvent.text) + '.' : '');
   if (r.stage === 'roundEnd') {
-    text = 'Round ended. Cards are revealed and points were counted.';
+    text = t('Round ended. Cards are revealed and points were counted.');
   } else if (r.stage === 'gameEnd') {
-    const gameLength = state.singleRound ? 'single round' : `${state.gameTarget} point`;
-    textHtml = 'Game ended. <strong>' + escapeHtml(r.winnerName || 'Unknown player') + ' won the ' + escapeHtml(gameLength) + ' game.</strong>';
+    const gameLength = state.singleRound ? t('Single round') : t('{count} point', { count: state.gameTarget });
+    textHtml = t('Game ended. <strong>{winner} won the {length} game.</strong>', {
+      winner: escapeHtml(r.winnerName || t('Unknown player')),
+      length: escapeHtml(gameLength)
+    });
   } else if (temporaryEvent) {
     text = temporaryEvent;
   } else if (r.stage === 'peek') {
-    text = 'Start peek: each player must look at exactly two own cards.';
+    text = t('Start peek: each player must look at exactly two own cards.');
   } else if (r.stage === 'opening') {
-    text = 'Opening card…';
+    text = t('Opening card…');
   } else if (r.stage === 'special' && r.special) {
-    text = `${r.special.actorName} may use ${specialLabel(r.special.type)} or click Next player.`;
+    text = t('{name} may use {special} or click Next player.', { name: r.special.actorName, special: i18n.specialLabel(language, r.special.type) });
   } else if (r.turnComplete && r.currentPlayerId === state.you) {
-    text = 'Your turn is complete. Say Dutch or click Next player.';
+    text = t('Your turn is complete. Say Dutch or click Next player.');
   } else if (r.turnComplete) {
-    text = `${r.currentPlayerName}'s turn is complete. Waiting for Next player.`;
+    text = t("{name}'s turn is complete. Waiting for Next player.", { name: r.currentPlayerName });
   } else {
-    text = r.dutchCallerName ? '' : `${r.currentPlayerName}'s move.`;
+    text = r.dutchCallerName ? '' : t("{name}'s move.", { name: r.currentPlayerName });
   }
   if (!textHtml) textHtml = escapeHtml(text);
   const statusClass = r.stage === 'gameEnd' ? 'status game-ended-status' : 'status';
@@ -781,16 +800,16 @@ function renderStatus(state) {
   let dutch = '';
   if (r.dutchCallerName && !temporaryEvent && !['roundEnd', 'gameEnd'].includes(r.stage)) {
     const callerName = escapeHtml(r.dutchCallerName);
-    const currentPlayerName = escapeHtml(r.currentPlayerName || 'The current player');
+    const currentPlayerName = escapeHtml(r.currentPlayerName || t('The current player'));
     const playersAfterCurrent = Number(r.dutchTurnsRemaining) || 0;
     dutch = playersAfterCurrent > 0
-      ? `<div>${callerName} called Dutch. ${currentPlayerName} is taking their final turn, with ${playersAfterCurrent} more ${playersAfterCurrent === 1 ? 'player' : 'players'} still to go afterward.</div>`
-      : `<div>${callerName} called Dutch. ${currentPlayerName} is taking the final turn of the round.</div>`;
+      ? `<div>${t('{caller} called Dutch. {current} is taking their final turn, with {count} more {players} still to go afterward.', { caller: callerName, current: currentPlayerName, count: playersAfterCurrent, players: t(playersAfterCurrent === 1 ? 'player' : 'players') })}</div>`
+      : `<div>${t('{caller} called Dutch. {current} is taking the final turn of the round.', { caller: callerName, current: currentPlayerName })}</div>`;
   }
   const buttons = [
-    `<button data-action="endGameForAll" ${finishActive ? 'disabled' : ''}>End game for all</button>`,
-    `<button data-action="leave" ${finishActive ? 'disabled' : ''}>Leave game</button>`,
-    `<button data-action="newGame" class="expected-action" ${finishActive ? '' : 'disabled'}>Finish</button>`
+    `<button data-action="endGameForAll" ${finishActive ? 'disabled' : ''}>${escapeHtml(t('End game for all'))}</button>`,
+    `<button data-action="leave" ${finishActive ? 'disabled' : ''}>${escapeHtml(t('Leave game'))}</button>`,
+    `<button data-action="newGame" class="expected-action" ${finishActive ? '' : 'disabled'}>${escapeHtml(t('Finish'))}</button>`
   ].filter(Boolean).join('');
   return `
     <div class="${statusClass}">
@@ -806,8 +825,11 @@ function renderStatus(state) {
 }
 
 function renderPlayerMeta(player) {
-  if (player.isSpectator) return '<div class="player-meta">Watching</div>';
-  return `<div class="player-meta">Total: ${player.total}${player.roundPoints === null ? '' : `, round: ${player.roundPoints}`}</div>`;
+  if (player.isSpectator) return '<div class="player-meta">' + escapeHtml(t('Watching')) + '</div>';
+  const meta = player.roundPoints === null
+    ? t('Total: {total}', { total: player.total })
+    : t('Total: {total}, round: {round}', { total: player.total, round: player.roundPoints });
+  return `<div class="player-meta">${escapeHtml(meta)}</div>`;
 }
 
 function isWrongDutchCall(round, player) {
@@ -826,7 +848,7 @@ function renderPlayerField(player, state, compact) {
   const roundWinner = (state.round.roundWinnerIds || []).includes(player.id);
   const gameWinner = state.round.winnerId === player.id;
   const winner = gameWinner ? ' game-winner' : (roundWinner ? ' round-winner' : '');
-  const missing = player.connected ? '' : ' (missing)';
+  const missing = player.connected ? '' : ' (' + t('missing') + ')';
   return `
     <div class="player-field${current}${dutchCaller}${finalTurnDone}${winner}" data-player-panel-id="${escapeHtml(player.id)}">
       <div class="player-title">
@@ -849,7 +871,7 @@ function renderOwnArea(player, state) {
   const roundWinner = (r.roundWinnerIds || []).includes(player.id);
   const gameWinner = r.winnerId === player.id;
   const winner = gameWinner ? ' game-winner' : (roundWinner ? ' round-winner' : '');
-  const areaLabel = player.isSpectator ? 'spectating' : 'your cards';
+  const areaLabel = player.isSpectator ? t('spectating') : t('your cards');
   return `
     <section class="own-area${player.isCurrent ? ' current' : ''}${dutchCaller}${finalTurnDone}${winner}" data-player-panel-id="${escapeHtml(player.id)}">
       <div class="player-title">
@@ -862,7 +884,7 @@ function renderOwnArea(player, state) {
       ${player.isSpectator ? '' : `<div class="row own-actions">
         <button data-action="sayDutch" class="expected-action" ${r.controls.canDutch ? '' : 'disabled'}>Dutch</button>
         <button data-action="endTurn" class="expected-action" ${r.controls.canEndTurn ? "" : "disabled"}>${endTurnLabel(state)}</button>
-        <button data-action="nextRound" class="expected-action" ${r.stage === 'roundEnd' ? '' : 'disabled'}>Next round</button>
+        <button data-action="nextRound" class="expected-action" ${r.stage === 'roundEnd' ? '' : 'disabled'}>${escapeHtml(t('Next round'))}</button>
       </div>`}
     </section>
   `;
@@ -870,22 +892,22 @@ function renderOwnArea(player, state) {
 
 function endTurnLabel(state) {
   const r = state.round;
-  if (['turn', 'special'].includes(r.stage) && r.dutchCallerId && r.dutchTurnsRemaining === 0 && r.currentPlayerId === state.you) return 'Finish round';
-  return 'Next player';
+  if (['turn', 'special'].includes(r.stage) && r.dutchCallerId && r.dutchTurnsRemaining === 0 && r.currentPlayerId === state.you) return t('Finish round');
+  return t('Next player');
 }
 
 function playerBadges(state, player) {
   const r = state.round;
   const badges = [];
-  if (player.isBot) badges.push('<span class="bot-badge">bot</span>');
-  if (player.isSpectator) badges.push('<span class="spectator-badge">spectator</span>');
+  if (player.isBot) badges.push('<span class="bot-badge">' + escapeHtml(t('bot')) + '</span>');
+  if (player.isSpectator) badges.push('<span class="spectator-badge">' + escapeHtml(t('spectator')) + '</span>');
   if (r.dutchCallerId === player.id) {
     badges.push(isWrongDutchCall(r, player)
-      ? `<span class="player-badge wrong-dutch-badge">wrong Dutch call</span>`
-      : `<span class="player-badge dutch-badge">said Dutch</span>`);
+      ? `<span class="player-badge wrong-dutch-badge">${escapeHtml(t('wrong Dutch call'))}</span>`
+      : `<span class="player-badge dutch-badge">${escapeHtml(t('said Dutch'))}</span>`);
   }
-  if ((r.roundWinnerIds || []).includes(player.id)) badges.push('<span class="player-badge round-winner-badge">won this round</span>');
-  if (r.winnerId === player.id) badges.push('<span class="player-badge game-winner-badge">won the game</span>');
+  if ((r.roundWinnerIds || []).includes(player.id)) badges.push('<span class="player-badge round-winner-badge">' + escapeHtml(t('won this round')) + '</span>');
+  if (r.winnerId === player.id) badges.push('<span class="player-badge game-winner-badge">' + escapeHtml(t('won the game')) + '</span>');
   return badges.join('');
 }
 
@@ -893,20 +915,20 @@ function renderDeckPile(state) {
   const r = state.round;
   const drawnCard = r.drawn
     ? cardHtml(r.drawn.card, false, { 'data-anim-role': 'drawn', 'data-location-key': 'drawn' })
-    : '<div class="card empty-card drawn-placeholder">empty</div>';
-  const drawnLabel = r.drawn ? '<div class="deck-pile-label">Drawn</div>' : '<div class="deck-pile-label drawn-label-spacer" aria-hidden="true">Drawn</div>';
+    : '<div class="card empty-card drawn-placeholder">' + escapeHtml(t('empty')) + '</div>';
+  const drawnLabel = r.drawn ? '<div class="deck-pile-label">' + escapeHtml(t('Drawn')) + '</div>' : '<div class="deck-pile-label drawn-label-spacer" aria-hidden="true">' + escapeHtml(t('Drawn')) + '</div>';
   const discardButton = r.drawn
-    ? `<button data-action="discardDrawn" ${r.controls.canDiscardDrawn ? '' : 'disabled'}>Discard</button>`
-    : '<button class="drawn-button-spacer" disabled aria-hidden="true" tabindex="-1">Discard</button>';
+    ? `<button data-action="discardDrawn" ${r.controls.canDiscardDrawn ? '' : 'disabled'}>${escapeHtml(t('Discard'))}</button>`
+    : '<button class="drawn-button-spacer" disabled aria-hidden="true" tabindex="-1">' + escapeHtml(t('Discard')) + '</button>';
 
   return `
     <section class="deck-pile-area">
       <div class="stack-area">
-        <div class="deck-pile-label">Deck (${r.deckCount})</div>
+        <div class="deck-pile-label">${escapeHtml(t('Deck ({count})', { count: r.deckCount }))}</div>
         <div class="stack" data-stack="deck">
           ${stackBacks(r.deckCount, r.deckBack)}
         </div>
-        <button data-action="takeDeck" class="expected-action" ${r.controls.canTake ? '' : 'disabled'}>Take</button>
+        <button data-action="takeDeck" class="expected-action" ${r.controls.canTake ? '' : 'disabled'}>${escapeHtml(t('Take'))}</button>
       </div>
       <div class="drawn-area">
         ${drawnLabel}
@@ -916,17 +938,17 @@ function renderDeckPile(state) {
         ${discardButton}
       </div>
       <div class="stack-area">
-        <div class="deck-pile-label">Pile (${r.discardCount})</div>
+        <div class="deck-pile-label">${escapeHtml(t('Pile ({count})', { count: r.discardCount }))}</div>
         <div class="stack" data-stack="pile">
           ${stackPile(r)}
         </div>
-        <button data-action="takePile" class="expected-action" ${r.controls.canTake && r.discardCount > 0 ? '' : 'disabled'}>Take</button>
+        <button data-action="takePile" class="expected-action" ${r.controls.canTake && r.discardCount > 0 ? '' : 'disabled'}>${escapeHtml(t('Take'))}</button>
       </div>
     </section>
   `;
 }
 function stackBacks(count, color) {
-  if (count <= 0) return '<div class="card empty-card">empty</div>';
+  if (count <= 0) return '<div class="card empty-card">' + escapeHtml(t('empty')) + '</div>';
   const shown = Math.min(3, count);
   let html = '';
   for (let i = 0; i < shown; i += 1) {
@@ -938,7 +960,7 @@ function stackBacks(count, color) {
 }
 
 function stackPile(r) {
-  if (!r.discardTop) return '<div class="card empty-card">empty</div>';
+  if (!r.discardTop) return '<div class="card empty-card">' + escapeHtml(t('empty')) + '</div>';
   let under = '';
   if (r.discardCount > 1) under = '<div class="card back-blue" data-face-kind="stack-back">##</div>';
   return `${under}${cardHtml(r.discardTop, false, { 'data-anim-role': 'pile-top', 'data-location-key': 'pile-top', 'data-highlight': r.pileHighlight || '' })}`;
@@ -950,11 +972,11 @@ function renderCardCell(card, ownerId, index, state, compact, own) {
   const showingStartPeek = own && r.stage === "peek" && r.controls.canPeekStart;
   const startPeekDisabled = !r.controls.canPeekStart || !!card.startPeeked;
   if (showingStartPeek) {
-    buttons.push(`<button data-action="peekStart" class="expected-action" data-card-id="${card.id}" ${startPeekDisabled ? "disabled" : ""}>Peek</button>`);
+    buttons.push(`<button data-action="peekStart" class="expected-action" data-card-id="${card.id}" title="${escapeHtml(t('Peek'))}" ${startPeekDisabled ? "disabled" : ""}>${escapeHtml(t('Peek'))}</button>`);
   }
   if (own) {
-    buttons.push(`<button data-action="swapDrawn" data-card-id="${card.id}" ${r.controls.canSwapDrawn ? "" : "disabled"}>Swap</button>`);
-    buttons.push(`<button data-action="throwIn" data-card-id="${card.id}" ${r.controls.canThrowIn ? "" : "disabled"}>Throw in</button>`);
+    buttons.push(`<button data-action="swapDrawn" data-card-id="${card.id}" title="${escapeHtml(t('Swap'))}" ${r.controls.canSwapDrawn ? "" : "disabled"}>${escapeHtml(t('Swap'))}</button>`);
+    buttons.push(`<button data-action="throwIn" data-card-id="${card.id}" title="${escapeHtml(t('Throw in'))}" ${r.controls.canThrowIn ? "" : "disabled"}>${escapeHtml(t('Throw in'))}</button>`);
   }
   const specialAction = showingStartPeek ? "" : renderCardSpecialAction(card, ownerId, r);
   if (specialAction) buttons.push(specialAction);
@@ -980,16 +1002,16 @@ function renderCardSpecialAction(card, ownerId, r) {
   if ((r.controls.canJackSwap || (r.controls.canJackUnselect && selected)) && !protectedTarget) {
     return '<button data-action="jackSelect" data-card-id="' + escapeHtml(card.id) + '">' + cardActionLabel('J', 'swap') + '</button>';
   }
-  return '<button class="special-action-placeholder" disabled>Action</button>';
+  return '<button class="special-action-placeholder" disabled>' + escapeHtml(t('Action')) + '</button>';
 }
 
 function cardActionLabel(symbol, text) {
-  return `<span class="card-action-label"><span class="card-symbol">${symbol}</span> <span>${escapeHtml(text)}</span></span>`;
+  return `<span class="card-action-label"><span class="card-symbol">${symbol}</span> <span>${escapeHtml(t(text))}</span></span>`;
 }
 
 function cardHtml(card, small, extraAttrs = {}) {
   const smallClass = small ? ' small' : '';
-  if (!card) return `<div class="card${smallClass} empty-card">empty</div>`;
+  if (!card) return `<div class="card${smallClass} empty-card">${escapeHtml(t('empty'))}</div>`;
   const faceKind = card.back ? 'back' : 'front';
   const dataAttrs = attrsToText({
     'data-card-id': card.id,
@@ -1010,15 +1032,38 @@ function cardHtml(card, small, extraAttrs = {}) {
   `;
 }
 
+function languageSettingHtml(id) {
+  return `
+    <label class="setting-row" for="${id}">
+      <span class="setting-name">${escapeHtml(t('Language'))}</span>
+      <select id="${id}">
+        <option value="en" ${language === 'en' ? 'selected' : ''}>${escapeHtml(t('English'))}</option>
+        <option value="de" ${language === 'de' ? 'selected' : ''}>${escapeHtml(t('German'))}</option>
+      </select>
+      <span class="setting-description">${escapeHtml(t('Choose the language used by this device.'))}</span>
+    </label>
+  `;
+}
+
+function wireLanguageSelect(id) {
+  const select = document.getElementById(id);
+  if (!select) return;
+  select.addEventListener('change', () => {
+    clientActions.clearPendingConfirm();
+    language = i18n.setLanguage(select.value, window);
+    if (lastState) render(lastState);
+  });
+}
+
 function inactivityTimeoutSettingHtml(state, id) {
   const minutes = state.inactivityTimeoutMinutes || 15;
   return `
     <label class="setting-row" for="${id}">
-      <span class="setting-name">Inactive after</span>
+      <span class="setting-name">${escapeHtml(t('Inactive after'))}</span>
       <select id="${id}">
-        ${[15, 30, 60, 90].map((value) => `<option value="${value}" ${minutes === value ? 'selected' : ''}>${value} minutes</option>`).join('')}
+        ${[15, 30, 60, 90].map((value) => `<option value="${value}" ${minutes === value ? 'selected' : ''}>${escapeHtml(t('{count} minutes', { count: value }))}</option>`).join('')}
       </select>
-      <span class="setting-description">If nobody plays for this long, the game ends and the room is freed for new players. Choose a longer time if everyone plans to return.</span>
+      <span class="setting-description">${escapeHtml(t('If nobody plays for this long, the game ends and the room is freed for new players. Choose a longer time if everyone plans to return.'))}</span>
     </label>
   `;
 }
@@ -1050,38 +1095,39 @@ function renderSideArea(state) {
       </div>
       <div class="panel side-panel">
         <div class="side-drawers">
-          ${renderDetails('points', 'Points', pointsTable(state), pointsDefaultOpen)}
-          ${renderDetails('log', 'Game log', renderLog(state), logDefaultOpen)}
-          ${renderDetails('guide', 'Quick guide', shortInstructions(), guideDefaultOpen)}
-          ${renderDetails('rules', 'Complete rules', fullRules(state), false, 'rules-body')}
-          ${renderDetails('settings', 'Settings', `
+          ${renderDetails('points', t('Points'), pointsTable(state), pointsDefaultOpen)}
+          ${renderDetails('log', t('Game log'), renderLog(state), logDefaultOpen)}
+          ${renderDetails('guide', t('Quick guide'), shortInstructions(), guideDefaultOpen)}
+          ${renderDetails('rules', t('Complete rules'), fullRules(state), false, 'rules-body')}
+          ${renderDetails('settings', t('Settings'), `
             <div class="drawer-content waiting-selectors">
               <label class="setting-row" for="inGameTargetSelect">
-                <span class="setting-name">Game length</span>
+                <span class="setting-name">${escapeHtml(t('Game length'))}</span>
                 <select id="inGameTargetSelect" ${state.canChangeGameTarget ? '' : 'disabled'}>
-                  <option value="single" ${state.singleRound ? 'selected' : ''} ${state.canSelectSingleRound ? '' : 'disabled'}>Single round</option>
-                  <option value="50" ${!state.singleRound && state.gameTarget === 50 ? 'selected' : ''}>Short game, 50 points</option>
-                  <option value="100" ${!state.singleRound && state.gameTarget === 100 ? 'selected' : ''}>Full game, 100 points</option>
+                  <option value="single" ${state.singleRound ? 'selected' : ''} ${state.canSelectSingleRound ? '' : 'disabled'}>${escapeHtml(t('Single round'))}</option>
+                  <option value="50" ${!state.singleRound && state.gameTarget === 50 ? 'selected' : ''}>${escapeHtml(t('Short game, 50 points'))}</option>
+                  <option value="100" ${!state.singleRound && state.gameTarget === 100 ? 'selected' : ''}>${escapeHtml(t('Full game, 100 points'))}</option>
                 </select>
-                <span class="setting-description">Choose how long the game lasts: a normal game ends when a player passes 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.</span>
+                <span class="setting-description">${escapeHtml(t('Choose how long the game lasts: a normal game ends when a player passes 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.'))}</span>
               </label>
               ${inactivityTimeoutSettingHtml(state, 'gameInactivityTimeoutSelect')}
               <label class="setting-row" for="highlightChangedCardsSelect">
-                <span class="setting-name">Changed cards</span>
+                <span class="setting-name">${escapeHtml(t('Changed cards'))}</span>
                 <select id="highlightChangedCardsSelect">
-                  <option value="true" ${state.highlightChangedCards !== false ? 'selected' : ''}>Highlight</option>
-                  <option value="false" ${state.highlightChangedCards === false ? 'selected' : ''}>Don't highlight</option>
+                  <option value="true" ${state.highlightChangedCards !== false ? 'selected' : ''}>${escapeHtml(t('Highlight'))}</option>
+                  <option value="false" ${state.highlightChangedCards === false ? 'selected' : ''}>${escapeHtml(t("Don't highlight"))}</option>
                 </select>
-                <span class="setting-description">Highlight cards that were changed recently for all players, making swaps and other changes easier to follow.</span>
+                <span class="setting-description">${escapeHtml(t('Highlight cards that were changed recently for all players, making swaps and other changes easier to follow.'))}</span>
               </label>
               <label class="setting-row" for="gameThemeSelect">
-                <span class="setting-name">Appearance</span>
+                <span class="setting-name">${escapeHtml(t('Appearance'))}</span>
                 <select id="gameThemeSelect">
-                  <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>Light mode</option>
-                  <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>Dark mode</option>
+                  <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>${escapeHtml(t('Light mode'))}</option>
+                  <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>${escapeHtml(t('Dark mode'))}</option>
                 </select>
-                <span class="setting-description">Choose the light or dark color theme.</span>
+                <span class="setting-description">${escapeHtml(t('Choose the light or dark color theme.'))}</span>
               </label>
+              ${languageSettingHtml('gameLanguageSelect')}
             </div>
           `, false)}
         </div>
@@ -1110,12 +1156,12 @@ function renderLog(state) {
     const line = typeof entry === "string" ? { text: entry, kind: "game" } : entry;
     const isSystem = line.kind === "system";
     const moveNumber = lines.length - index;
-    return '<li value="' + moveNumber + '" class="' + (isSystem ? 'system-log' : '') + '">' + escapeHtml(line.text) + '</li>';
+    return '<li value="' + moveNumber + '" class="' + (isSystem ? 'system-log' : '') + '">' + escapeHtml(translatedGameText(line.text)) + '</li>';
   }).join("");
   const controls = lines.length > 8
     ? '<div class="log-controls">' +
-        (logExpanded ? '<button type="button" class="log-toggle" data-action="downloadLog">Download game logs</button>' : '') +
-        '<button type="button" class="log-toggle" data-action="toggleLog">' + (logExpanded ? 'Show less' : 'Show more') + '</button>' +
+        (logExpanded ? '<button type="button" class="log-toggle" data-action="downloadLog">' + escapeHtml(t('Download game logs')) + '</button>' : '') +
+        '<button type="button" class="log-toggle" data-action="toggleLog">' + escapeHtml(t(logExpanded ? 'Show less' : 'Show more')) + '</button>' +
       '</div>'
     : '';
   return '<ol class="log">' + items + '</ol>' + controls;
@@ -1129,13 +1175,17 @@ function logLinesForDownload(state) {
     const line = typeof entry === "string" ? { text: entry, kind: "game" } : entry;
     const moveNumber = index + 1;
     const kind = line.kind && line.kind !== "game" ? " [" + line.kind + "]" : "";
-    return formatRelativeLogTime(logEntryTimeMs(line), relativeBaseMs) + " " + moveNumber + "." + kind + " " + String(line.text || "");
+    return formatRelativeLogTime(logEntryTimeMs(line), relativeBaseMs) + " " + moveNumber + "." + kind + " " + translatedGameText(line.text);
   });
 }
 
 function scoreHistoryForDownload(state) {
   const history = state && Array.isArray(state.scoreHistory) ? state.scoreHistory : [];
-  return scoreHistoryRows(history);
+  const rows = scoreHistoryRows(history);
+  if (language === 'en') return rows;
+  return rows.map((row) => row === 'No completed rounds yet.'
+    ? t(row)
+    : row.replace(/^Round(?= | \|)/, t('Round')));
 }
 
 function gameStartedLogTimestamp(state, fallbackDate = new Date()) {
@@ -1147,15 +1197,15 @@ function gameStartedLogTimestamp(state, fallbackDate = new Date()) {
 function downloadLogFile(state) {
   const exportedTimestamp = logTimestamp();
   const startedTimestamp = gameStartedLogTimestamp(state);
-  const title = "Dutch game log " + startedTimestamp;
+  const title = t('Dutch game log {timestamp}', { timestamp: startedTimestamp });
   const body = [
     title,
-    "Exported: " + exportedTimestamp,
+    t('Exported: {timestamp}', { timestamp: exportedTimestamp }),
     "",
-    "Points table:",
+    t('Points table:'),
     ...scoreHistoryForDownload(state),
     "",
-    "Game log:",
+    t('Game log:'),
     ...logLinesForDownload(state)
   ].join("\n") + "\n";
   const blob = new Blob([body], { type: "text/plain;charset=utf-8" });
@@ -1188,27 +1238,29 @@ function pointsTable(state) {
       const winnerClass = winnerId && p.id === winnerId ? ' class="winner-points"' : "";
       return `<td${winnerClass}>${item ? item.total : ""}</td>`;
     }).join("");
-    return `<tr><th>Round ${entry.round}</th>${cells}</tr>`;
+    return `<tr><th>${escapeHtml(t('Round {number}', { number: entry.round }))}</th>${cells}</tr>`;
   }).join("");
 
   return `
     <div class="score-scroll">
       <table class="score-table">
-        <thead><tr><th>Round</th>${players.map((p) => `<th title="${escapeHtml(p.name)}">${escapeHtml(shortPlayerName(p.name))}</th>`).join('')}</tr></thead>
+        <thead><tr><th>${escapeHtml(t('Round'))}</th>${players.map((p) => `<th title="${escapeHtml(p.name)}">${escapeHtml(shortPlayerName(p.name))}</th>`).join('')}</tr></thead>
         <tbody>
-          ${historyRows || '<tr><th>Round</th><td colspan="99">No completed rounds yet.</td></tr>'}
+          ${historyRows || '<tr><th>' + escapeHtml(t('Round')) + '</th><td colspan="99">' + escapeHtml(t('No completed rounds yet.')) + '</td></tr>'}
         </tbody>
       </table>
     </div>
-    <p class="points-note">Values show total points after each round. Number cards count their value. A=1, J=11, Q=12, red K=0, black K=13.</p>
+    <p class="points-note">${escapeHtml(t('Values show total points after each round. Number cards count their value. A=1, J=11, Q=12, red K=0, black K=13.'))}</p>
   `;
 }
 function shortInstructions() {
-  return quickRulesHtml();
+  return language === 'en' ? quickRulesHtml() : i18n.quickRulesHtml(language);
 }
 
 function fullRules(state) {
-  return fullRulesHtml(state.gameTarget, state.singleRound);
+  return language === 'en'
+    ? fullRulesHtml(state.gameTarget, state.singleRound)
+    : i18n.fullRulesHtml(language, state.gameTarget, state.singleRound);
 }
 
 function captureAnimationSnapshot() {
