@@ -28,6 +28,34 @@ test('relative log timestamps keep the current text format', () => {
   assert.equal(shared.formatRelativeLogTime(null, base), '+--:--.---');
 });
 
+test('point colors are a stable shuffled permutation for each game', () => {
+  const colors = shared.shuffledPointColorIndices('2026-08-12T12:00:00.000Z', 9);
+  assert.deepEqual(colors.slice().sort((a, b) => a - b), [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.deepEqual(shared.shuffledPointColorIndices('2026-08-12T12:00:00.000Z', 9), colors);
+  assert.notDeepEqual(
+    shared.shuffledPointColorIndices('2026-08-12T12:00:00.001Z', 9),
+    colors
+  );
+});
+
+test('points chart uses the exact observed maximum above 100', () => {
+  assert.equal(shared.pointsChartMaximum(42, 100), 100);
+  assert.equal(shared.pointsChartMaximum(101, 100), 101);
+  assert.equal(shared.pointsChartMaximum(137, 100), 137);
+});
+
+test('score history series start at zero and stop when a player leaves', () => {
+  const series = shared.scoreHistorySeries([
+    { round: 1, players: [{ id: 'ada', name: 'Ada', total: 8 }, { id: 'ben', name: 'Ben', total: 12 }] },
+    { round: 2, players: [{ id: 'ada', name: 'Ada', total: 4 }] }
+  ], [{ id: 'ada', name: 'Ada' }, { id: 'spectator', name: 'Sam', isSpectator: true }]);
+
+  assert.deepEqual(series, [
+    { id: 'ada', name: 'Ada', points: [{ round: 0, total: 0 }, { round: 1, total: 8 }, { round: 2, total: 4 }] },
+    { id: 'ben', name: 'Ben', points: [{ round: 0, total: 0 }, { round: 1, total: 12 }] }
+  ]);
+});
+
 test('score history rows keep markdown table shape', () => {
   const rows = shared.scoreHistoryRows([
     { round: 1, players: [{ name: 'Ada', total: 4 }, { name: 'Ben', total: 7 }] },

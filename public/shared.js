@@ -188,6 +188,61 @@
     return rows;
   }
 
+  function shuffledPointColorIndices(seed, count = 9) {
+    const size = Math.max(0, Math.floor(Number(count) || 0));
+    const indices = Array.from({ length: size }, (_, index) => index);
+    let hash = 2166136261;
+    for (const char of String(seed || 'dutch')) {
+      hash ^= char.codePointAt(0);
+      hash = Math.imul(hash, 16777619) >>> 0;
+    }
+    for (let index = indices.length - 1; index > 0; index -= 1) {
+      hash ^= hash << 13;
+      hash ^= hash >>> 17;
+      hash ^= hash << 5;
+      hash >>>= 0;
+      const swapIndex = hash % (index + 1);
+      [indices[index], indices[swapIndex]] = [indices[swapIndex], indices[index]];
+    }
+    return indices;
+  }
+
+  function pointsChartMaximum(maxTotal, gameTarget) {
+    const observed = Math.max(0, Number(maxTotal) || 0);
+    if (observed > 100) return observed;
+    const safeValue = Math.max(10, observed, Number(gameTarget) || 0);
+    const magnitude = 10 ** Math.floor(Math.log10(safeValue));
+    const fraction = safeValue / magnitude;
+    const niceFraction = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
+    return niceFraction * magnitude;
+  }
+
+  function scoreHistorySeries(history = [], currentPlayers = []) {
+    const seriesById = new Map();
+    function ensurePlayer(player) {
+      if (!player || !player.id || player.isSpectator) return null;
+      if (!seriesById.has(player.id)) {
+        seriesById.set(player.id, {
+          id: player.id,
+          name: String(player.name || ''),
+          points: [{ round: 0, total: 0 }]
+        });
+      }
+      return seriesById.get(player.id);
+    }
+    for (const entry of history) {
+      const round = Number(entry && entry.round);
+      if (!Number.isFinite(round)) continue;
+      for (const player of entry.players || []) {
+        const series = ensurePlayer(player);
+        const total = Number(player && player.total);
+        if (series && Number.isFinite(total)) series.points.push({ round, total });
+      }
+    }
+    for (const player of currentPlayers) ensurePlayer(player);
+    return Array.from(seriesById.values());
+  }
+
   function quickRulesHtml() {
     return `
     <p><strong>Goal:</strong> As few points as possible.</p>
@@ -242,6 +297,9 @@
     logRelativeBaseMs,
     formatRelativeLogTime,
     scoreHistoryRows,
+    shuffledPointColorIndices,
+    pointsChartMaximum,
+    scoreHistorySeries,
     quickRulesHtml,
     fullRulesHtml
   };

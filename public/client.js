@@ -19,6 +19,7 @@ const activeWrongThrows = new Map();
 const activeFaceTurns = new Map();
 const detailPreferencesByMode = {};
 const waitingDrawerPreferences = { bots: false, settings: false };
+const pointColorAssignments = { gameKey: '', order: [] };
 const SPECTATOR_TRIGGER_NAME = 'spectator';
 const RIGHT_PANEL_SCROLL_TARGETS = [
   ['side-area', '.side-area'],
@@ -38,6 +39,9 @@ const {
   logRelativeBaseMs,
   formatRelativeLogTime,
   scoreHistoryRows,
+  shuffledPointColorIndices,
+  pointsChartMaximum,
+  scoreHistorySeries,
   quickRulesHtml,
   fullRulesHtml
 } = window.DutchShared;
@@ -115,6 +119,48 @@ function wireAnimatedDrawers(scope, onChange) {
         if (animation === currentAnimation) animation = null;
       };
     });
+  });
+}
+
+function captureDrawerTransitions() {
+  const transitions = new Map();
+  document.querySelectorAll('details.drawer[data-detail-key]').forEach((details) => {
+    const content = details.querySelector(':scope > .drawer-animation-content');
+    if (!content) return;
+    transitions.set(details.dataset.detailKey, {
+      open: details.open,
+      height: details.open ? content.getBoundingClientRect().height : 0
+    });
+  });
+  return transitions;
+}
+
+function animateDrawerTransitions(transitions) {
+  if (!transitions.size || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  document.querySelectorAll('details.drawer[data-detail-key]').forEach((details) => {
+    const content = details.querySelector(':scope > .drawer-animation-content');
+    const previous = transitions.get(details.dataset.detailKey);
+    if (!content || !content.animate || !previous || previous.open === details.open) return;
+
+    const targetOpen = details.open;
+    if (!targetOpen) details.open = true;
+    const startHeight = targetOpen ? 0 : previous.height;
+    const endHeight = targetOpen ? content.scrollHeight : 0;
+    content.style.overflow = 'hidden';
+
+    const animation = content.animate([
+      { height: `${startHeight}px`, opacity: targetOpen ? 0 : 1 },
+      { height: `${endHeight}px`, opacity: targetOpen ? 1 : 0 }
+    ], {
+      duration: 220,
+      easing: targetOpen ? 'cubic-bezier(0.2, 0.8, 0.2, 1)' : 'cubic-bezier(0.4, 0, 1, 1)'
+    });
+
+    animation.onfinish = () => {
+      details.open = targetOpen;
+      content.removeAttribute('style');
+    };
   });
 }
 
@@ -727,6 +773,7 @@ function renderGame(state) {
   const me = round.players.find((p) => p.id === state.you);
   const others = round.players.filter((p) => p.id !== state.you && !p.isSpectator);
   const rightPanelScroll = captureRightPanelScroll();
+  const drawerTransitions = captureDrawerTransitions();
   app.innerHTML = `
     <div class="main-layout">
       <main class="game-area">
@@ -740,6 +787,7 @@ function renderGame(state) {
     </div>
   `;
   clientActions.wireGameButtons();
+  animateDrawerTransitions(drawerTransitions);
   const gameThemeSelect = document.getElementById('gameThemeSelect');
   const inGameTargetSelect = document.getElementById('inGameTargetSelect');
   const highlightChangedCardsSelect = document.getElementById('highlightChangedCardsSelect');
@@ -852,7 +900,7 @@ function renderPlayerField(player, state, compact) {
   return `
     <div class="player-field${current}${dutchCaller}${finalTurnDone}${winner}" data-player-panel-id="${escapeHtml(player.id)}">
       <div class="player-title">
-        <strong>${escapeHtml(player.name)}</strong>${missing}${playerBadges(state, player)}
+        <strong>${playerNameHtml(state, player)}</strong>${missing}${playerBadges(state, player)}
         ${renderPlayerMeta(player)}
       </div>
       <div class="cards-row">
@@ -875,7 +923,7 @@ function renderOwnArea(player, state) {
   return `
     <section class="own-area${player.isCurrent ? ' current' : ''}${dutchCaller}${finalTurnDone}${winner}" data-player-panel-id="${escapeHtml(player.id)}">
       <div class="player-title">
-        <h2>${escapeHtml(player.name)} <span class="you-badge">${areaLabel}</span>${playerBadges(state, player)}</h2>
+        <h2>${playerNameHtml(state, player)} <span class="you-badge">${areaLabel}</span>${playerBadges(state, player)}</h2>
         ${renderPlayerMeta(player)}
       </div>
       <div class="cards-row">
@@ -1081,12 +1129,15 @@ function renderSideArea(state) {
   const r = state.round;
   const selectedTheme = window.DutchTheme.getStoredTheme(window);
   const gameFinished = r.stage === 'gameEnd';
-  const firstRoundActive = state.roundNumber <= 1 && !['roundEnd', 'gameEnd'].includes(r.stage);
-  const detailsMode = gameFinished ? 'finished' : firstRoundActive ? 'first-round' : 'scoring';
+  const completedRounds = (state.scoreHistory || []).length;
+  const detailsMode = completedRounds === 0
+    ? 'before-scoring'
+    : completedRounds < 3 ? 'points-table' : 'points-graph';
   currentDetailsMode = detailsMode;
   if (!detailPreferencesByMode[detailsMode]) detailPreferencesByMode[detailsMode] = {};
-  const pointsDefaultOpen = gameFinished || !firstRoundActive;
-  const guideDefaultOpen = firstRoundActive;
+  const pointsTableDefaultOpen = completedRounds >= 1 && completedRounds < 3;
+  const pointsGraphDefaultOpen = completedRounds >= 3;
+  const guideDefaultOpen = completedRounds === 0;
   const logDefaultOpen = !gameFinished;
   return `
     <aside class="side-area">
@@ -1095,7 +1146,8 @@ function renderSideArea(state) {
       </div>
       <div class="panel side-panel">
         <div class="side-drawers">
-          ${renderDetails('points', t('Points'), pointsTable(state), pointsDefaultOpen)}
+          ${renderDetails('pointsGraph', t('Points graph'), renderPointsChart(state, r.players), pointsGraphDefaultOpen)}
+          ${renderDetails('pointsTable', t('Points table'), pointsTable(state), pointsTableDefaultOpen)}
           ${renderDetails('log', t('Game log'), renderLog(state), logDefaultOpen)}
           ${renderDetails('guide', t('Quick guide'), shortInstructions(), guideDefaultOpen)}
           ${renderDetails('rules', t('Complete rules'), fullRules(state), false, 'rules-body')}
@@ -1219,6 +1271,109 @@ function downloadLogFile(state) {
   URL.revokeObjectURL(url);
 }
 
+function pointColorIndex(state, playerId) {
+  const gameKey = String(state.gameStartedAt || 'current-game');
+  if (pointColorAssignments.gameKey !== gameKey) {
+    pointColorAssignments.gameKey = gameKey;
+    pointColorAssignments.order = shuffledPointColorIndices(gameKey, 9);
+  }
+  const orderedIds = [];
+  for (const entry of state.scoreHistory || []) {
+    for (const player of entry.players || []) {
+      if (player.id && !orderedIds.includes(player.id)) orderedIds.push(player.id);
+    }
+  }
+  for (const player of (state.round && state.round.players) || []) {
+    if (player.id && !player.isSpectator && !orderedIds.includes(player.id)) orderedIds.push(player.id);
+  }
+  const playerIndex = Math.max(0, orderedIds.indexOf(playerId));
+  return pointColorAssignments.order[playerIndex % pointColorAssignments.order.length];
+}
+
+function playerNameHtml(state, player) {
+  const colorIndex = pointColorIndex(state, player.id);
+  return `<span class="player-name-with-color" style="--series-color: var(--chart-color-${colorIndex})"><span class="player-color-dot" aria-hidden="true"></span><span>${escapeHtml(player.name)}</span></span>`;
+}
+
+function pointsChartMarker(x, y, label) {
+  const common = `class="points-chart-marker" tabindex="0" role="img" aria-label="${escapeHtml(label)}"`;
+  return `<circle ${common} cx="${x}" cy="${y}" r="3.5"><title>${escapeHtml(label)}</title></circle>`;
+}
+
+function renderPointsChart(state, currentPlayers) {
+  const history = state.scoreHistory || [];
+  if (history.length === 0) return '<p class="hint">' + escapeHtml(t('No completed rounds yet.')) + '</p>';
+  const series = scoreHistorySeries(history, currentPlayers);
+  if (series.length === 0) return '';
+
+  const width = 300;
+  const height = 180;
+  const margin = { top: 12, right: 10, bottom: 25, left: 34 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+  const maxRound = Math.max(1, ...history.map((entry) => Number(entry.round) || 0));
+  const maxTotal = Math.max(0, ...series.flatMap((item) => item.points.map((point) => point.total)));
+  const target = state.singleRound ? 0 : Number(state.gameTarget) || 0;
+  const yMax = pointsChartMaximum(maxTotal, target);
+  const x = (round) => margin.left + (round / maxRound) * plotWidth;
+  const y = (total) => margin.top + plotHeight - (total / yMax) * plotHeight;
+  const coordinate = (value) => Number(value.toFixed(2));
+  const yTicks = Array.from({ length: 6 }, (_, index) => (yMax / 5) * index);
+  const xStep = Math.max(1, Math.ceil(maxRound / 6));
+  const xTicks = [];
+  for (let round = 0; round <= maxRound; round += xStep) xTicks.push(round);
+  if (xTicks[xTicks.length - 1] !== maxRound) xTicks.push(maxRound);
+
+  const grid = yTicks.map((value) => {
+    const yPos = coordinate(y(value));
+    return `<g class="points-chart-grid"><line x1="${margin.left}" y1="${yPos}" x2="${width - margin.right}" y2="${yPos}"></line><text x="${margin.left - 6}" y="${yPos + 3}">${escapeHtml(String(Math.round(value)))}</text></g>`;
+  }).join('');
+  const roundLabels = xTicks.map((round) => {
+    const xPos = coordinate(x(round));
+    return `<text class="points-chart-round" x="${xPos}" y="${height - 7}">${escapeHtml(round === 0 ? '0' : 'R' + round)}</text>`;
+  }).join('');
+  const targetLine = target > 0
+    ? `<g class="points-chart-target"><line x1="${margin.left}" y1="${coordinate(y(target))}" x2="${width - margin.right}" y2="${coordinate(y(target))}"></line><text x="${width - margin.right}" y="${Math.max(10, coordinate(y(target)) - 4)}">${escapeHtml(t('Target: {points}', { points: target }))}</text></g>`
+    : '';
+
+  const chartSeries = series.map((item) => {
+    const colorIndex = pointColorIndex(state, item.id);
+    const points = item.points.map((point) => ({
+      ...point,
+      x: coordinate(x(point.round)),
+      y: coordinate(y(point.total))
+    }));
+    const path = points.map((point, pointIndex) => (pointIndex === 0 ? 'M' : 'L') + point.x + ' ' + point.y).join(' ');
+    const markers = points.map((point) => {
+      const label = t('Round {round}: {name}, {points} points', {
+        round: point.round,
+        name: item.name,
+        points: point.total
+      });
+      return pointsChartMarker(point.x, point.y, label);
+    }).join('');
+    return `<g class="points-chart-series" style="--series-color: var(--chart-color-${colorIndex})"><path class="points-chart-line" d="${path}"></path>${markers}</g>`;
+  }).join('');
+
+  const legend = series.map((item) => {
+    const colorIndex = pointColorIndex(state, item.id);
+    return `<span class="points-chart-legend-item" role="listitem" style="--series-color: var(--chart-color-${colorIndex})"><span class="points-chart-legend-marker" aria-hidden="true"></span><span>${escapeHtml(item.name)}</span></span>`;
+  }).join('');
+
+  return `
+    <figure class="points-chart" aria-label="${escapeHtml(t('Points over time'))}">
+      <div class="points-chart-legend" role="list" aria-label="${escapeHtml(t('Players'))}">${legend}</div>
+      <svg class="points-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(t('Points over time'))}">
+        <title>${escapeHtml(t('Points over time'))}</title>
+        ${grid}
+        ${targetLine}
+        ${chartSeries}
+        ${roundLabels}
+      </svg>
+    </figure>
+  `;
+}
+
 function pointsTable(state) {
   const history = state.scoreHistory || [];
   const playerMap = new Map();
@@ -1235,8 +1390,9 @@ function pointsTable(state) {
   const historyRows = history.map((entry) => {
     const cells = players.map((p) => {
       const item = entry.players.find((h) => h.id === p.id);
-      const winnerClass = winnerId && p.id === winnerId ? ' class="winner-points"' : "";
-      return `<td${winnerClass}>${item ? item.total : ""}</td>`;
+      const winnerClass = winnerId && p.id === winnerId ? ' winner-points' : '';
+      const colorIndex = pointColorIndex(state, p.id);
+      return `<td class="player-points${winnerClass}" style="--series-color: var(--chart-color-${colorIndex})">${item ? item.total : ""}</td>`;
     }).join("");
     return `<tr><th>${escapeHtml(t('Round {number}', { number: entry.round }))}</th>${cells}</tr>`;
   }).join("");
