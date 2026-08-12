@@ -113,6 +113,12 @@
     return Number(card.rank);
   }
 
+  const HALVING_TOTALS = Object.freeze([50, 100, 200]);
+
+  function isHalvingTotal(total) {
+    return HALVING_TOTALS.includes(total);
+  }
+
   function specialLabel(type) {
     if (type === 'A') return 'Ace add card';
     if (type === 'Q') return 'Queen peek';
@@ -269,7 +275,7 @@
     <p>Anyone who throws in incorrectly takes their card back and receives one unknown face-down penalty card.</p>
     <p>If a player believes they have 5 points or less, they may say <strong>Dutch</strong> at the end of their turn. After that, every other player gets exactly one more turn. Then everyone reveals their cards and counts the points.</p>
     <p>If the Dutch caller has 5 points or less and nobody has fewer points, they receive 0 points for that round. If they have more than 5 points or another player has fewer points, their points are doubled. All other players receive their normal points.</p>
-    <p>After each round, points are added to the total score. If a player reaches exactly 50 or exactly 100 points, their score is halved. ${gameLengthText}</p>
+    <p>After each round, points are added to the total score. If a player reaches exactly 50, 100, or 200 points, their score is halved. ${gameLengthText}</p>
   `;
   }
 
@@ -280,6 +286,7 @@
     RANKS,
     SPECIAL_RANKS,
     RED_SUITS,
+    HALVING_TOTALS,
     BOT_LABELS,
     BOT_PERSONALITIES,
     nameGraphemes,
@@ -289,6 +296,7 @@
     suitSymbol,
     isRedSuit,
     cardPoints,
+    isHalvingTotal,
     specialLabel,
     specialName,
     cardLabel,

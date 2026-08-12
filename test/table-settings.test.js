@@ -82,8 +82,11 @@ test('setGameTarget accepts supported targets until a player reaches 50', () => 
   assert.equal(state.singleRound, false);
   assert.equal(state.gameTarget, 50);
 
+  settings.setGameTarget('200');
+  assert.equal(state.gameTarget, 200);
+
   settings.setGameTarget(75);
-  assert.equal(state.gameTarget, 50);
+  assert.equal(state.gameTarget, 200);
 
   state.phase = 'playing';
   state.roundNumber = 1;
@@ -131,6 +134,43 @@ test('setInactivityTimeout accepts only supported minute values', () => {
   assert.equal(state.inactivityTimeoutMinutes, 60);
   settings.setInactivityTimeout(45);
   assert.equal(state.inactivityTimeoutMinutes, 60);
+});
+
+test('shared setting changes are logged during a game with the actor and old value', () => {
+  const state = {
+    phase: 'playing',
+    gameTarget: 100,
+    singleRound: false,
+    inactivityTimeoutMinutes: 15,
+    roundNumber: 1,
+    round: { stage: 'turn' },
+    players: [player('ada', { name: 'Ada', total: 0 })]
+  };
+  const logs = [];
+  const settings = settingsFor(state, {
+    addLog: (text, kind) => logs.push({ text, kind })
+  });
+
+  assert.equal(settings.setGameTarget(50, state.players[0]), true);
+  assert.equal(settings.setGameTarget(50, state.players[0]), false);
+  assert.equal(settings.setGameTarget('single', state.players[0]), true);
+  assert.equal(settings.setInactivityTimeout(60, state.players[0]), true);
+  assert.equal(settings.setInactivityTimeout(60, state.players[0]), false);
+
+  assert.deepEqual(logs, [
+    {
+      text: 'Ada changed game length from 100 points to 50 points',
+      kind: 'system'
+    },
+    {
+      text: 'Ada changed game length from 50 points to single round',
+      kind: 'system'
+    },
+    {
+      text: 'Ada changed inactivity timeout from 15 to 60 minutes',
+      kind: 'system'
+    }
+  ]);
 });
 
 test('createCombinedDeck sets deck color and advances card ids across calls', () => {

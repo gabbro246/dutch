@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.50
+- added a double 200-point game with score halving at exactly 50, 100, and 200 points
+- improved player colors for clearer distinction in light and dark modes
+- made graph markers less intrusive and added help cursors to information labels
+
+## 1.3.49
+- logged player-made changes to shared in-game settings
+- moved setting and scoring descriptions into hover and tap help
+- showed consistent player-name colors from the waiting room through the game
+- refined automatic points-panel opening while preserving manual choices
+
 ## 1.3.48
 - added an points-over-time graph with distinct player colors that are also shown in the player fields and points table
 - automatically opens the points table after round one and the points graph after round three

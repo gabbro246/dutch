@@ -130,10 +130,22 @@ test('changed-card highlighting is a shared in-game setting', () => {
     ben.handlers.join({ name: 'Ben', token: 'ben-token' });
     ada.handlers.startGame();
 
+    ada.handlers.setGameTarget(50);
+    ben.handlers.setInactivityTimeout(90);
     ben.handlers.setHighlightChangedCards('false');
 
     assert.equal(services.getState().phase, 'playing');
+    assert.equal(services.getState().gameTarget, 50);
+    assert.equal(services.getState().inactivityTimeoutMinutes, 90);
     assert.equal(services.getState().highlightChangedCards, false);
+    assert.deepEqual(
+      services.getState().log.slice(0, 3).map((entry) => [entry.text, entry.kind]),
+      [
+        ['Ben turned changed-card highlighting off', 'system'],
+        ['Ben changed inactivity timeout from 15 to 90 minutes', 'system'],
+        ['Ada changed game length from 100 points to 50 points', 'system']
+      ]
+    );
     const latestAdaState = ada.emitted.filter((event) => event.event === 'state').at(-1).payload;
     assert.equal(latestAdaState.highlightChangedCards, false);
   } finally {

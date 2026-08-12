@@ -44,18 +44,20 @@ test('Dutch caller is doubled when another player has fewer points', () => {
   assert.equal(players[1].roundPoints, 4);
 });
 
-test('exact 50 and 100 totals are halved after scoring', () => {
+test('exact 50, 100, and 200 totals are halved after scoring', () => {
   const players = [
     player('ada', [card('2')], 48),
-    player('ben', [card('K', 'spades')], 87)
+    player('ben', [card('K', 'spades')], 87),
+    player('cy', [card('5')], 195)
   ];
 
-  const scoring = applyRoundScoring(players, { gameTarget: 100 });
+  const scoring = applyRoundScoring(players, { gameTarget: 200 });
 
   assert.equal(players[0].total, 25);
   assert.equal(players[1].total, 50);
-  assert.deepEqual(scoring.halvings.map((item) => item.id), ['ada', 'ben']);
-  assert.deepEqual(scoring.pointChanges, ['ADA lost 23 points', 'BEN lost 37 points']);
+  assert.equal(players[2].total, 100);
+  assert.deepEqual(scoring.halvings.map((item) => item.id), ['ada', 'ben', 'cy']);
+  assert.deepEqual(scoring.pointChanges, ['ADA lost 23 points', 'BEN lost 37 points', 'CY lost 95 points']);
 });
 
 test('game ends once a player passes the target and lowest total wins', () => {

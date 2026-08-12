@@ -24,6 +24,8 @@ test('language preference defaults to English and persists German', () => {
 test('German translations interpolate dynamic UI text', () => {
   assert.equal(i18n.translate('en', 'Join'), 'Join');
   assert.equal(i18n.translate('de', 'Join'), 'Beitreten');
+  assert.equal(i18n.translate('de', 'Show help'), 'Hilfe anzeigen');
+  assert.equal(i18n.translate('de', 'Double game, 200 points'), 'Doppeltes Spiel, 200 Punkte');
   assert.equal(
     i18n.translate('de', 'Round {number}', { number: 3 }),
     'Runde 3'
@@ -41,4 +43,20 @@ test('German rules and server-originated game text are localized', () => {
   assert.match(i18n.quickRulesHtml('de'), /Ziel:/);
   assert.match(i18n.fullRulesHtml('de', 100, false), /mehr als 100 Punkte/);
   assert.equal(i18n.translateGameText('de', 'Ada said Dutch'), 'Ada hat Dutch gesagt');
+  assert.equal(
+    i18n.translateGameText('de', 'Ada changed game length from 100 points to single round'),
+    'Ada hat die Spieldauer von 100 Punkten auf eine Runde geändert'
+  );
+  assert.equal(
+    i18n.translateGameText('de', 'Ada changed game length from single round to 50 points'),
+    'Ada hat die Spieldauer von einer Runde auf 50 Punkte geändert'
+  );
+  assert.equal(
+    i18n.translateGameText('de', 'Ben changed inactivity timeout from 15 to 90 minutes'),
+    'Ben hat die Inaktivitätsgrenze von 15 auf 90 Minuten geändert'
+  );
+  assert.equal(
+    i18n.translateGameText('de', 'Ben turned changed-card highlighting off'),
+    'Ben hat das Hervorheben geänderter Karten ausgeschaltet'
+  );
 });

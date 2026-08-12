@@ -55,9 +55,10 @@ test('variance is penalized while safely ahead and rewarded under imminent oppon
   assert.ok(pressured.riskAdjustment > 0);
 });
 
-test('projected scoring applies exact 50 and 100 halving', () => {
+test('projected scoring applies exact 50, 100, and 200 halving', () => {
   assert.equal(scoreAfterRound(46, 4), 25);
   assert.equal(scoreAfterRound(96, 4), 50);
+  assert.equal(scoreAfterRound(196, 4), 100);
   assert.equal(scoreAfterRound(45, 4), 49);
 });
 

@@ -9,7 +9,7 @@
     Language: 'Sprache', English: 'Englisch', German: 'Deutsch',
     'Choose the language used by this device.': 'Wähle die Sprache für dieses Gerät.',
     Name: 'Name', Join: 'Beitreten', Rejoin: 'Erneut beitreten', Leave: 'Verlassen', Remove: 'Entfernen',
-    Bots: 'Bots', 'Choose bot...': 'Bot auswählen ...', 'Add bot': 'Bot hinzufügen', Settings: 'Einstellungen',
+    Bots: 'Bots', 'Choose bot...': 'Bot auswählen ...', 'Add bot': 'Bot hinzufügen', Settings: 'Einstellungen', 'Show help': 'Hilfe anzeigen',
     Players: 'Spieler', 'No players yet.': 'Noch keine Spieler.', 'Start game': 'Spiel starten',
     bot: 'Bot', spectator: 'Zuschauer', you: 'du', missing: 'fehlt', Watching: 'Zuschauer',
     'Move up': 'Nach oben', 'Move down': 'Nach unten', 'Move {name} up': '{name} nach oben verschieben',
@@ -22,7 +22,8 @@
     none: 'keine', 'Round {number}': 'Runde {number}', 'Round not started': 'Runde nicht begonnen',
     'Game length': 'Spieldauer', 'Single round': 'Eine Runde', 'Short game, 50 points': 'Kurzes Spiel, 50 Punkte',
     'Full game, 100 points': 'Volles Spiel, 100 Punkte',
-    'Choose how long the game lasts: a normal game ends when a player passes 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.': 'Wähle die Spieldauer: Ein normales Spiel endet über 100 Punkten, ein kurzes über 50 Punkten und ein Spiel mit einer Runde nach dieser Runde. Die niedrigste Punktzahl gewinnt.',
+    'Double game, 200 points': 'Doppeltes Spiel, 200 Punkte',
+    'Choose how long the game lasts: a double game ends when a player passes 200 points, a full game uses 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.': 'Wähle die Spieldauer: Ein doppeltes Spiel endet über 200 Punkten, ein volles über 100 Punkten, ein kurzes über 50 Punkten und ein Spiel mit einer Runde nach dieser Runde. Die niedrigste Punktzahl gewinnt.',
     'Deck amount': 'Anzahl Kartendecks', 'One deck': 'Ein Kartendeck', 'Two decks': 'Zwei Kartendecks',
     'More decks make the game less predictable and add more special cards, though some may remain undealt. Two decks are required for more than four players.': 'Mehr Kartendecks machen das Spiel unvorhersehbarer und bringen mehr Sonderkarten. Bei mehr als vier Spielern sind zwei Kartendecks erforderlich.',
     Appearance: 'Darstellung', 'Light mode': 'Heller Modus', 'Dark mode': 'Dunkler Modus',
@@ -111,13 +112,29 @@
       '<p>Wer falsch einwirft, nimmt seine Karte zurück und erhält eine unbekannte verdeckte Strafkarte.</p>' +
       '<p>Wer glaubt, höchstens 5 Punkte zu haben, darf am Ende des eigenen Zuges <strong>Dutch</strong> sagen. Danach erhält jeder andere genau einen letzten Zug. Anschließend decken alle ihre Karten auf und zählen die Punkte.</p>' +
       '<p>Hat der Dutch-Ansager höchstens 5 Punkte und niemand weniger, erhält er für die Runde 0 Punkte. Hat er mehr als 5 Punkte oder hat jemand weniger, werden seine Punkte verdoppelt. Alle anderen erhalten ihre normale Punktzahl.</p>' +
-      '<p>Nach jeder Runde werden die Punkte zur Gesamtpunktzahl addiert. Erreicht jemand genau 50 oder 100 Punkte, wird die Punktzahl halbiert. ' + ending + '</p>';
+      '<p>Nach jeder Runde werden die Punkte zur Gesamtpunktzahl addiert. Erreicht jemand genau 50, 100 oder 200 Punkte, wird die Punktzahl halbiert. ' + ending + '</p>';
   }
   function translateGameText(language, input) {
     if (normalizeLanguage(language) !== 'de') return String(input || '');
     const value = String(input || '');
     const exact = { 'game started': 'Spiel begonnen', 'all active players finished peeking': 'Alle aktiven Spieler haben ihre Startkarten angesehen', 'discard pile reshuffled into draw pile': 'Der Ablagestapel wurde zum Zugstapel gemischt', 'A game is already active. Join after the game ends.': de['A game is already active. Join after the game ends.'], 'Bots can only be added in the waiting room.': 'Bots können nur im Warteraum hinzugefügt werden.', 'Unknown bot type.': 'Unbekannter Bot-Typ.', 'The player list is full.': 'Die Spielerliste ist voll.', 'That bot is already in the player list.': 'Dieser Bot ist bereits in der Spielerliste.' };
     if (exact[value]) return exact[value];
+    const gameLengthChange = value.match(/^(.+) changed game length from (single round|\d+ points) to (single round|\d+ points)$/i);
+    if (gameLengthChange) {
+      const localizedLength = function localizedLength(length, dative) {
+        if (length.toLowerCase() === 'single round') return dative ? 'einer Runde' : 'eine Runde';
+        return length.replace(/ points$/i, dative ? ' Punkten' : ' Punkte');
+      };
+      return gameLengthChange[1] + ' hat die Spieldauer von ' + localizedLength(gameLengthChange[2], true) + ' auf ' + localizedLength(gameLengthChange[3], false) + ' geändert';
+    }
+    const inactivityChange = value.match(/^(.+) changed inactivity timeout from (\d+) to (\d+) minutes$/i);
+    if (inactivityChange) {
+      return inactivityChange[1] + ' hat die Inaktivitätsgrenze von ' + inactivityChange[2] + ' auf ' + inactivityChange[3] + ' Minuten geändert';
+    }
+    const highlightingChange = value.match(/^(.+) turned changed-card highlighting (on|off)$/i);
+    if (highlightingChange) {
+      return highlightingChange[1] + ' hat das Hervorheben geänderter Karten ' + (highlightingChange[2].toLowerCase() === 'on' ? 'eingeschaltet' : 'ausgeschaltet');
+    }
     const rules = [[/^round (\d+) started$/i, 'Runde $1 begonnen'], [/^game ended\. (.+) won$/i, 'Spiel beendet. $1 hat gewonnen'], [/^(.+) finished start peek$/i, '$1 hat die Startkarten angesehen'], [/^(.+) said Dutch$/i, '$1 hat Dutch gesagt'], [/^(.+) used Jack swap$/i, '$1 hat mit dem Buben getauscht'], [/^(.+) used Queen peek$/i, '$1 hat mit der Dame eine Karte angesehen'], [/^(.+) gave a card to (.+)$/i, '$1 hat $2 eine Karte gegeben'], [/^(.+) made a wrong throw-in and took a penalty card$/i, '$1 hat falsch eingeworfen und eine Strafkarte genommen'], [/^(.+) threw in (?:an? )?(.+)$/i, '$1 hat $2 eingeworfen'], [/^(.+) joined as a spectator$/i, '$1 ist als Zuschauer beigetreten'], [/^(.+) joined$/i, '$1 ist beigetreten'], [/^(.+) reconnected$/i, '$1 ist wieder verbunden'], [/^(.+) disconnected$/i, '$1 hat die Verbindung verloren'], [/^(.+) left$/i, '$1 hat das Spiel verlassen']];
     for (const rule of rules) if (rule[0].test(value)) return value.replace(rule[0], rule[1]);
     return value.replace(/^round ended\./i, 'Runde beendet.')

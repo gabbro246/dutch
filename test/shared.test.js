@@ -13,6 +13,12 @@ test('card point values match Dutch rules', () => {
   assert.equal(shared.cardPoints({ rank: 'K', suit: 'spades' }), 13);
 });
 
+test('halving totals include the double-game threshold', () => {
+  assert.deepEqual(shared.HALVING_TOTALS, [50, 100, 200]);
+  assert.equal(shared.isHalvingTotal(200), true);
+  assert.equal(shared.isHalvingTotal(150), false);
+});
+
 test('short player names preserve emoji and abbreviate long names', () => {
   assert.equal(shared.shortPlayerName('🦉 Athena'), '🦉');
   assert.equal(shared.shortPlayerName('Gabriel'), 'Gabr.');

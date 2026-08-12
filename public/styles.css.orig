@@ -57,15 +57,15 @@
   --game-winner-ring: rgba(210, 139, 0, 0.14);
   --game-winner-badge-text: #7a4b00;
   --game-winner-badge-bg: #fff1bf;
-  --chart-color-0: #332288;
-  --chart-color-1: #af5766;
-  --chart-color-2: #117733;
-  --chart-color-3: #7c7343;
-  --chart-color-4: #50778b;
-  --chart-color-5: #882255;
-  --chart-color-6: #327e72;
-  --chart-color-7: #767627;
-  --chart-color-8: #aa4499;
+  --chart-color-0: #1a73e8;
+  --chart-color-1: #d93025;
+  --chart-color-2: #188038;
+  --chart-color-3: #9334e6;
+  --chart-color-4: #e37400;
+  --chart-color-5: #00838f;
+  --chart-color-6: #7b1fa2;
+  --chart-color-7: #5f6368;
+  --chart-color-8: #c2185b;
 }
 
 :root[data-theme="dark"] {
@@ -113,15 +113,15 @@
   --winner-badge-bg: #173833;
   --game-winner-badge-text: #f3ce81;
   --game-winner-badge-bg: #3c3016;
-  --chart-color-0: #847ab7;
-  --chart-color-1: #cc6677;
-  --chart-color-2: #3f915a;
-  --chart-color-3: #ddcc77;
-  --chart-color-4: #88ccee;
-  --chart-color-5: #b06d8f;
-  --chart-color-6: #44aa99;
-  --chart-color-7: #999933;
-  --chart-color-8: #b863aa;
+  --chart-color-0: #8ab4f8;
+  --chart-color-1: #f28b82;
+  --chart-color-2: #81c995;
+  --chart-color-3: #c58af9;
+  --chart-color-4: #fdd663;
+  --chart-color-5: #78d9ec;
+  --chart-color-6: #d7aefb;
+  --chart-color-7: #bdc1c6;
+  --chart-color-8: #ff8bcb;
 }
 
 body {
@@ -380,7 +380,6 @@ summary {
   padding: 0;
   background: transparent;
   color: var(--subtle-text);
-  cursor: help;
   font-size: inherit;
   font-weight: 400;
   line-height: 1;
@@ -1281,16 +1280,15 @@ button.help-disclosure-button[aria-expanded="true"] {
 }
 
 .points-chart-marker {
-  fill: var(--series-color);
-  stroke: var(--panel-bg);
-  stroke-width: 1;
+  fill: var(--panel-bg);
+  stroke: var(--series-color);
+  stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }
 
 .points-chart-marker:focus {
   outline: none;
-  stroke: var(--series-color);
-  stroke-width: 3;
+  stroke-width: 4;
 }
 
 .score-scroll { overflow-x: auto; }

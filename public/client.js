@@ -16,10 +16,11 @@ let currentDetailsMode = '';
 let logExpanded = false;
 const activeCardMoves = new Map();
 const activeWrongThrows = new Map();
+let detailPreferencesGameKey = '';
 const activeFaceTurns = new Map();
 const detailPreferencesByMode = {};
 const waitingDrawerPreferences = { bots: false, settings: false };
-const pointColorAssignments = { gameKey: '', order: [] };
+const pointColorAssignments = { order: [], byPlayerId: new Map() };
 const SPECTATOR_TRIGGER_NAME = 'spectator';
 const RIGHT_PANEL_SCROLL_TARGETS = [
   ['side-area', '.side-area'],
@@ -503,7 +504,7 @@ function renderWaiting(state) {
     `;
     return `
       <div class="player-line" data-waiting-player-id="${escapeHtml(p.id)}">
-        <span>${index + 1}. ${escapeHtml(p.name)}${p.isBot ? ' <span class="bot-badge">' + escapeHtml(t('bot')) + '</span>' : ''}${p.isSpectator ? ' <span class="spectator-badge">' + escapeHtml(t('spectator')) + '</span>' : ''}${isMe ? ' <span class="you-badge">' + escapeHtml(t('you')) + '</span>' : ''} ${p.connected ? '' : '(' + escapeHtml(t('missing')) + ')'}</span>
+        <span>${index + 1}. ${playerNameHtml(state, p)}${p.isBot ? ' <span class="bot-badge">' + escapeHtml(t('bot')) + '</span>' : ''}${p.isSpectator ? ' <span class="spectator-badge">' + escapeHtml(t('spectator')) + '</span>' : ''}${isMe ? ' <span class="you-badge">' + escapeHtml(t('you')) + '</span>' : ''} ${p.connected ? '' : '(' + escapeHtml(t('missing')) + ')'}</span>
         ${moveControls}
       </div>
     `;
@@ -539,32 +540,30 @@ function renderWaiting(state) {
           <details class="drawer waiting-drawer" data-waiting-drawer="settings" ${settingsOpen}>
             <summary>${escapeHtml(t('Settings'))}</summary>
             <div class="drawer-content drawer-animation-content waiting-selectors">
-              <label class="setting-row" for="gameTargetSelect">
-                <span class="setting-name">${escapeHtml(t('Game length'))}</span>
-                <select id="gameTargetSelect">
+              <div class="setting-row">
+                ${helpDisclosureHtml('waitingGameLengthHelp', 'Game length', 'Choose how long the game lasts: a double game ends when a player passes 200 points, a full game uses 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.')}
+                <select id="gameTargetSelect" aria-label="${escapeHtml(t('Game length'))}">
                   <option value="single" ${state.singleRound ? 'selected' : ''}>${escapeHtml(t('Single round'))}</option>
                   <option value="50" ${!state.singleRound && state.gameTarget === 50 ? 'selected' : ''}>${escapeHtml(t('Short game, 50 points'))}</option>
                   <option value="100" ${!state.singleRound && state.gameTarget === 100 ? 'selected' : ''}>${escapeHtml(t('Full game, 100 points'))}</option>
+                  <option value="200" ${!state.singleRound && state.gameTarget === 200 ? 'selected' : ''}>${escapeHtml(t('Double game, 200 points'))}</option>
                 </select>
-                <span class="setting-description">${escapeHtml(t('Choose how long the game lasts: a normal game ends when a player passes 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.'))}</span>
-              </label>
+              </div>
               ${inactivityTimeoutSettingHtml(state, 'inactivityTimeoutSelect')}
-              <label class="setting-row" for="deckSettingSelect">
-                <span class="setting-name">${escapeHtml(t('Deck amount'))}</span>
-                <select id="deckSettingSelect">
+              <div class="setting-row">
+                ${helpDisclosureHtml('deckAmountHelp', 'Deck amount', 'More decks make the game less predictable and add more special cards, though some may remain undealt. Two decks are required for more than four players.')}
+                <select id="deckSettingSelect" aria-label="${escapeHtml(t('Deck amount'))}">
                   <option value="one" ${state.deckSetting === 'one' ? 'selected' : ''} ${state.oneDeckDisabled ? 'disabled' : ''}>${escapeHtml(t('One deck'))}</option>
                   <option value="two" ${state.deckSetting === 'two' ? 'selected' : ''}>${escapeHtml(t('Two decks'))}</option>
                 </select>
-                <span class="setting-description">${escapeHtml(t('More decks make the game less predictable and add more special cards, though some may remain undealt. Two decks are required for more than four players.'))}</span>
-              </label>
-              <label class="setting-row" for="themeSelect">
-                <span class="setting-name">${escapeHtml(t('Appearance'))}</span>
-                <select id="themeSelect">
+              </div>
+              <div class="setting-row">
+                ${helpDisclosureHtml('waitingAppearanceHelp', 'Appearance', 'Choose the light or dark color theme.')}
+                <select id="themeSelect" aria-label="${escapeHtml(t('Appearance'))}">
                   <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>${escapeHtml(t('Light mode'))}</option>
                   <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>${escapeHtml(t('Dark mode'))}</option>
                 </select>
-                <span class="setting-description">${escapeHtml(t('Choose the light or dark color theme.'))}</span>
-              </label>
+              </div>
               ${languageSettingHtml('languageSelect')}
             </div>
           </details>
@@ -581,6 +580,7 @@ function renderWaiting(state) {
   `;
 
   const nameInput = document.getElementById('nameInput');
+  wireHelpDisclosures(document);
   const joinBtn = document.getElementById('joinBtn');
   if (nameInput && joinBtn) {
     nameInput.addEventListener('input', () => {
@@ -790,6 +790,7 @@ function renderGame(state) {
   animateDrawerTransitions(drawerTransitions);
   const gameThemeSelect = document.getElementById('gameThemeSelect');
   const inGameTargetSelect = document.getElementById('inGameTargetSelect');
+  wireHelpDisclosures(document);
   const highlightChangedCardsSelect = document.getElementById('highlightChangedCardsSelect');
   if (inGameTargetSelect) {
     inGameTargetSelect.addEventListener('change', () => {
@@ -1080,16 +1081,63 @@ function cardHtml(card, small, extraAttrs = {}) {
   `;
 }
 
+function helpDisclosureHtml(id, label, text) {
+  const helpLabel = t('Show help');
+  return `
+    <button class="help-disclosure-button" type="button" popovertarget="${escapeHtml(id)}" title="${escapeHtml(helpLabel)}" aria-label="${escapeHtml(t(label))}: ${escapeHtml(helpLabel)}">${escapeHtml(t(label))}</button>
+    <div class="help-disclosure-text" id="${escapeHtml(id)}" popover="hint" role="note">
+      ${escapeHtml(t(text))}
+    </div>
+  `;
+}
+
+function wireHelpDisclosures(scope) {
+  scope.querySelectorAll('.help-disclosure-button[popovertarget]').forEach((button) => {
+    const popover = document.getElementById(button.getAttribute('popovertarget'));
+    if (!popover || typeof popover.showPopover !== 'function' || typeof popover.hidePopover !== 'function') return;
+    let openedByHover = false;
+    const positionPopover = () => {
+      const triggerRect = button.getBoundingClientRect();
+      const popoverRect = popover.getBoundingClientRect();
+      const edge = 10;
+      const gap = 6;
+      const maxLeft = Math.max(edge, window.innerWidth - popoverRect.width - edge);
+      const left = Math.min(Math.max(edge, triggerRect.left), maxLeft);
+      const below = triggerRect.bottom + gap;
+      const top = below + popoverRect.height <= window.innerHeight - edge
+        ? below : Math.max(edge, triggerRect.top - popoverRect.height - gap);
+      popover.style.left = `${left}px`;
+      popover.style.top = `${top}px`;
+    };
+    button.addEventListener('pointerenter', (event) => {
+      if (popover.matches(':popover-open')) return;
+      if (event.pointerType !== 'mouse') return;
+      popover.showPopover();
+      positionPopover();
+      openedByHover = true;
+    });
+    button.addEventListener('pointerleave', (event) => {
+      if (event.pointerType !== 'mouse') return;
+      if (!openedByHover || !popover.matches(':popover-open')) return;
+      popover.hidePopover();
+      openedByHover = false;
+    });
+    popover.addEventListener('toggle', (event) => {
+      if (event.newState === 'open') positionPopover();
+      if (event.newState === 'closed') openedByHover = false;
+    });
+  });
+}
+
 function languageSettingHtml(id) {
   return `
-    <label class="setting-row" for="${id}">
-      <span class="setting-name">${escapeHtml(t('Language'))}</span>
-      <select id="${id}">
+    <div class="setting-row">
+      ${helpDisclosureHtml(id + 'Help', 'Language', 'Choose the language used by this device.')}
+      <select id="${id}" aria-label="${escapeHtml(t('Language'))}">
         <option value="en" ${language === 'en' ? 'selected' : ''}>${escapeHtml(t('English'))}</option>
         <option value="de" ${language === 'de' ? 'selected' : ''}>${escapeHtml(t('German'))}</option>
       </select>
-      <span class="setting-description">${escapeHtml(t('Choose the language used by this device.'))}</span>
-    </label>
+    </div>
   `;
 }
 
@@ -1106,13 +1154,12 @@ function wireLanguageSelect(id) {
 function inactivityTimeoutSettingHtml(state, id) {
   const minutes = state.inactivityTimeoutMinutes || 15;
   return `
-    <label class="setting-row" for="${id}">
-      <span class="setting-name">${escapeHtml(t('Inactive after'))}</span>
-      <select id="${id}">
+    <div class="setting-row">
+      ${helpDisclosureHtml(id + 'Help', 'Inactive after', 'If nobody plays for this long, the game ends and the room is freed for new players. Choose a longer time if everyone plans to return.')}
+      <select id="${id}" aria-label="${escapeHtml(t('Inactive after'))}">
         ${[15, 30, 60, 90].map((value) => `<option value="${value}" ${minutes === value ? 'selected' : ''}>${escapeHtml(t('{count} minutes', { count: value }))}</option>`).join('')}
       </select>
-      <span class="setting-description">${escapeHtml(t('If nobody plays for this long, the game ends and the room is freed for new players. Choose a longer time if everyone plans to return.'))}</span>
-    </label>
+    </div>
   `;
 }
 
@@ -1128,17 +1175,17 @@ function wireInactivityTimeoutSelect(id) {
 function renderSideArea(state) {
   const r = state.round;
   const selectedTheme = window.DutchTheme.getStoredTheme(window);
-  const gameFinished = r.stage === 'gameEnd';
   const completedRounds = (state.scoreHistory || []).length;
-  const detailsMode = completedRounds === 0
-    ? 'before-scoring'
-    : completedRounds < 3 ? 'points-table' : 'points-graph';
+  const detailsMode = 'game';
+  const gameKey = String(state.gameStartedAt || 'current-game');
+  if (detailPreferencesGameKey !== gameKey) {
+    detailPreferencesGameKey = gameKey;
+    detailPreferencesByMode[detailsMode] = {};
+  }
   currentDetailsMode = detailsMode;
   if (!detailPreferencesByMode[detailsMode]) detailPreferencesByMode[detailsMode] = {};
   const pointsTableDefaultOpen = completedRounds >= 1 && completedRounds < 3;
   const pointsGraphDefaultOpen = completedRounds >= 3;
-  const guideDefaultOpen = completedRounds === 0;
-  const logDefaultOpen = !gameFinished;
   return `
     <aside class="side-area">
       <div class="side-status-card">
@@ -1148,37 +1195,35 @@ function renderSideArea(state) {
         <div class="side-drawers">
           ${renderDetails('pointsGraph', t('Points graph'), renderPointsChart(state, r.players), pointsGraphDefaultOpen)}
           ${renderDetails('pointsTable', t('Points table'), pointsTable(state), pointsTableDefaultOpen)}
-          ${renderDetails('log', t('Game log'), renderLog(state), logDefaultOpen)}
-          ${renderDetails('guide', t('Quick guide'), shortInstructions(), guideDefaultOpen)}
+          ${renderDetails('log', t('Game log'), renderLog(state), false)}
+          ${renderDetails('guide', t('Quick guide'), shortInstructions(), false)}
           ${renderDetails('rules', t('Complete rules'), fullRules(state), false, 'rules-body')}
           ${renderDetails('settings', t('Settings'), `
             <div class="drawer-content waiting-selectors">
-              <label class="setting-row" for="inGameTargetSelect">
-                <span class="setting-name">${escapeHtml(t('Game length'))}</span>
-                <select id="inGameTargetSelect" ${state.canChangeGameTarget ? '' : 'disabled'}>
+              <div class="setting-row">
+                ${helpDisclosureHtml('inGameLengthHelp', 'Game length', 'Choose how long the game lasts: a double game ends when a player passes 200 points, a full game uses 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.')}
+                <select id="inGameTargetSelect" aria-label="${escapeHtml(t('Game length'))}" ${state.canChangeGameTarget ? '' : 'disabled'}>
                   <option value="single" ${state.singleRound ? 'selected' : ''} ${state.canSelectSingleRound ? '' : 'disabled'}>${escapeHtml(t('Single round'))}</option>
                   <option value="50" ${!state.singleRound && state.gameTarget === 50 ? 'selected' : ''}>${escapeHtml(t('Short game, 50 points'))}</option>
                   <option value="100" ${!state.singleRound && state.gameTarget === 100 ? 'selected' : ''}>${escapeHtml(t('Full game, 100 points'))}</option>
+                  <option value="200" ${!state.singleRound && state.gameTarget === 200 ? 'selected' : ''}>${escapeHtml(t('Double game, 200 points'))}</option>
                 </select>
-                <span class="setting-description">${escapeHtml(t('Choose how long the game lasts: a normal game ends when a player passes 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.'))}</span>
-              </label>
+              </div>
               ${inactivityTimeoutSettingHtml(state, 'gameInactivityTimeoutSelect')}
-              <label class="setting-row" for="highlightChangedCardsSelect">
-                <span class="setting-name">${escapeHtml(t('Changed cards'))}</span>
-                <select id="highlightChangedCardsSelect">
+              <div class="setting-row">
+                ${helpDisclosureHtml('changedCardsHelp', 'Changed cards', 'Highlight cards that were changed recently for all players, making swaps and other changes easier to follow.')}
+                <select id="highlightChangedCardsSelect" aria-label="${escapeHtml(t('Changed cards'))}">
                   <option value="true" ${state.highlightChangedCards !== false ? 'selected' : ''}>${escapeHtml(t('Highlight'))}</option>
                   <option value="false" ${state.highlightChangedCards === false ? 'selected' : ''}>${escapeHtml(t("Don't highlight"))}</option>
                 </select>
-                <span class="setting-description">${escapeHtml(t('Highlight cards that were changed recently for all players, making swaps and other changes easier to follow.'))}</span>
-              </label>
-              <label class="setting-row" for="gameThemeSelect">
-                <span class="setting-name">${escapeHtml(t('Appearance'))}</span>
-                <select id="gameThemeSelect">
+              </div>
+              <div class="setting-row">
+                ${helpDisclosureHtml('gameAppearanceHelp', 'Appearance', 'Choose the light or dark color theme.')}
+                <select id="gameThemeSelect" aria-label="${escapeHtml(t('Appearance'))}">
                   <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>${escapeHtml(t('Light mode'))}</option>
                   <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>${escapeHtml(t('Dark mode'))}</option>
                 </select>
-                <span class="setting-description">${escapeHtml(t('Choose the light or dark color theme.'))}</span>
-              </label>
+              </div>
               ${languageSettingHtml('gameLanguageSelect')}
             </div>
           `, false)}
@@ -1272,32 +1317,37 @@ function downloadLogFile(state) {
 }
 
 function pointColorIndex(state, playerId) {
-  const gameKey = String(state.gameStartedAt || 'current-game');
-  if (pointColorAssignments.gameKey !== gameKey) {
-    pointColorAssignments.gameKey = gameKey;
-    pointColorAssignments.order = shuffledPointColorIndices(gameKey, 9);
+  if (pointColorAssignments.order.length === 0) {
+    pointColorAssignments.order = shuffledPointColorIndices('table-player-colors', 9);
   }
-  const orderedIds = [];
+  if (pointColorAssignments.byPlayerId.has(playerId)) return pointColorAssignments.byPlayerId.get(playerId);
+  const visibleIds = [];
+  for (const player of state.players || []) {
+    if (player.id && !visibleIds.includes(player.id)) visibleIds.push(player.id);
+  }
   for (const entry of state.scoreHistory || []) {
     for (const player of entry.players || []) {
-      if (player.id && !orderedIds.includes(player.id)) orderedIds.push(player.id);
+      if (player.id && !visibleIds.includes(player.id)) visibleIds.push(player.id);
     }
   }
   for (const player of (state.round && state.round.players) || []) {
-    if (player.id && !player.isSpectator && !orderedIds.includes(player.id)) orderedIds.push(player.id);
+    if (player.id && !player.isSpectator && !visibleIds.includes(player.id)) visibleIds.push(player.id);
   }
-  const playerIndex = Math.max(0, orderedIds.indexOf(playerId));
-  return pointColorAssignments.order[playerIndex % pointColorAssignments.order.length];
+  const usedColors = new Set(visibleIds.map((id) => pointColorAssignments.byPlayerId.get(id)).filter(Number.isInteger));
+  const colorIndex = pointColorAssignments.order.find((index) => !usedColors.has(index))
+    ?? pointColorAssignments.order[pointColorAssignments.byPlayerId.size % pointColorAssignments.order.length];
+  pointColorAssignments.byPlayerId.set(playerId, colorIndex);
+  return colorIndex;
 }
 
-function playerNameHtml(state, player) {
+function playerNameHtml(state, player, displayName = player.name) {
   const colorIndex = pointColorIndex(state, player.id);
-  return `<span class="player-name-with-color" style="--series-color: var(--chart-color-${colorIndex})"><span class="player-color-dot" aria-hidden="true"></span><span>${escapeHtml(player.name)}</span></span>`;
+  return `<span class="player-name-with-color" style="--series-color: var(--chart-color-${colorIndex})">${escapeHtml(displayName)}</span>`;
 }
 
 function pointsChartMarker(x, y, label) {
   const common = `class="points-chart-marker" tabindex="0" role="img" aria-label="${escapeHtml(label)}"`;
-  return `<circle ${common} cx="${x}" cy="${y}" r="3.5"><title>${escapeHtml(label)}</title></circle>`;
+  return `<circle ${common} cx="${x}" cy="${y}" r="2"><title>${escapeHtml(label)}</title></circle>`;
 }
 
 function renderPointsChart(state, currentPlayers) {
@@ -1357,7 +1407,7 @@ function renderPointsChart(state, currentPlayers) {
 
   const legend = series.map((item) => {
     const colorIndex = pointColorIndex(state, item.id);
-    return `<span class="points-chart-legend-item" role="listitem" style="--series-color: var(--chart-color-${colorIndex})"><span class="points-chart-legend-marker" aria-hidden="true"></span><span>${escapeHtml(item.name)}</span></span>`;
+    return `<span class="points-chart-legend-item" role="listitem" style="--series-color: var(--chart-color-${colorIndex})">${escapeHtml(item.name)}</span>`;
   }).join('');
 
   return `
@@ -1400,13 +1450,12 @@ function pointsTable(state) {
   return `
     <div class="score-scroll">
       <table class="score-table">
-        <thead><tr><th>${escapeHtml(t('Round'))}</th>${players.map((p) => `<th title="${escapeHtml(p.name)}">${escapeHtml(shortPlayerName(p.name))}</th>`).join('')}</tr></thead>
+        <thead><tr><th>${helpDisclosureHtml('pointsTableHelp', 'Points', 'Values show total points after each round. Number cards count their value. A=1, J=11, Q=12, red K=0, black K=13.')}</th>${players.map((p) => `<th title="${escapeHtml(p.name)}">${playerNameHtml(state, p, shortPlayerName(p.name))}</th>`).join('')}</tr></thead>
         <tbody>
           ${historyRows || '<tr><th>' + escapeHtml(t('Round')) + '</th><td colspan="99">' + escapeHtml(t('No completed rounds yet.')) + '</td></tr>'}
         </tbody>
       </table>
     </div>
-    <p class="points-note">${escapeHtml(t('Values show total points after each round. Number cards count their value. A=1, J=11, Q=12, red K=0, black K=13.'))}</p>
   `;
 }
 function shortInstructions() {
