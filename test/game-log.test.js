@@ -1,11 +1,21 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const {
   gameLogStartDate,
   finishedGameLogFilename,
   finishedGameLogText
 } = require('../lib/game-log.js');
-const { logSummaryFromContent, renderSavedLogContent } = require("../lib/http-app.js");
+const {
+  formatLogFileSize,
+  logSummaryFromContent,
+  pageShell,
+  readBrowserLogContent,
+  readLogSummaryContent,
+  renderSavedLogContent
+} = require("../lib/http-app.js");
 
 test('game log filename uses the game start time when present', () => {
   const savedAt = new Date(2026, 0, 2, 3, 4, 5);
@@ -95,7 +105,7 @@ test('log list summary ranks players by final score without winner text', () => 
   });
 });
 
-test("saved log viewer renders the points table and pretty-printed bot thoughts", () => {
+test("saved log viewer renders public sections and omits private bot data", () => {
   const content = [
     "Dutch game log 2026-01-01_01-02-03",
     "Winner: Ada",
@@ -121,7 +131,59 @@ test("saved log viewer renders the points table and pretty-printed bot thoughts"
   assert.match(html, /<th scope=col>&lt;Bot&gt;<\/th>/);
   assert.match(html, /<td>8<\/td>/);
   assert.match(html, /<time>\+00:00\.000<\/time><span>1\. \[system\] game started<\/span>/);
-  assert.match(html, /<h2>Bot strategy<\/h2>/);
-  assert.match(html, /<code>{\n  &quot;decision&quot;: &quot;draw-source&quot;,\n  &quot;selected&quot;: &quot;take-pile&quot;\n}<\/code>/);
+  assert.doesNotMatch(html, /Bot strategy/);
+  assert.doesNotMatch(html, /draw-source/);
   assert.doesNotMatch(html, /<Bot>/);
 });
+
+test('log readers stop at the section needed by each page', async (t) => {
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'dutch-log-reader-'));
+  const filePath = path.join(directory, 'game.txt');
+  t.after(() => fs.promises.rm(directory, { recursive: true, force: true }));
+  await fs.promises.writeFile(filePath, [
+    'Dutch game log 2026-01-01_01-02-03',
+    'Winner: Ada',
+    'Rounds: 1',
+    '',
+    'Points table:',
+    'Round | Ada | Ben',
+    '--- | --- | ---',
+    'Round 1 | 4 | 8',
+    '',
+    'Game log:',
+    '+00:00.000 1. game started',
+    '',
+    'Bot strategy diagnostics (post-game only):',
+    '1. {"private":"thought"}',
+    '',
+    'Deterministic replay archive (post-game only):',
+    '1. {"private":"replay"}'
+  ].join('\n'));
+
+  const summaryContent = await readLogSummaryContent(filePath);
+  assert.match(summaryContent, /Round 1 \| 4 \| 8/);
+  assert.doesNotMatch(summaryContent, /Game log:/);
+
+  const browserContent = await readBrowserLogContent(filePath);
+  assert.match(browserContent, /game started/);
+  assert.doesNotMatch(browserContent, /private/);
+  assert.doesNotMatch(browserContent, /Bot strategy diagnostics/);
+});
+
+test('log file sizes use megabytes for large files', () => {
+  assert.equal(formatLogFileSize(0), '1 KB');
+  assert.equal(formatLogFileSize(1024 * 500), '500 KB');
+  assert.equal(formatLogFileSize(1024 * 1024), '1.0 MB');
+  assert.equal(formatLogFileSize(1024 * 1024 * 12.4), '12 MB');
+});
+
+test('saved log page shell applies the stored theme before styles load', () => {
+  const html = pageShell({
+    appVersion: '1.2&3',
+    title: 'Dutch logs',
+    body: ''
+  });
+
+  assert.match(html, /<meta name="theme-color" content="#f6f7f9">/);
+  assert.match(html, /<script src="\/theme\.js\?v=1\.2%263"><\/script>/);
+  assert.ok(html.indexOf('<script src="/theme.js') < html.indexOf('<link rel="stylesheet"'));

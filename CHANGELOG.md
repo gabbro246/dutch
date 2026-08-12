@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.51
+- made saved game log pages follow the stored light or dark appearance
+- made the logs list read only the header and points table instead of loading every full log
+- displayed large log sizes in MB and kept bot diagnostics and replay archives out of the browser viewer
+
 ## 1.3.50
 - added a double 200-point game with score halving at exactly 50, 100, and 200 points
 - improved player colors for clearer distinction in light and dark modes
