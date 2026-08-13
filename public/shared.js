@@ -223,6 +223,25 @@
     return niceFraction * magnitude;
   }
 
+  function pointsChartGeometry(options = {}) {
+    const width = Number(options.width) || 300;
+    const height = Number(options.height) || 180;
+    const margin = options.margin || { top: 12, right: 10, bottom: 25, left: 34 };
+    const maxRound = Math.max(1, Number(options.maxRound) || 0);
+    const yMax = pointsChartMaximum(options.maxTotal, options.target);
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+    const coordinate = (value) => Number(value.toFixed(2));
+    const x = (round) => margin.left + (round / maxRound) * plotWidth;
+    const y = (total) => margin.top + plotHeight - (total / yMax) * plotHeight;
+    const yTicks = Array.from({ length: 6 }, (_, index) => (yMax / 5) * index);
+    const xStep = Math.max(1, Math.ceil(maxRound / 6));
+    const xTicks = [];
+    for (let round = 0; round <= maxRound; round += xStep) xTicks.push(round);
+    if (xTicks[xTicks.length - 1] !== maxRound) xTicks.push(maxRound);
+    return { width, height, margin, maxRound, yMax, plotWidth, plotHeight, coordinate, x, y, xTicks, yTicks };
+  }
+
   function scoreHistorySeries(history = [], currentPlayers = []) {
     const seriesById = new Map();
     function ensurePlayer(player) {
@@ -307,6 +326,7 @@
     scoreHistoryRows,
     shuffledPointColorIndices,
     pointsChartMaximum,
+    pointsChartGeometry,
     scoreHistorySeries,
     quickRulesHtml,
     fullRulesHtml

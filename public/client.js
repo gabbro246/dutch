@@ -14,21 +14,11 @@ let pendingManualRejoin = null;
 let hasRenderedGame = false;
 let currentDetailsMode = '';
 let logExpanded = false;
-const activeCardMoves = new Map();
-const activeWrongThrows = new Map();
 let detailPreferencesGameKey = '';
-const activeFaceTurns = new Map();
 const detailPreferencesByMode = {};
-const waitingDrawerPreferences = { bots: false, settings: false };
 const pointColorAssignments = { order: [], byPlayerId: new Map() };
-const wiredAnimatedDrawers = new WeakSet();
 const wiredHelpDisclosureButtons = new WeakSet();
 const SPECTATOR_TRIGGER_NAME = 'spectator';
-const RIGHT_PANEL_SCROLL_TARGETS = [
-  ['side-area', '.side-area'],
-  ['status-info', '.side-status-card .status-info'],
-  ['score-scroll', '.score-scroll']
-];
 const {
   PLAYER_NAME_MAX_LENGTH,
   GAME_DESCRIPTION,
@@ -44,12 +34,35 @@ const {
   scoreHistoryRows,
   HALVING_TOTALS,
   shuffledPointColorIndices,
-  pointsChartMaximum,
+  pointsChartGeometry,
   scoreHistorySeries,
   quickRulesHtml,
   fullRulesHtml
 } = window.DutchShared;
 const BOT_NAMES = Object.values(BOT_LABELS);
+
+const cardAnimations = window.DutchClientCardAnimations.create({ emit, cardHtml });
+const {
+  emptyAnimationSnapshot,
+  captureAnimationSnapshot,
+  animateStateTransition,
+  hideActiveCardMoveTargets,
+  cancelAllCardMoves,
+  cancelAllWrongThrows,
+  cancelAllFaceTurns
+} = cardAnimations;
+const uiAnimations = window.DutchClientUiAnimations.create({
+  getLastState: () => lastState,
+  render
+});
+const {
+  wireAnimatedDrawers,
+  captureDrawerTransitions,
+  animateDrawerTransitions,
+  animateWaitingPlayerListChanges,
+  captureRightPanelScroll,
+  restoreRightPanelScroll
+} = uiAnimations;
 
 function t(key, values) {
   return i18n.translate(language, key, values);
@@ -71,109 +84,40 @@ const clientActions = window.DutchClientActions.create({
   setLogExpanded: (value) => { logExpanded = value; },
   translate: t
 });
+const { renderWaiting } = window.DutchClientWaiting.create({
+  app,
+  translate: t,
+  getLanguage: () => language,
+  escapeHtml,
+  i18n,
+  botLabels: BOT_LABELS,
+  botPersonalities: BOT_PERSONALITIES,
+  playerNameMaxLength: PLAYER_NAME_MAX_LENGTH,
+  gameDescription: GAME_DESCRIPTION,
+  playerNameHtml,
+  helpDisclosureHtml,
+  inactivityTimeoutSettingHtml,
+  languageSettingHtml,
+  repoLink,
+  canJoinWithName,
+  clientActions,
+  rememberPlayerName,
+  rememberPlayerTokenBackup,
+  playerToken,
+  emit,
+  wireHelpDisclosures,
+  wireAnimatedDrawers,
+  wireInactivityTimeoutSelect,
+  wireLanguageSelect
+});
 const selectInteraction = window.DutchSelectInteraction.create();
+const { mergeIncrementalState, cardAnimationSignature } = window.DutchClientState;
+const { patchGameLayout } = window.DutchClientRender;
 
 document.addEventListener('pointerdown', (event) => {
   selectInteraction.releaseIfOutside(event.target);
 }, true);
 
-function wireAnimatedDrawers(scope, onChange) {
-  scope.querySelectorAll("details.drawer").forEach((details) => {
-    const summary = details.querySelector(":scope > summary");
-    const content = details.querySelector(":scope > .drawer-animation-content");
-    if (!summary || !content) return;
-    if (wiredAnimatedDrawers.has(details)) return;
-    wiredAnimatedDrawers.add(details);
-
-    let animation = null;
-    let targetOpen = details.open;
-
-    summary.addEventListener("click", (event) => {
-      event.preventDefault();
-      targetOpen = animation ? !targetOpen : !details.open;
-      if (typeof onChange === "function") onChange(details, targetOpen);
-
-      const runningHeight = animation ? content.getBoundingClientRect().height : null;
-      const runningOpacity = animation ? Number.parseFloat(getComputedStyle(content).opacity) : null;
-      if (animation) animation.cancel();
-      if (!content.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        details.open = targetOpen;
-        content.removeAttribute("style");
-        animation = null;
-        return;
-      }
-
-      if (targetOpen) details.open = true;
-      const startHeight = runningHeight === null
-        ? (targetOpen ? 0 : content.getBoundingClientRect().height)
-        : runningHeight;
-      const startOpacity = runningOpacity === null ? (targetOpen ? 0 : 1) : runningOpacity;
-      const endHeight = targetOpen ? content.scrollHeight : 0;
-      content.style.overflow = "hidden";
-
-      const currentAnimation = content.animate([
-        { height: `${startHeight}px`, opacity: startOpacity },
-        { height: `${endHeight}px`, opacity: targetOpen ? 1 : 0 }
-      ], {
-        duration: 220,
-        easing: targetOpen ? "cubic-bezier(0.2, 0.8, 0.2, 1)" : "cubic-bezier(0.4, 0, 1, 1)"
-      });
-      animation = currentAnimation;
-
-      currentAnimation.onfinish = () => {
-        if (animation !== currentAnimation) return;
-        details.open = targetOpen;
-        content.removeAttribute("style");
-        animation = null;
-      };
-      currentAnimation.oncancel = () => {
-        if (animation === currentAnimation) animation = null;
-      };
-    });
-  });
-}
-
-function captureDrawerTransitions() {
-  const transitions = new Map();
-  document.querySelectorAll('details.drawer[data-detail-key]').forEach((details) => {
-    const content = details.querySelector(':scope > .drawer-animation-content');
-    if (!content) return;
-    transitions.set(details.dataset.detailKey, {
-      open: details.open,
-      height: details.open ? content.getBoundingClientRect().height : 0
-    });
-  });
-  return transitions;
-}
-
-function animateDrawerTransitions(transitions) {
-  if (!transitions.size || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-  document.querySelectorAll('details.drawer[data-detail-key]').forEach((details) => {
-    const content = details.querySelector(':scope > .drawer-animation-content');
-    const previous = transitions.get(details.dataset.detailKey);
-    if (!content || !content.animate || !previous || previous.open === details.open) return;
-
-    const targetOpen = details.open;
-    if (!targetOpen) details.open = true;
-    const startHeight = targetOpen ? 0 : previous.height;
-    const endHeight = targetOpen ? content.scrollHeight : 0;
-    content.style.overflow = 'hidden';
-
-    const animation = content.animate([
-      { height: `${startHeight}px`, opacity: targetOpen ? 0 : 1 },
-      { height: `${endHeight}px`, opacity: targetOpen ? 1 : 0 }
-    ], {
-      duration: 220,
-      easing: targetOpen ? 'cubic-bezier(0.2, 0.8, 0.2, 1)' : 'cubic-bezier(0.4, 0, 1, 1)'
-    });
-
-    animation.onfinish = () => {
-      details.open = targetOpen;
-      content.removeAttribute('style');
-    };
-  });
-}
 
 function generatePlayerToken() {
   return window.crypto && window.crypto.randomUUID
@@ -306,23 +250,31 @@ socket.on('disconnect', () => {
 
 function applyIncomingState(state) {
   const previousState = lastState;
-  const beforeSnapshot = captureAnimationSnapshot();
-  render(state);
-  if (state.phase === 'playing' && state.round) {
+  const mergedState = mergeIncrementalState(previousState, state);
+  const gameTransition = !!(previousState && hasRenderedGame && mergedState.phase === 'playing');
+  const waitingTransition = !!(previousState && mergedState.phase === 'waiting');
+  const captureGameLayout = gameTransition && cardAnimationSignature(previousState) !== cardAnimationSignature(mergedState);
+  const beforeSnapshot = captureGameLayout
+    ? captureAnimationSnapshot('game')
+    : (waitingTransition ? captureAnimationSnapshot('waiting') : emptyAnimationSnapshot());
+  render(mergedState);
+  if (mergedState.phase === 'playing' && mergedState.round) {
     hideActiveCardMoveTargets();
   } else {
     cancelAllCardMoves();
     cancelAllWrongThrows();
     cancelAllFaceTurns();
   }
-  const afterSnapshot = captureAnimationSnapshot();
-  if (previousState && hasRenderedGame && state.phase === 'playing') {
-    animateStateTransition(previousState, state, beforeSnapshot, afterSnapshot);
-  } else if (previousState && state.phase === 'waiting') {
-    animateWaitingPlayerListChanges(previousState, state, beforeSnapshot, afterSnapshot);
+  const afterSnapshot = captureGameLayout
+    ? captureAnimationSnapshot('game')
+    : (waitingTransition ? captureAnimationSnapshot('waiting') : emptyAnimationSnapshot());
+  if (gameTransition) {
+    animateStateTransition(previousState, mergedState, beforeSnapshot, afterSnapshot);
+  } else if (waitingTransition) {
+    animateWaitingPlayerListChanges(previousState, mergedState, beforeSnapshot, afterSnapshot);
   }
-  hasRenderedGame = state.phase === 'playing' && !!state.round;
-  lastState = state;
+  hasRenderedGame = mergedState.phase === 'playing' && !!mergedState.round;
+  lastState = mergedState;
 }
 
 socket.on('state', applyIncomingState);
@@ -353,9 +305,9 @@ function attrsToText(attrs = {}) {
     .join(' ');
 }
 
-function repoLink(version = '') {
+function repoLink(version = '', attributes = '') {
   const versionText = version ? ` <span class="version-label">v${escapeHtml(version)}</span>` : '';
-  return `<p class="repo-link"><a href="https://github.com/gabbro246/dutch" target="_blank" rel="noopener">github.com/gabbro246/dutch</a>${versionText}</p>`;
+  return `<p class="repo-link" ${attributes}><a href="https://github.com/gabbro246/dutch" target="_blank" rel="noopener">github.com/gabbro246/dutch</a>${versionText}</p>`;
 }
 
 function gameStartedText(startedAt) {
@@ -470,382 +422,6 @@ function render(state) {
   else renderGame(state);
 }
 
-function botTypeLabel(type) {
-  return BOT_LABELS[type] || 'Bot';
-}
-
-function renderBotPersonality(type) {
-  const basePersonality = BOT_PERSONALITIES[type] || null;
-  const personality = i18n.localizedBotPersonality(language, type, basePersonality);
-  const fallbackStats = i18n.localizedBotPersonality(language, 'dory', Object.values(BOT_PERSONALITIES)[0]).stats;
-  const stats = (personality ? personality.stats : fallbackStats).map(([label, value]) => {
-    const barWidth = personality ? value * 10 : 0;
-    const valueText = personality ? escapeHtml(value + "/10") : "-/--";
-    return (
-      '<div class="bot-stat">' +
-        '<span class="bot-stat-name">' + escapeHtml(label) + '</span>' +
-        '<span class="bot-stat-bar" aria-hidden="true"><span style="width: ' + barWidth + '%"></span></span>' +
-        '<span class="bot-stat-value">' + valueText + '</span>' +
-      '</div>'
-    );
-  }).join("");
-  return '<div id="botPersonality" class="bot-personality' + (personality ? '' : ' empty') + '">' +
-    '<p>' + (personality ? escapeHtml(personality.summary) : '&nbsp;') + '</p>' +
-    '<div class="bot-stats">' + stats + '</div>' +
-  '</div>';
-}
-
-function renderWaiting(state) {
-  const selectedTheme = window.DutchTheme.getStoredTheme(window);
-  const botTypes = ['dory', 'norman', 'athena', 'roswell'];
-  const usedBotTypes = new Set(state.players.filter((p) => p.isBot).map((p) => p.botType));
-  const firstAvailableBot = botTypes.find((type) => !usedBotTypes.has(type));
-  let startDisabled = state.canStart === false || state.joined === false;
-  const botsOpen = waitingDrawerPreferences.bots ? 'open' : '';
-  const settingsOpen = waitingDrawerPreferences.settings ? 'open' : '';
-  const botOptions = '<option value="" selected>' + escapeHtml(t('Choose bot...')) + '</option>' + botTypes.map((type) => `
-    <option value="${escapeHtml(type)}" ${usedBotTypes.has(type) ? 'disabled' : ''}>${escapeHtml(botTypeLabel(type))}</option>
-  `).join('');
-  const players = state.players.map((p, index) => {
-    const isMe = p.id === state.you;
-    const moveControls = `
-      <div class="player-line-actions">
-        ${isMe ? '<button data-action="leaveWaitingPlayer">' + escapeHtml(t('Leave')) + '</button>' : `<button data-action="removeWaitingPlayer" data-player-id="${escapeHtml(p.id)}">${escapeHtml(t('Remove'))}</button>`}
-        <button class="icon-button" title="${escapeHtml(t('Move up'))}" aria-label="${escapeHtml(t('Move {name} up', { name: p.name }))}" data-action="moveWaitingPlayer" data-player-id="${escapeHtml(p.id)}" data-direction="up" ${index === 0 ? 'disabled' : ''}>↑</button>
-        <button class="icon-button" title="${escapeHtml(t('Move down'))}" aria-label="${escapeHtml(t('Move {name} down', { name: p.name }))}" data-action="moveWaitingPlayer" data-player-id="${escapeHtml(p.id)}" data-direction="down" ${index === state.players.length - 1 ? 'disabled' : ''}>↓</button>
-      </div>
-    `;
-    return `
-      <div class="player-line" data-waiting-player-id="${escapeHtml(p.id)}">
-        <span>${index + 1}. ${playerNameHtml(state, p)}${p.isBot ? ' <span class="bot-badge">' + escapeHtml(t('bot')) + '</span>' : ''}${p.isSpectator ? ' <span class="spectator-badge">' + escapeHtml(t('spectator')) + '</span>' : ''}${isMe ? ' <span class="you-badge">' + escapeHtml(t('you')) + '</span>' : ''} ${p.connected ? '' : '(' + escapeHtml(t('missing')) + ')'}</span>
-        ${moveControls}
-      </div>
-    `;
-  }).join('');
-  const joined = state.joined;
-  const me = state.players.find((p) => p.id === state.you);
-  const humanCount = state.players.filter((p) => !p.isBot && !p.isSpectator).length;
-  const playerHintText = humanCount === 0 ? t('Waiting for a human player.') : t('Waiting for another human or a bot.');
-  const playerHint = state.players.length > 0 && !state.canStart ? `<p class="hint">${playerHintText}</p>` : '';
-  app.innerHTML = `
-    <div class="page waiting-page">
-      <h1 class="app-title">Dutch! 🂡</h1>
-      <div class="waiting-panel">
-        <p class="waiting-description">${escapeHtml(t(GAME_DESCRIPTION))}</p>
-        <div class="waiting-controls">
-          <div class="row join-row">
-            <input id="nameInput" placeholder="${escapeHtml(t('Name'))}" maxlength="${PLAYER_NAME_MAX_LENGTH}" value="${joined && me ? escapeHtml(me.name) : ''}" ${joined ? 'disabled' : ''}>
-            <button id="joinBtn" disabled>${escapeHtml(t('Join'))}</button>
-            <button id="leaveBtn" ${joined ? '' : 'disabled'}>${escapeHtml(t('Leave'))}</button>
-          </div>
-          <details class="drawer waiting-drawer" data-waiting-drawer="bots" ${botsOpen}>
-            <summary>${escapeHtml(t('Bots'))}</summary>
-            <div class="drawer-content drawer-animation-content">
-              <div class="row bot-row">
-                <select id="botTypeSelect" ${firstAvailableBot && state.players.length < 9 ? '' : 'disabled'}>
-                  ${botOptions}
-                </select>
-                <button id="addBotBtn" class="expected-action" disabled>${escapeHtml(t('Add bot'))}</button>
-              </div>
-              <div id="botPersonalitySlot">${renderBotPersonality('')}</div>
-            </div>
-          </details>
-          <details class="drawer waiting-drawer" data-waiting-drawer="settings" ${settingsOpen}>
-            <summary>${escapeHtml(t('Settings'))}</summary>
-            <div class="drawer-content drawer-animation-content waiting-selectors">
-              <div class="setting-row">
-                ${helpDisclosureHtml('waitingGameLengthHelp', 'Game length', 'Choose how long the game lasts: a double game ends when a player passes 200 points, a full game uses 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.')}
-                <select id="gameTargetSelect" aria-label="${escapeHtml(t('Game length'))}">
-                  <option value="single" ${state.singleRound ? 'selected' : ''}>${escapeHtml(t('Single round'))}</option>
-                  <option value="50" ${!state.singleRound && state.gameTarget === 50 ? 'selected' : ''}>${escapeHtml(t('Short game, 50 points'))}</option>
-                  <option value="100" ${!state.singleRound && state.gameTarget === 100 ? 'selected' : ''}>${escapeHtml(t('Full game, 100 points'))}</option>
-                  <option value="200" ${!state.singleRound && state.gameTarget === 200 ? 'selected' : ''}>${escapeHtml(t('Double game, 200 points'))}</option>
-                </select>
-              </div>
-              ${inactivityTimeoutSettingHtml(state, 'inactivityTimeoutSelect')}
-              <div class="setting-row">
-                ${helpDisclosureHtml('deckAmountHelp', 'Deck amount', 'More decks make the game less predictable and add more special cards, though some may remain undealt. Two decks are required for more than four players.')}
-                <select id="deckSettingSelect" aria-label="${escapeHtml(t('Deck amount'))}">
-                  <option value="one" ${state.deckSetting === 'one' ? 'selected' : ''} ${state.oneDeckDisabled ? 'disabled' : ''}>${escapeHtml(t('One deck'))}</option>
-                  <option value="two" ${state.deckSetting === 'two' ? 'selected' : ''}>${escapeHtml(t('Two decks'))}</option>
-                </select>
-              </div>
-              <div class="setting-row">
-                ${helpDisclosureHtml('waitingAppearanceHelp', 'Appearance', 'Choose the light or dark color theme.')}
-                <select id="themeSelect" aria-label="${escapeHtml(t('Appearance'))}">
-                  <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>${escapeHtml(t('Light mode'))}</option>
-                  <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>${escapeHtml(t('Dark mode'))}</option>
-                </select>
-              </div>
-              ${languageSettingHtml('languageSelect')}
-            </div>
-          </details>
-          <section class="waiting-player-list player-list" aria-labelledby="waitingPlayersHeading">
-            <h2 id="waitingPlayersHeading">${escapeHtml(t('Players'))}</h2>
-            ${players || '<p class="hint">' + escapeHtml(t('No players yet.')) + '</p>'}
-            ${players ? playerHint : ""}
-          </section>
-        </div>
-        <button id="startBtn" class="expected-action" ${startDisabled ? 'disabled' : ''}>${escapeHtml(t('Start game'))}</button>
-      </div>
-      ${repoLink(state.version)}
-    </div>
-  `;
-
-  const nameInput = document.getElementById('nameInput');
-  wireHelpDisclosures(document);
-  const joinBtn = document.getElementById('joinBtn');
-  if (nameInput && joinBtn) {
-    nameInput.addEventListener('input', () => {
-      if (nameInput.value.length > PLAYER_NAME_MAX_LENGTH) nameInput.value = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
-      joinBtn.disabled = !canJoinWithName(state, nameInput.value);
-    });
-    joinBtn.disabled = !canJoinWithName(state, nameInput.value);
-    joinBtn.addEventListener('click', () => {
-      const name = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
-      clientActions.clearPendingConfirm();
-      rememberPlayerName(name);
-      rememberPlayerTokenBackup(playerToken);
-      emit('join', { name, token: playerToken });
-    });
-    nameInput.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' && !joinBtn.disabled) {
-        const name = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
-        clientActions.clearPendingConfirm();
-        rememberPlayerName(name);
-        rememberPlayerTokenBackup(playerToken);
-        emit('join', { name, token: playerToken });
-      }
-    });
-  }
-  const leaveBtn = document.getElementById('leaveBtn');
-  if (leaveBtn) leaveBtn.addEventListener('click', () => clientActions.confirmThen(leaveBtn, 'leave-waiting', t('Confirm leave'), () => emit('leave')));
-  wireAnimatedDrawers(document, (details, open) => {
-    if (details.dataset.waitingDrawer) waitingDrawerPreferences[details.dataset.waitingDrawer] = open;
-  });
-  const botTypeSelect = document.getElementById('botTypeSelect');
-  const addBotBtn = document.getElementById('addBotBtn');
-  if (botTypeSelect && addBotBtn) {
-    const botPersonalitySlot = document.getElementById('botPersonalitySlot');
-    const updateBotPersonality = () => {
-      const selectedOption = botTypeSelect.selectedOptions[0];
-      const type = selectedOption && !selectedOption.disabled ? botTypeSelect.value : '';
-      if (botPersonalitySlot) botPersonalitySlot.innerHTML = renderBotPersonality(type);
-      addBotBtn.disabled = !type || state.players.length >= 9;
-      const startButton = document.getElementById('startBtn');
-      if (startButton) startButton.disabled = !state.canStart || !joined || !!type;
-    };
-    updateBotPersonality();
-    botTypeSelect.addEventListener('change', updateBotPersonality);
-    addBotBtn.addEventListener('click', () => {
-      clientActions.clearPendingConfirm();
-      emit('addBot', botTypeSelect.value);
-    });
-  }
-  const deckSettingSelect = document.getElementById('deckSettingSelect');
-  if (deckSettingSelect) {
-    deckSettingSelect.addEventListener('change', () => {
-      clientActions.clearPendingConfirm();
-      emit('setDeckSetting', deckSettingSelect.value);
-    });
-  }
-  const gameTargetSelect = document.getElementById('gameTargetSelect');
-  if (gameTargetSelect) {
-    gameTargetSelect.addEventListener('change', () => {
-      clientActions.clearPendingConfirm();
-      emit('setGameTarget', gameTargetSelect.value);
-    });
-  }
-  wireInactivityTimeoutSelect('inactivityTimeoutSelect');
-  const themeSelect = document.getElementById('themeSelect');
-  if (themeSelect) {
-    themeSelect.addEventListener('change', () => {
-      window.DutchTheme.setTheme(themeSelect.value, window);
-    });
-  }
-  wireLanguageSelect('languageSelect');
-  document.querySelectorAll('[data-action="moveWaitingPlayer"]').forEach((button) => {
-    button.addEventListener('click', () => {
-      clientActions.clearPendingConfirm();
-      emit('moveWaitingPlayer', { playerId: button.dataset.playerId || '', direction: button.dataset.direction || '' });
-    });
-  });
-  document.querySelectorAll('[data-action="removeWaitingPlayer"]').forEach((button) => {
-    button.addEventListener('click', () => {
-      clientActions.confirmThen(button, `remove-${button.dataset.playerId}`, t('Confirm remove'), () => emit('removeWaitingPlayer', button.dataset.playerId || ''));
-    });
-  });
-  document.querySelectorAll('[data-action="leaveWaitingPlayer"]').forEach((button) => {
-    button.addEventListener('click', () => {
-      clientActions.confirmThen(button, 'leave-waiting', t('Confirm leave'), () => emit('leave'));
-    });
-  });
-  const startBtn = document.getElementById('startBtn');
-  if (startBtn) startBtn.addEventListener('click', () => {
-    clientActions.clearPendingConfirm();
-    emit('startGame');
-  });
-}
-
-function animateWaitingPlayerListChanges(previousState, state, before, after) {
-  if (previousState.phase !== 'waiting' || !Element.prototype.animate) return;
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const previousIds = new Set((previousState.players || []).map((player) => player.id));
-  const currentIds = new Set((state.players || []).map((player) => player.id));
-  const enterEasing = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
-  const exitEasing = 'cubic-bezier(0.8, 0, 0.8, 0.2)';
-  const isRemoving = (previousState.players || []).some((player) => !currentIds.has(player.id));
-  (state.players || []).forEach((player) => {
-    const selector = '[data-waiting-player-id="' + cssEscape(player.id) + '"]';
-    const row = document.querySelector(selector);
-    if (!row) return;
-    if (previousIds.has(player.id)) {
-      if (isRemoving) return;
-      const previousRect = before.waitingPlayers.get(player.id);
-      const currentRect = after.waitingPlayers.get(player.id);
-      if (!previousRect || !currentRect) return;
-      const deltaX = previousRect.left - currentRect.left;
-      const deltaY = previousRect.top - currentRect.top;
-      if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return;
-      row.animate([
-        { transform: 'translate(' + String(deltaX) + 'px, ' + String(deltaY) + 'px)' },
-        { transform: 'translate(0, 0)' }
-      ], {
-        duration: 280,
-        easing: isRemoving ? exitEasing : enterEasing
-      });
-      return;
-    }
-    const height = row.getBoundingClientRect().height;
-    if (!height) return;
-    row.style.overflow = 'hidden';
-    const animation = row.animate([
-      { height: '0px', paddingTop: '0px', paddingBottom: '0px', opacity: 0, transform: 'translateY(-8px)' },
-      { height: String(height) + 'px', paddingTop: '4px', paddingBottom: '4px', opacity: 1, transform: 'translateY(0)' }
-    ], {
-      duration: 280,
-      easing: enterEasing
-    });
-    const finish = () => row.style.removeProperty('overflow');
-    animation.onfinish = finish;
-    animation.oncancel = finish;
-  });
-  const waitingList = document.querySelector('.waiting-player-list');
-  if (!waitingList) return;
-  (previousState.players || []).forEach((player, index) => {
-    if (currentIds.has(player.id)) return;
-    const previousData = before.waitingPlayers.get(player.id);
-    if (!previousData || !previousData.html) return;
-    const template = document.createElement('template');
-    template.innerHTML = previousData.html.trim();
-    const ghost = template.content.firstElementChild;
-    if (!ghost) return;
-    ghost.removeAttribute('data-waiting-player-id');
-    ghost.setAttribute('aria-hidden', 'true');
-    ghost.style.height = String(previousData.height) + 'px';
-    ghost.style.overflow = 'hidden';
-    ghost.style.pointerEvents = 'none';
-    const nextPlayer = (previousState.players || []).slice(index + 1).find((candidate) => currentIds.has(candidate.id));
-    const nextSelector = nextPlayer ? '[data-waiting-player-id="' + cssEscape(nextPlayer.id) + '"]' : '';
-    const nextRow = nextSelector ? waitingList.querySelector(nextSelector) : null;
-    const hint = waitingList.querySelector('.hint');
-    waitingList.insertBefore(ghost, nextRow || hint || null);
-    const animation = ghost.animate([
-      { height: String(previousData.height) + 'px', paddingTop: '4px', paddingBottom: '4px', opacity: 1, transform: 'translateY(0)' },
-      { height: '0px', paddingTop: '0px', paddingBottom: '0px', opacity: 0, transform: 'translateY(-8px)' }
-    ], {
-      duration: 280,
-      easing: exitEasing,
-      fill: 'forwards'
-    });
-    animation.onfinish = () => ghost.remove();
-    animation.oncancel = () => ghost.remove();
-  });
-}
-
-function captureRightPanelScroll() {
-  return RIGHT_PANEL_SCROLL_TARGETS.reduce((snapshot, [key, selector]) => {
-    const element = document.querySelector(selector);
-    if (element) snapshot[key] = { top: element.scrollTop, left: element.scrollLeft };
-    return snapshot;
-  }, {});
-}
-
-function restoreRightPanelScroll(snapshot) {
-  RIGHT_PANEL_SCROLL_TARGETS.forEach(([key, selector]) => {
-    const position = snapshot[key];
-    const element = position ? document.querySelector(selector) : null;
-    if (!element) return;
-    element.scrollTop = position.top;
-    element.scrollLeft = position.left;
-  });
-}
-
-function syncPreservedSettingsControls(currentSettings, freshSettings) {
-  freshSettings.querySelectorAll('select[id]').forEach((freshSelect) => {
-    const currentSelect = currentSettings.querySelector('#' + cssEscape(freshSelect.id));
-    if (!currentSelect) return;
-    Array.from(freshSelect.options).forEach((freshOption, index) => {
-      const currentOption = currentSelect.options[index];
-      if (currentOption && currentOption.disabled !== freshOption.disabled) {
-        currentOption.disabled = freshOption.disabled;
-      }
-    });
-    if (currentSelect.disabled !== freshSelect.disabled) currentSelect.disabled = freshSelect.disabled;
-    if (currentSelect.value !== freshSelect.value) currentSelect.value = freshSelect.value;
-  });
-}
-
-function replaceGameViewAroundSettings(gameMarkup, activeSelect) {
-  if (!activeSelect || !activeSelect.isConnected || !app.contains(activeSelect)) return false;
-  const currentSettings = activeSelect.closest('details[data-detail-key="settings"]');
-  const currentLayout = app.querySelector(':scope > .main-layout');
-  if (!currentSettings || !currentLayout) return false;
-
-  const template = document.createElement('template');
-  template.innerHTML = gameMarkup.trim();
-  const freshLayout = template.content.firstElementChild;
-  if (!freshLayout) return false;
-
-  const currentGameArea = currentLayout.querySelector(':scope > .game-area');
-  const freshGameArea = freshLayout.querySelector(':scope > .game-area');
-  const currentSide = currentLayout.querySelector(':scope > .side-area');
-  const freshSide = freshLayout.querySelector(':scope > .side-area');
-  if (!currentGameArea || !freshGameArea || !currentSide || !freshSide) return false;
-
-  const currentStatus = currentSide.querySelector(':scope > .side-status-card');
-  const freshStatus = freshSide.querySelector(':scope > .side-status-card');
-  const currentRepoLink = currentSide.querySelector(':scope > .repo-link');
-  const freshRepoLink = freshSide.querySelector(':scope > .repo-link');
-  if (!currentStatus || !freshStatus || !currentRepoLink || !freshRepoLink) return false;
-
-  const drawerSelector = ':scope > .side-panel > .side-drawers > details[data-detail-key]';
-  const currentDrawers = new Map(Array.from(currentSide.querySelectorAll(drawerSelector)).map((drawer) => [
-    drawer.dataset.detailKey,
-    drawer
-  ]));
-  const freshDrawers = new Map(Array.from(freshSide.querySelectorAll(drawerSelector)).map((drawer) => [
-    drawer.dataset.detailKey,
-    drawer
-  ]));
-  const freshSettings = freshDrawers.get('settings');
-  if (
-    currentDrawers.get('settings') !== currentSettings
-    || !freshSettings
-    || currentDrawers.size !== freshDrawers.size
-    || Array.from(freshDrawers.keys()).some((key) => !currentDrawers.has(key))
-  ) return false;
-
-  currentGameArea.replaceWith(freshGameArea);
-  currentStatus.replaceWith(freshStatus);
-  currentRepoLink.replaceWith(freshRepoLink);
-  freshDrawers.forEach((freshDrawer, key) => {
-    if (key !== 'settings') currentDrawers.get(key).replaceWith(freshDrawer);
-  });
-  syncPreservedSettingsControls(currentSettings, freshSettings);
-  return true;
-}
-
 function renderGame(state) {
   const round = state.round;
   const me = round.players.find((p) => p.id === state.you);
@@ -855,7 +431,7 @@ function renderGame(state) {
   const gameMarkup = `
     <div class="main-layout">
       <main class="game-area">
-        <section class="other-players">
+        <section class="other-players" data-game-region="players">
           ${others.map((player) => renderPlayerField(player, state, true)).join('')}
         </section>
         ${renderDeckPile(state)}
@@ -865,12 +441,12 @@ function renderGame(state) {
     </div>
   `;
   const activeSettingsSelect = selectInteraction.current();
-  const settingsPreserved = replaceGameViewAroundSettings(gameMarkup, activeSettingsSelect);
-  if (!settingsPreserved) app.innerHTML = gameMarkup;
+  const patch = patchGameLayout(app, gameMarkup, activeSettingsSelect);
+  if (!patch.patched) app.innerHTML = gameMarkup;
   clientActions.wireGameButtons();
   animateDrawerTransitions(drawerTransitions);
   wireHelpDisclosures(document);
-  if (!settingsPreserved) {
+  if (!patch.patched || patch.changedRegions.includes('drawer:settings')) {
     const gameThemeSelect = document.getElementById('gameThemeSelect');
     const inGameTargetSelect = document.getElementById('inGameTargetSelect');
     const highlightChangedCardsSelect = document.getElementById('highlightChangedCardsSelect');
@@ -1012,7 +588,7 @@ function renderOwnArea(player, state) {
   const winner = gameWinner ? ' game-winner' : (roundWinner ? ' round-winner' : '');
   const areaLabel = player.isSpectator ? t('spectating') : t('your cards');
   return `
-    <section class="own-area${player.isCurrent ? ' current' : ''}${dutchCaller}${finalTurnDone}${winner}" data-player-panel-id="${escapeHtml(player.id)}">
+    <section class="own-area${player.isCurrent ? ' current' : ''}${dutchCaller}${finalTurnDone}${winner}" data-game-region="own" data-player-panel-id="${escapeHtml(player.id)}">
       <div class="player-title">
         <h2>${playerNameHtml(state, player)} <span class="you-badge">${areaLabel}</span>${playerBadges(state, player)}</h2>
         ${renderPlayerMeta(player)}
@@ -1061,7 +637,7 @@ function renderDeckPile(state) {
     : '<button class="drawn-button-spacer" disabled aria-hidden="true" tabindex="-1">' + escapeHtml(t('Discard')) + '</button>';
 
   return `
-    <section class="deck-pile-area">
+    <section class="deck-pile-area" data-game-region="deck">
       <div class="stack-area">
         <div class="deck-pile-label">${escapeHtml(t('Deck ({count})', { count: r.deckCount }))}</div>
         <div class="stack" data-stack="deck">
@@ -1284,17 +860,17 @@ function renderSideArea(state) {
   const pointsGraphDefaultOpen = completedRounds >= 3;
   return `
     <aside class="side-area">
-      <div class="side-status-card">
+      <div class="side-status-card" data-game-region="status">
         ${renderStatus(state)}
       </div>
       <div class="panel side-panel">
         <div class="side-drawers">
-          ${renderDetails('pointsGraph', t('Points graph'), renderPointsChart(state, r.players), pointsGraphDefaultOpen)}
-          ${renderDetails('pointsTable', t('Points table'), pointsTable(state), pointsTableDefaultOpen)}
-          ${renderDetails('log', t('Game log'), renderLog(state), false)}
-          ${renderDetails('guide', t('Quick guide'), shortInstructions(), false)}
-          ${renderDetails('rules', t('Complete rules'), fullRules(state), false, 'rules-body')}
-          ${renderDetails('settings', t('Settings'), `
+          ${renderDetails('pointsGraph', t('Points graph'), () => renderPointsChart(state, r.players), pointsGraphDefaultOpen)}
+          ${renderDetails('pointsTable', t('Points table'), () => pointsTable(state), pointsTableDefaultOpen)}
+          ${renderDetails('log', t('Game log'), () => renderLog(state), false)}
+          ${renderDetails('guide', t('Quick guide'), () => shortInstructions(), false)}
+          ${renderDetails('rules', t('Complete rules'), () => fullRules(state), false, 'rules-body')}
+          ${renderDetails('settings', t('Settings'), () => `
             <div class="drawer-content waiting-selectors">
               <div class="setting-row">
                 ${helpDisclosureHtml('inGameLengthHelp', 'Game length', 'Choose how long the game lasts: a double game ends when a player passes 200 points, a full game uses 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.')}
@@ -1325,7 +901,7 @@ function renderSideArea(state) {
           `, false)}
         </div>
       </div>
-      ${repoLink(state.version)}
+      ${repoLink(state.version, 'data-game-region="repository"')}
     </aside>
   `;
 }
@@ -1334,10 +910,12 @@ function renderDetails(key, title, content, defaultOpen, extraClass = '') {
   const preferences = detailPreferencesByMode[currentDetailsMode] || {};
   const open = preferences[key] === undefined ? defaultOpen : preferences[key];
   const classes = ['drawer', 'side-drawer', extraClass].filter(Boolean).join(' ');
+  const lazy = typeof content === 'function';
+  const renderedContent = lazy ? (open ? content() : '') : content;
   return `
-    <details data-detail-key="${escapeHtml(key)}" class="${escapeHtml(classes)}" ${open ? 'open' : ''}>
+    <details data-detail-key="${escapeHtml(key)}" data-lazy-content="${lazy && !open ? 'true' : 'false'}" class="${escapeHtml(classes)}" ${open ? 'open' : ''}>
       <summary>${escapeHtml(title)}</summary>
-      <div class="drawer-animation-content">${content}</div>
+      <div class="drawer-animation-content">${renderedContent}</div>
     </details>
   `;
 }
@@ -1454,21 +1032,16 @@ function renderPointsChart(state, currentPlayers) {
 
   const width = 300;
   const height = 180;
-  const margin = { top: 12, right: 10, bottom: 25, left: 34 };
-  const plotWidth = width - margin.left - margin.right;
-  const plotHeight = height - margin.top - margin.bottom;
   const maxRound = Math.max(1, ...history.map((entry) => Number(entry.round) || 0));
   const maxTotal = Math.max(0, ...series.flatMap((item) => item.points.map((point) => point.total)));
   const target = state.singleRound ? 0 : Number(state.gameTarget) || 0;
-  const yMax = pointsChartMaximum(maxTotal, target);
-  const x = (round) => margin.left + (round / maxRound) * plotWidth;
-  const y = (total) => margin.top + plotHeight - (total / yMax) * plotHeight;
-  const coordinate = (value) => Number(value.toFixed(2));
-  const yTicks = Array.from({ length: 6 }, (_, index) => (yMax / 5) * index);
-  const xStep = Math.max(1, Math.ceil(maxRound / 6));
-  const xTicks = [];
-  for (let round = 0; round <= maxRound; round += xStep) xTicks.push(round);
-  if (xTicks[xTicks.length - 1] !== maxRound) xTicks.push(maxRound);
+  const { margin, plotWidth, yMax, x, y, coordinate, xTicks, yTicks } = pointsChartGeometry({
+    width,
+    height,
+    maxRound,
+    maxTotal,
+    target
+  });
 
   const grid = yTicks.map((value) => {
     const yPos = coordinate(y(value));
@@ -1567,672 +1140,4 @@ function fullRules(state) {
   return language === 'en'
     ? fullRulesHtml(state.gameTarget, state.singleRound)
     : i18n.fullRulesHtml(language, state.gameTarget, state.singleRound);
-}
-
-function captureAnimationSnapshot() {
-  const snapshot = { cards: new Map(), roles: new Map(), locations: new Map(), panels: new Map(), waitingPlayers: new Map() };
-  document.querySelectorAll('[data-waiting-player-id]').forEach((el) => {
-    const rect = el.getBoundingClientRect();
-    if (rect.height) snapshot.waitingPlayers.set(el.dataset.waitingPlayerId, { left: rect.left, top: rect.top, width: rect.width, height: rect.height, html: el.outerHTML });
-  });
-  document.querySelectorAll("[data-player-panel-id]").forEach((el) => {
-    const rect = el.getBoundingClientRect();
-    if (rect.height) snapshot.panels.set(el.dataset.playerPanelId, { left: rect.left, top: rect.top, width: rect.width, height: rect.height });
-  });
-  document.querySelectorAll('.card').forEach((el) => {
-    const rect = el.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    const data = {
-      rect: {
-        left: rect.left,
-        top: rect.top,
-        width: rect.width,
-        height: rect.height
-      },
-      html: el.outerHTML,
-      faceKind: el.dataset.faceKind || '',
-      locationKey: el.dataset.locationKey || ''
-    };
-    if (el.dataset.cardId) snapshot.cards.set(el.dataset.cardId, data);
-    if (el.dataset.animRole) snapshot.roles.set(el.dataset.animRole, data);
-    if (el.dataset.locationKey) snapshot.locations.set(el.dataset.locationKey, data);
-  });
-  return snapshot;
-}
-
-function stateCardLocations(state) {
-  const result = new Map();
-  const round = state && state.round;
-  if (!round) return result;
-  round.players.forEach((player) => {
-    player.cards.forEach((card, index) => {
-      if (!card || !card.id) return;
-      result.set(card.id, {
-        id: card.id,
-        locationKey: `player:${player.id}:${index}`,
-        faceKind: card.back ? 'back' : 'front',
-        highlight: card.highlight || '',
-        ownerId: player.id,
-        index
-      });
-    });
-  });
-  if (round.discardTop && round.discardTop.id) {
-    result.set(round.discardTop.id, {
-      id: round.discardTop.id,
-      locationKey: 'pile-top',
-      faceKind: round.discardTop.back ? 'back' : 'front'
-    });
-  }
-  if (round.drawn && round.drawn.card && round.drawn.card.id) {
-    result.set(round.drawn.card.id, {
-      id: round.drawn.card.id,
-      locationKey: 'drawn',
-      faceKind: round.drawn.card.back ? 'back' : 'front',
-      source: round.drawn.source
-    });
-  }
-  return result;
-}
-
-function animateStateTransition(previousState, state, before, after) {
-  if (!previousState.round || !state.round) return;
-  if (previousState.roundNumber !== state.roundNumber) return;
-  animatePlayerPanelResizes(previousState, state, before, after);
-  animateJackSwapSelections(previousState, state);
-  const previousCards = stateCardLocations(previousState);
-  const currentCards = stateCardLocations(state);
-  const previousWrongThrow = previousState.round.wrongThrowIn;
-  const currentWrongThrow = state.round.wrongThrowIn;
-  if (currentWrongThrow && (!previousWrongThrow || previousWrongThrow.id !== currentWrongThrow.id)) {
-    animateWrongThrowIn(currentWrongThrow, before, after);
-  }
-  const movedIds = new Set();
-
-  currentCards.forEach((current, cardId) => {
-    const previous = previousCards.get(cardId);
-    const targetData = after.cards.get(cardId);
-    if (!targetData) return;
-
-    if (previous && previous.locationKey !== current.locationKey) {
-      const sourceData = before.cards.get(cardId) || before.locations.get(previous.locationKey);
-      if (sourceData) {
-        const pendingReveal = state.round.pendingPileReveal;
-        const isPendingPileReveal = current.locationKey === 'pile-top'
-          && pendingReveal
-          && pendingReveal.cardId === cardId;
-        if (isPendingPileReveal) {
-          const moveDuration = Number(pendingReveal.moveMs) || 360;
-          const flipDuration = Number(pendingReveal.flipMs) || 260;
-          const viewerAlreadySawCard = previous.locationKey === 'drawn' && previous.faceKind === 'front';
-          if (viewerAlreadySawCard) {
-            const notifyRevealMidpoint = (delay = flipDuration / 2) => {
-              window.setTimeout(() => {
-                emit('pileRevealMidpoint', { cardId, reducedMotion: false });
-              }, delay);
-            };
-            const move = animateCardMove(cardId, sourceData, targetData, moveDuration);
-            if (move) move.afterFinish = notifyRevealMidpoint;
-            else notifyRevealMidpoint(moveDuration + flipDuration / 2);
-          } else {
-            const backHtml = cardHtml({
-              id: cardId,
-              back: true,
-              deckColor: (state.round.discardTop && state.round.discardTop.deckColor) || 'blue'
-            }, false);
-            const move = animateCardMove(cardId, sourceData, targetData, moveDuration, backHtml);
-            const turnAtDestination = () => {
-              const latestTarget = cardElement(cardId, current.locationKey);
-              if (latestTarget) {
-                animateFaceTurn(latestTarget, { html: backHtml }, flipDuration, 0, (details = {}) => {
-                  emit('pileRevealMidpoint', { cardId, reducedMotion: !!details.reducedMotion });
-                });
-              }
-            };
-            if (move) move.afterFinish = turnAtDestination;
-            else turnAtDestination();
-          }
-        } else {
-          animateCardMove(cardId, sourceData, targetData);
-        }
-        movedIds.add(cardId);
-      }
-      return;
-    }
-
-    if (!previous && current.locationKey === 'drawn' && state.round.drawn && state.round.drawn.source === 'deck') {
-      const sourceData = before.roles.get('deck-top');
-      if (sourceData) {
-        animateCardMove(cardId, sourceData, targetData);
-        movedIds.add(cardId);
-      }
-      return;
-    }
-
-    const openingDiscardAdded = !previous
-      && current.locationKey === 'pile-top'
-      && previousState.round.discardCount === 0
-      && state.round.discardCount === 1
-      && state.round.stage === 'opening';
-    if (openingDiscardAdded) {
-      const sourceData = before.roles.get('deck-top');
-      if (sourceData) {
-        animateCardMove(cardId, sourceData, targetData, 480);
-        movedIds.add(cardId);
-      }
-      return;
-    }
-
-    if (!previous && current.locationKey.startsWith('player:')) {
-      const sourceData = before.roles.get('deck-top');
-      if (sourceData) {
-        animateCardMove(cardId, sourceData, targetData);
-        movedIds.add(cardId);
-      }
-    }
-  });
-
-  const finishedStage = ['roundEnd', 'gameEnd'].includes(state.round.stage);
-  const enteringFinishedStage = finishedStage && !['roundEnd', 'gameEnd'].includes(previousState.round.stage);
-  const revealCards = enteringFinishedStage ? Array.from(currentCards.entries()).filter(([cardId, current]) => {
-    const previous = previousCards.get(cardId);
-    return previous && previous.locationKey === current.locationKey && previous.faceKind !== current.faceKind;
-  }) : [];
-  const dutchCallerId = state.round.dutchCallerId || '';
-  revealCards.sort((left, right) => {
-    const leftIsCaller = left[1].ownerId === dutchCallerId ? 1 : 0;
-    const rightIsCaller = right[1].ownerId === dutchCallerId ? 1 : 0;
-    return leftIsCaller - rightIsCaller;
-  });
-  const revealInterval = revealCards.length > 1 ? Math.min(90, 1200 / (revealCards.length - 1)) : 0;
-  const revealDelays = new Map(revealCards.map(([cardId], index) => [cardId, index * revealInterval]));
-
-  currentCards.forEach((current, cardId) => {
-    if (movedIds.has(cardId)) return;
-    const previous = previousCards.get(cardId);
-    if (!previous) return;
-    if (previous.locationKey !== current.locationKey) return;
-    const faceChanged = previous.faceKind !== current.faceKind;
-    const publicPeekStarted = previous.highlight !== 'peek' && current.highlight === 'peek';
-    if (!faceChanged && !publicPeekStarted) return;
-    if (!['front', 'back'].includes(previous.faceKind) || !['front', 'back'].includes(current.faceKind)) return;
-    const target = document.querySelector(`.card[data-card-id="${cssEscape(cardId)}"]`);
-    const delay = enteringFinishedStage && faceChanged ? (revealDelays.get(cardId) || 0) : 0;
-    if (!target) return;
-    const previousData = before.cards.get(cardId);
-    const isOpeningReveal = faceChanged
-      && current.locationKey === 'pile-top'
-      && previousState.round.stage === 'opening'
-      && state.round.stage === 'opening'
-      && previousState.round.discardCount === 1
-      && state.round.discardCount === 1;
-    const duration = isOpeningReveal
-      ? (Number(state.round.openingDiscardFlipMs) || 260)
-      : (publicPeekStarted ? 420 : 260);
-    const openingRevealMidpoint = isOpeningReveal ? (details = {}) => {
-      emit('openingRevealMidpoint', { cardId, reducedMotion: !!details.reducedMotion });
-    } : null;
-    const activeMove = activeCardMoves.get(cardId);
-    if (activeMove) {
-      activeMove.afterFinish = () => {
-        const latestTarget = cardElement(cardId, current.locationKey);
-        if (latestTarget) animateFaceTurn(latestTarget, previousData, duration, delay, openingRevealMidpoint);
-      };
-      return;
-    }
-    animateFaceTurn(target, previousData, duration, delay, openingRevealMidpoint);
-  });
-}
-
-function animateJackSwapSelections(previousState, state) {
-  const previousSpecial = previousState.round && previousState.round.special;
-  const currentSpecial = state.round && state.round.special;
-  if (!currentSpecial || currentSpecial.type !== 'J') return;
-
-  const previousSelected = new Set(
-    previousSpecial && previousSpecial.type === 'J' && previousSpecial.actorId === currentSpecial.actorId
-      ? (previousSpecial.selected || [])
-      : []
-  );
-  (currentSpecial.selected || []).forEach((cardId) => {
-    if (previousSelected.has(cardId)) return;
-    const card = document.querySelector(`.card[data-card-id="${cssEscape(cardId)}"]`);
-    if (!card || !card.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const selectedTransform = card.classList.contains('small') ? 'translateY(-20px)' : 'translateY(-24px)';
-    card.animate([
-      { transform: 'translateY(0)' },
-      { transform: selectedTransform }
-    ], {
-      duration: 180,
-      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)'
-    });
-  });
-  previousSelected.forEach((cardId) => {
-    if ((currentSpecial.selected || []).includes(cardId)) return;
-    const card = document.querySelector(`.card[data-card-id="${cssEscape(cardId)}"]`);
-    if (!card || !card.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const selectedTransform = card.classList.contains('small') ? 'translateY(-20px)' : 'translateY(-24px)';
-    card.animate([
-      { transform: selectedTransform },
-      { transform: 'translateY(0)' }
-    ], {
-      duration: 180,
-      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)'
-    });
-  });
-}
-
-function animatePlayerPanelResizes(previousState, state, before, after) {
-  if (!Element.prototype.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const previousCounts = new Map(previousState.round.players.map((player) => [player.id, player.cards.length]));
-
-  state.round.players.forEach((player) => {
-    const previousCount = previousCounts.get(player.id);
-    if (previousCount === player.cards.length) return;
-    const previousPanel = before.panels.get(player.id);
-    const currentPanel = after.panels.get(player.id);
-    const element = document.querySelector(`[data-player-panel-id="${cssEscape(player.id)}"]`);
-    if (!previousPanel || !currentPanel || !element) return;
-    const widthChanged = Math.abs(previousPanel.width - currentPanel.width) >= 1;
-    const heightChanged = Math.abs(previousPanel.height - currentPanel.height) >= 1;
-    if (!widthChanged && !heightChanged) return;
-
-    element.style.overflow = "hidden";
-    const growing = player.cards.length > previousCount;
-    const offsetX = previousPanel.left - currentPanel.left;
-    const offsetY = previousPanel.top - currentPanel.top;
-    const scaleX = previousPanel.width / currentPanel.width;
-    const animation = element.animate([
-      {
-        height: `${previousPanel.height}px`,
-        transform: `translate(${offsetX}px, ${offsetY}px) scaleX(${scaleX})`,
-        transformOrigin: "top left"
-      },
-      {
-        height: `${currentPanel.height}px`,
-        transform: "translate(0, 0) scaleX(1)",
-        transformOrigin: "top left"
-      }
-    ], {
-      duration: 220,
-      easing: growing ? "cubic-bezier(0.2, 0.8, 0.2, 1)" : "cubic-bezier(0.4, 0, 1, 1)"
-    });
-    const cleanUp = () => element.style.removeProperty("overflow");
-    animation.onfinish = cleanUp;
-    animation.oncancel = cleanUp;
-  });
-}
-
-function cssEscape(value) {
-  if (window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(value);
-  return String(value).replace(/"/g, '\\"');
-}
-
-function animateCardMove(cardId, sourceData, targetData, duration = 360, cloneHtml = '') {
-  const target = cardElement(cardId, targetData.locationKey) || elementAtRect(targetData.rect, targetData.locationKey);
-  let source = sourceData.rect;
-  const dest = targetData.rect;
-  if (!target) return null;
-  if (Math.abs(source.left - dest.left) < 2 && Math.abs(source.top - dest.top) < 2) return null;
-
-  const existingMove = activeCardMoves.get(cardId);
-  if (existingMove) {
-    const movingRect = existingMove.clone.getBoundingClientRect();
-    if (movingRect.width && movingRect.height) {
-      source = {
-        left: movingRect.left,
-        top: movingRect.top,
-        width: movingRect.width,
-        height: movingRect.height
-      };
-    }
-    cancelCardMove(existingMove);
-  }
-
-  const clone = cloneHtml ? movingFaceFromHtml(cloneHtml, dest) : target.cloneNode(true);
-  if (!clone) return null;
-  if (!cloneHtml) {
-    clone.classList.add('moving-card');
-    clone.removeAttribute('data-card-id');
-    clone.removeAttribute('data-action');
-    document.body.appendChild(clone);
-  }
-  clone.style.left = `${dest.left}px`;
-  clone.style.top = `${dest.top}px`;
-  clone.style.width = `${dest.width}px`;
-  clone.style.height = `${dest.height}px`;
-  clone.style.margin = '0';
-  clone.style.transformOrigin = 'top left';
-
-  target.classList.add('anim-target-hidden');
-  const scaleX = source.width / dest.width;
-  const scaleY = source.height / dest.height;
-  const animation = clone.animate([
-    { transform: `translate(${source.left - dest.left}px, ${source.top - dest.top}px) scale(${scaleX}, ${scaleY})` },
-    { transform: 'translate(0, 0) scale(1, 1)' }
-  ], {
-    duration,
-    easing: 'linear',
-    fill: 'forwards'
-  });
-  const move = { cardId, locationKey: targetData.locationKey, clone, animation };
-  activeCardMoves.set(cardId, move);
-  animation.onfinish = () => finishCardMove(move);
-  animation.oncancel = () => finishCardMove(move);
-  return move;
-}
-
-function setMovingFaceRect(face, rect) {
-  face.style.left = String(rect.left) + "px";
-  face.style.top = String(rect.top) + "px";
-  face.style.width = String(rect.width) + "px";
-  face.style.height = String(rect.height) + "px";
-  face.style.margin = "0";
-  face.style.transformOrigin = "center";
-}
-
-function movingFaceFromHtml(html, rect) {
-  const template = document.createElement("template");
-  template.innerHTML = String(html || "").trim();
-  const face = template.content.firstElementChild;
-  if (!face) return null;
-  face.classList.add("moving-card");
-  face.classList.remove("anim-target-hidden", "turning-card");
-  face.style.removeProperty("visibility");
-  face.removeAttribute("data-card-id");
-  face.removeAttribute("data-action");
-  setMovingFaceRect(face, rect);
-  document.body.appendChild(face);
-  return face;
-}
-
-function playWrongThrowPhase(move, face, keyframes, options) {
-  if (move.cancelled) return Promise.resolve(false);
-  const animation = face.animate(keyframes, options);
-  move.animation = animation;
-  return animation.finished.then(() => !move.cancelled).catch(() => false);
-}
-
-async function playWrongThrowRectPhase(move, face, fromRect, toRect, duration) {
-  if (move.cancelled) return false;
-  const rectFrame = (rect) => ({
-    left: String(rect.left) + "px",
-    top: String(rect.top) + "px",
-    width: String(rect.width) + "px",
-    height: String(rect.height) + "px"
-  });
-  const animation = face.animate([
-    rectFrame(fromRect),
-    rectFrame(toRect)
-  ], { duration, easing: "linear", fill: "forwards" });
-  move.animation = animation;
-  try {
-    await animation.finished;
-    if (move.cancelled) return false;
-    setMovingFaceRect(face, toRect);
-    animation.cancel();
-    if (move.animation === animation) move.animation = null;
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
-
-function finishWrongThrow(move) {
-  move.clones.forEach((clone) => clone.remove());
-  move.clones.clear();
-  if (activeWrongThrows.get(move.cardId) === move) activeWrongThrows.delete(move.cardId);
-  const target = cardElement(move.cardId, move.locationKey);
-  if (target) target.classList.remove("anim-target-hidden");
-}
-
-function cancelWrongThrow(move) {
-  move.cancelled = true;
-  if (move.animation) move.animation.cancel();
-  finishWrongThrow(move);
-}
-
-function cancelAllWrongThrows() {
-  Array.from(activeWrongThrows.values()).forEach(cancelWrongThrow);
-}
-
-async function animateWrongThrowIn(event, before, after) {
-  if (!event || !event.card || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const sourceData = before.cards.get(event.cardId);
-  const targetData = after.cards.get(event.cardId);
-  const pileData = after.roles.get("pile-top") || after.locations.get("pile-top");
-  const target = targetData ? cardElement(event.cardId, targetData.locationKey) : null;
-  if (!sourceData || !targetData || !pileData || !target || !target.animate) return;
-
-  const existing = activeWrongThrows.get(event.cardId);
-  if (existing) cancelWrongThrow(existing);
-  const move = {
-    cardId: event.cardId,
-    locationKey: targetData.locationKey,
-    clones: new Set(),
-    animation: null,
-    cancelled: false
-  };
-  activeWrongThrows.set(event.cardId, move);
-  target.classList.add("anim-target-hidden");
-
-  const backFace = movingFaceFromHtml(sourceData.html, sourceData.rect);
-  const frontHtml = cardHtml(event.card, target.classList.contains("small"));
-  if (!backFace) {
-    finishWrongThrow(move);
-    return;
-  }
-  move.clones.add(backFace);
-
-  try {
-    if (!await playWrongThrowPhase(move, backFace, [
-      { transform: "scaleX(1)" },
-      { transform: "scaleX(0)" }
-    ], { duration: 130, easing: "linear" })) return;
-    backFace.remove();
-    move.clones.delete(backFace);
-
-    const frontFace = movingFaceFromHtml(frontHtml, sourceData.rect);
-    if (!frontFace) {
-      finishWrongThrow(move);
-      return;
-    }
-    move.clones.add(frontFace);
-    if (!await playWrongThrowPhase(move, frontFace, [
-      { transform: "scaleX(0)" },
-      { transform: "scaleX(1)" }
-    ], { duration: 130, easing: "linear" })) return;
-
-    if (!await playWrongThrowRectPhase(move, frontFace, sourceData.rect, pileData.rect, 320)) return;
-
-    if (!await playWrongThrowPhase(move, frontFace, [
-      { transform: "translateX(0)" },
-      { transform: "translateX(-9px)" },
-      { transform: "translateX(9px)" },
-      { transform: "translateX(-7px)" },
-      { transform: "translateX(7px)" },
-      { transform: "translateX(0)" }
-    ], { duration: 280, easing: "ease-in-out" })) return;
-
-    const latestTarget = cardElement(event.cardId, targetData.locationKey);
-    const returnRect = latestTarget ? latestTarget.getBoundingClientRect() : targetData.rect;
-    if (!await playWrongThrowRectPhase(move, frontFace, pileData.rect, returnRect, 320)) return;
-
-    if (!await playWrongThrowPhase(move, frontFace, [
-      { transform: "scaleX(1)" },
-      { transform: "scaleX(0)" }
-    ], { duration: 130, easing: "linear" })) return;
-    frontFace.remove();
-    move.clones.delete(frontFace);
-
-    const returnedCard = cardElement(event.cardId, targetData.locationKey);
-    if (returnedCard) {
-      returnedCard.classList.remove("anim-target-hidden");
-      returnedCard.animate([
-        { transform: "scaleX(0)" },
-        { transform: "scaleX(1)" }
-      ], { duration: 130, easing: "linear" });
-    }
-    finishWrongThrow(move);
-  } catch (error) {
-    cancelWrongThrow(move);
-  }
-}
-
-function cardElement(cardId, locationKey) {
-  const card = document.querySelector(`.card[data-card-id="${cssEscape(cardId)}"]`);
-  if (!card) return null;
-  return !locationKey || card.dataset.locationKey === locationKey ? card : null;
-}
-
-function hideActiveCardMoveTargets() {
-  activeCardMoves.forEach((move) => {
-    const target = cardElement(move.cardId, move.locationKey);
-    if (target) target.classList.add('anim-target-hidden');
-  });
-  activeFaceTurns.forEach((turn) => {
-    const target = cardElement(turn.cardId, turn.locationKey);
-    if (target) target.classList.add('anim-target-hidden');
-  });
-  activeWrongThrows.forEach((move) => {
-    const target = cardElement(move.cardId, move.locationKey);
-    if (target) target.classList.add('anim-target-hidden');
-  });
-}
-
-function finishCardMove(move) {
-  move.clone.remove();
-  if (activeCardMoves.get(move.cardId) !== move) return;
-  activeCardMoves.delete(move.cardId);
-  const target = cardElement(move.cardId, move.locationKey);
-  if (target) target.classList.remove('anim-target-hidden');
-  if (move.afterFinish) move.afterFinish();
-}
-
-function cancelCardMove(move) {
-  move.animation.onfinish = null;
-  move.animation.oncancel = null;
-  move.animation.cancel();
-  move.clone.remove();
-  if (activeCardMoves.get(move.cardId) === move) activeCardMoves.delete(move.cardId);
-}
-
-function cancelAllCardMoves() {
-  Array.from(activeCardMoves.values()).forEach(cancelCardMove);
-}
-
-function finishFaceTurn(turn) {
-  turn.clones.forEach((clone) => clone.remove());
-  turn.clones.clear();
-  if (activeFaceTurns.get(turn.cardId) !== turn) return;
-  activeFaceTurns.delete(turn.cardId);
-  const target = cardElement(turn.cardId, turn.locationKey);
-  if (target && !activeCardMoves.has(turn.cardId) && !activeWrongThrows.has(turn.cardId)) {
-    target.classList.remove('anim-target-hidden');
-  }
-}
-
-function cancelFaceTurn(turn) {
-  turn.cancelled = true;
-  if (turn.animation) {
-    turn.animation.onfinish = null;
-    turn.animation.oncancel = null;
-    turn.animation.cancel();
-  }
-  finishFaceTurn(turn);
-}
-
-function cancelAllFaceTurns() {
-  Array.from(activeFaceTurns.values()).forEach(cancelFaceTurn);
-}
-
-function elementAtRect(rect, locationKey) {
-  if (locationKey) {
-    const byLocation = document.querySelector(`.card[data-location-key="${cssEscape(locationKey)}"]`);
-    if (byLocation) return byLocation;
-  }
-  const centerX = rect.left + rect.width / 2;
-  const centerY = rect.top + rect.height / 2;
-  const el = document.elementFromPoint(centerX, centerY);
-  return el ? el.closest('.card') : null;
-}
-
-function animateFaceTurn(el, previousData, duration = 260, delay = 0, onMidpoint = null) {
-  const halfDuration = duration / 2;
-  if (!el.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    if (onMidpoint) onMidpoint({ reducedMotion: true });
-    return;
-  }
-
-  const rect = el.getBoundingClientRect();
-  const previousFace = movingFaceFromHtml(previousData && previousData.html, rect);
-  if (!previousFace || !rect.width || !rect.height) {
-    if (previousFace) previousFace.remove();
-    if (onMidpoint) onMidpoint({ reducedMotion: true });
-    el.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: halfDuration, delay, easing: "linear", fill: "backwards" });
-    return;
-  }
-
-  const cardId = el.dataset.cardId || '';
-  const locationKey = el.dataset.locationKey || '';
-  const existingTurn = activeFaceTurns.get(cardId);
-  if (existingTurn) cancelFaceTurn(existingTurn);
-  const turn = {
-    cardId,
-    locationKey,
-    clones: new Set([previousFace]),
-    animation: null,
-    cancelled: false,
-    midpointSent: false
-  };
-  activeFaceTurns.set(cardId, turn);
-  el.classList.add('anim-target-hidden');
-
-  const revealNextFace = () => {
-    if (turn.cancelled || activeFaceTurns.get(cardId) !== turn) return;
-    previousFace.remove();
-    turn.clones.delete(previousFace);
-    if (!turn.midpointSent) {
-      turn.midpointSent = true;
-      if (onMidpoint) onMidpoint({ reducedMotion: false });
-    }
-    const target = cardElement(cardId, locationKey);
-    if (!target) {
-      finishFaceTurn(turn);
-      return;
-    }
-    target.classList.add('anim-target-hidden');
-    const latestRect = target.getBoundingClientRect();
-    const nextFace = movingFaceFromHtml(target.outerHTML, latestRect);
-    if (!nextFace) {
-      finishFaceTurn(turn);
-      return;
-    }
-    turn.clones.add(nextFace);
-    const nextAnimation = nextFace.animate([
-      { transform: "scaleX(0)" },
-      { transform: "scaleX(1)" }
-    ], {
-      duration: halfDuration,
-      easing: "linear"
-    });
-    turn.animation = nextAnimation;
-    nextAnimation.onfinish = () => finishFaceTurn(turn);
-    nextAnimation.oncancel = () => {
-      if (!turn.cancelled) finishFaceTurn(turn);
-    };
-  };
-  const previousAnimation = previousFace.animate([
-    { transform: "scaleX(1)" },
-    { transform: "scaleX(0)" }
-  ], {
-    duration: halfDuration,
-    delay,
-    easing: "linear"
-  });
-  turn.animation = previousAnimation;
-  previousAnimation.onfinish = revealNextFace;
-  previousAnimation.oncancel = () => {
-    if (!turn.cancelled) finishFaceTurn(turn);
-  };
 }

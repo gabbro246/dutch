@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.55
+- made live game updates smoother by updating only changed page regions and sending recent score history incrementally
+- reduced server and browser work for logs, score charts, drawers, and bot decisions
+- reorganized client rendering, animations, bot strategy, and server startup into smaller maintainable modules
+- sped up integration tests with a controllable clock and added a real-browser gameplay and reconnect test
+- updated dependencies to resolve known security advisories
+
 ## 1.3.54
 - kept in-game settings dropdowns open during live moves without pausing game updates
 - kept longer game lengths selectable after a lower target was exceeded, while disabling only targets already passed

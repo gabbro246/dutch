@@ -135,15 +135,16 @@ test('Dutch evaluator rejects lower opponent, uncertain, and high-card calls but
     opponents: [[card('8'), card('9')]]
   });
   const uncertainResult = uncertain.decisions.evaluateDutch(uncertain.bot);
-  assert.equal(uncertain.decisions.botShouldCallDutch(uncertain.bot), false);
+  assert.equal(uncertain.decisions.botShouldCallDutch(uncertain.bot, uncertainResult), false);
   assert.ok(uncertainResult.call.dutchSuccessProbability < 0.5);
 
   const safe = harness({
     own: [card('A'), card('2'), card('K', 'hearts')],
     opponents: [[card('8'), card('9')]]
   });
-  assert.equal(safe.decisions.botShouldCallDutch(safe.bot), true);
-  assert.ok(safe.decisions.evaluateDutch(safe.bot).call.dutchSuccessProbability > 0.8);
+  const safeResult = safe.decisions.evaluateDutch(safe.bot);
+  assert.equal(safe.decisions.botShouldCallDutch(safe.bot, safeResult), true);
+  assert.ok(safeResult.call.dutchSuccessProbability > 0.8);
 
   const high = harness({
     own: [card('K', 'clubs'), card('2')],
@@ -179,7 +180,7 @@ test('Dutch at five uses beliefs and does not wait for secret proof that nobody 
   const result = setup.decisions.evaluateDutch(setup.bot);
 
   assert.ok(result.call.dutchSuccessProbability > 0.5);
-  assert.equal(setup.decisions.botShouldCallDutch(setup.bot), true);
+  assert.equal(setup.decisions.botShouldCallDutch(setup.bot, result), true);
 });
 
 test('Dutch evaluation preserves a safe exact-50 halving opportunity', () => {
@@ -190,7 +191,7 @@ test('Dutch evaluation preserves a safe exact-50 halving opportunity', () => {
   });
   const result = setup.decisions.evaluateDutch(setup.bot);
 
-  assert.equal(setup.decisions.botShouldCallDutch(setup.bot), false);
+  assert.equal(setup.decisions.botShouldCallDutch(setup.bot, result), false);
   assert.ok(result.continue.expectedGameScore < result.call.expectedGameScore);
 });
 
@@ -256,7 +257,7 @@ test('Dutch above five is rejected without a guaranteed throw-in or beneficial e
 
   assert.equal(result.call.metadata.callEligibility.startsAboveFive, true);
   assert.equal(result.call.eligible, false);
-  assert.equal(setup.decisions.botShouldCallDutch(setup.bot), false);
+  assert.equal(setup.decisions.botShouldCallDutch(setup.bot, result), false);
 });
 
 test('a guaranteed final throw-in can make an above-five Dutch call eligible', () => {
@@ -289,7 +290,7 @@ test('a deliberate failed Dutch call requires exact arithmetic that lowers the t
     !outcome.success && outcome.doubledScore === 12 && outcome.rawTotal === 50 &&
     outcome.exactThreshold && outcome.totalAfterHalving === 25 && outcome.beneficialFailure
   )));
-  assert.equal(beneficial.decisions.botShouldCallDutch(beneficial.bot), true);
+  assert.equal(beneficial.decisions.botShouldCallDutch(beneficial.bot, beneficialResult), true);
 
   const nonExact = harness({
     own: [card('6')],
@@ -299,7 +300,7 @@ test('a deliberate failed Dutch call requires exact arithmetic that lowers the t
   const nonExactResult = nonExact.decisions.evaluateDutch(nonExact.bot);
   assert.equal(nonExactResult.call.metadata.callEligibility.beneficialExactFailure, false);
   assert.equal(nonExactResult.call.eligible, false);
-  assert.equal(nonExact.decisions.botShouldCallDutch(nonExact.bot), false);
+  assert.equal(nonExact.decisions.botShouldCallDutch(nonExact.bot, nonExactResult), false);
 });
 
 test('a high-probability Dutch win penalizes needless continuation variance', () => {
@@ -312,7 +313,7 @@ test('a high-probability Dutch win penalizes needless continuation variance', ()
   assert.equal(result.call.metadata.strongReadyHand, true);
   assert.equal(result.call.metadata.continuingImprovesGameTotal, false);
   assert.ok(result.continue.metadata.winningPositionVariancePenalty >= 0);
-  assert.equal(setup.decisions.botShouldCallDutch(setup.bot), true);
+  assert.equal(setup.decisions.botShouldCallDutch(setup.bot, result), true);
 });
 
 test('opponent threat mode combines score, recent actions, and remembered self-knowledge', () => {
@@ -492,7 +493,7 @@ test('threat mode adds value to calling Dutch before an opponent can call', () =
 
   assert.ok(result.call.metadata.callFirstBonus > 0);
   assert.equal(result.call.metadata.opponentThreatMode.active, true);
-  assert.equal(setup.decisions.botShouldCallDutch(setup.bot), true);
+  assert.equal(setup.decisions.botShouldCallDutch(setup.bot, result), true);
 });
 
 test('Ace discard assessment includes replacement, retention, target escape, retaliation, and pile exposure', () => {

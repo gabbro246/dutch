@@ -67,6 +67,6 @@ test('incoming game states render immediately while settings are preserved in pl
   const clientSource = fs.readFileSync(require.resolve('../public/client.js'), 'utf8');
 
   assert.match(clientSource, /socket\.on\('state', applyIncomingState\)/);
-  assert.match(clientSource, /replaceGameViewAroundSettings\(gameMarkup, activeSettingsSelect\)/);
+  assert.match(clientSource, /patchGameLayout\(app, gameMarkup, activeSettingsSelect\)/);
   assert.doesNotMatch(clientSource, /deferredState|pendingGameState/);
 });

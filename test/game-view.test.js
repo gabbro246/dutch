@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createGameView, publicCard } = require('../lib/game-view.js');
+const { LIVE_LOG_WINDOW, LIVE_SCORE_HISTORY_WINDOW, createGameView, publicCard } = require('../lib/game-view.js');
 
 function card(id, rank = '5', suit = 'clubs') {
   return { id, rank, suit, deckColor: 'blue' };
@@ -63,6 +63,35 @@ test('public card hides card details unless visible', () => {
     deckColor: 'blue',
     points: 0
   });
+});
+
+test('live views bound log payloads while initial views include complete history', () => {
+  const log = Array.from({ length: LIVE_LOG_WINDOW + 5 }, (_, index) => ({ id: index + 1 }));
+  const scoreHistory = Array.from({ length: LIVE_SCORE_HISTORY_WINDOW + 3 }, (_, index) => ({ round: index + 1 }));
+  const state = {
+    phase: 'waiting',
+    players: [],
+    log,
+    roundNumber: 0,
+    scoreHistory,
+    gameStartedAt: null
+  };
+  const gameView = viewFor(state);
+
+  const initial = gameView.buildView(null);
+  const live = gameView.buildView(null, { liveUpdate: true });
+
+  assert.equal(initial.log.length, log.length);
+  assert.equal(initial.logComplete, true);
+  assert.equal(live.log.length, LIVE_LOG_WINDOW);
+  assert.equal(live.logLength, log.length);
+  assert.equal(live.logComplete, false);
+  assert.equal(initial.scoreHistory.length, scoreHistory.length);
+  assert.equal(initial.scoreHistoryComplete, true);
+  assert.deepEqual(live.scoreHistory.map((entry) => entry.round), [4, 5, 6, 7]);
+  assert.equal(live.scoreHistoryLength, scoreHistory.length);
+  assert.equal(live.scoreHistoryStart, 3);
+  assert.equal(live.scoreHistoryComplete, false);
 });
 
 test('build view reveals only cards visible to the viewer', () => {

@@ -1,6 +1,7 @@
 (function initClientActions(root) {
   function createClientActions(deps) {
     let pendingConfirm = null;
+    const wiredButtons = new WeakSet();
 
     function clearPendingConfirm() {
       if (!pendingConfirm) return;
@@ -35,6 +36,8 @@
         preferences[detailsMode][details.dataset.detailKey] = open;
       });
       document.querySelectorAll('[data-action]').forEach((button) => {
+        if (wiredButtons.has(button)) return;
+        wiredButtons.add(button);
         button.addEventListener('click', () => {
           const action = button.dataset.action;
           if (action === 'toggleLog') {

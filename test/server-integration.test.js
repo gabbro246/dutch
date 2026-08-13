@@ -1,7 +1,16 @@
 const http = require('http');
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { server, startServer, closeServer, getState } = require('../server.js');
+const { createDutchServer } = require('../server.js');
+const { createFakeClock } = require('./helpers/fake-clock.js');
+
+const clock = createFakeClock();
+const runtime = createDutchServer({
+  nowFn: clock.now,
+  setTimeoutFn: clock.setTimeoutFn,
+  clearTimeoutFn: clock.clearTimeoutFn
+});
+const { server, startServer, closeServer, getState } = runtime;
 
 function serverPort() {
   const address = server.address();
@@ -106,10 +115,7 @@ async function openPollingClient() {
 async function completePendingPileReveal(client) {
   await waitFor(() => getState().round && getState().round.pendingPileReveal, 'Pile card did not begin revealing.');
   const pending = getState().round.pendingPileReveal;
-  await waitFor(
-    () => Date.now() >= pending.midpointEligibleAt,
-    'Pile reveal did not reach its midpoint.'
-  );
+  clock.advanceTo(pending.midpointEligibleAt);
   await client.emit('pileRevealMidpoint', pending.cardId);
   await waitFor(() => getState().round && !getState().round.pendingPileReveal, 'Pile reveal did not complete.');
 }
@@ -143,12 +149,10 @@ test('socket gameplay flow covers turns, throw-ins, specials, Dutch, reconnect, 
   await ben.emit('peekStart', benCards[0].id);
   await ben.emit('peekStart', benCards[1].id);
 
-  await waitFor(() => getState().round && getState().round.openingDiscardAwaitingMidpoint, 'Opening card did not begin revealing.', 2200);
+  clock.advanceBy(1500);
+  await waitFor(() => getState().round && getState().round.openingDiscardAwaitingMidpoint, 'Opening card did not begin revealing.');
   const openingCardId = getState().round.openingDiscardAwaitingMidpoint;
-  await waitFor(
-    () => Date.now() >= getState().round.openingDiscardMidpointEligibleAt,
-    'Opening reveal did not reach its midpoint.'
-  );
+  clock.advanceTo(getState().round.openingDiscardMidpointEligibleAt);
   await ada.emit('openingRevealMidpoint', openingCardId);
   await waitFor(() => getState().round && getState().round.stage === 'turn', 'Round did not enter turn stage.');
   assert.equal(getState().phase, 'playing');
@@ -199,7 +203,8 @@ test('socket gameplay flow covers turns, throw-ins, specials, Dutch, reconnect, 
   const discardBeforeWrongThrow = getState().round.discard.length;
   getState().round.throwIn.rank = 'not-a-real-rank';
   await secondClient.emit('throwIn', throwCard.id);
-  await waitFor(() => getState().players.find((player) => player.id === secondPlayerId).cards.length === 5, 'Wrong throw-in did not add a penalty card.', 2500);
+  clock.advanceBy(1500);
+  await waitFor(() => getState().players.find((player) => player.id === secondPlayerId).cards.length === 5, 'Wrong throw-in did not add a penalty card.');
   assert.equal(getState().round.deck.length, deckBeforeWrongThrow - 1);
   assert.equal(getState().round.discard.length, discardBeforeWrongThrow);
   assert.equal(getState().round.throwIn.open, true);
@@ -248,10 +253,11 @@ test('socket gameplay flow covers turns, throw-ins, specials, Dutch, reconnect, 
   await waitFor(() => getState().round.specialQueue[0].selected.length === 2, 'Jack did not select the second card.');
   await actorClient.emit('jackSelect', targetCardBeforeJack.id);
   await waitFor(() => getState().round.specialQueue[0].selected.length === 1, 'Jack did not unselect the second card.');
-  await new Promise((resolve) => setTimeout(resolve, 550));
+  clock.advanceBy(500);
   assert.equal(actor.cards[0].id, actorCardBeforeJack.id);
   assert.equal(target.cards[0].id, targetCardBeforeJack.id);
   await actorClient.emit('jackSelect', targetCardBeforeJack.id);
+  clock.advanceBy(500);
   await waitFor(() => actor.cards[0].id === targetCardBeforeJack.id && target.cards[0].id === actorCardBeforeJack.id && getState().round.specialQueue.length === 0, 'Jack did not swap the selected cards and finish.');
   assert.equal(getState().round.stage, 'turn');
 

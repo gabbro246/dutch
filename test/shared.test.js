@@ -50,6 +50,15 @@ test('points chart uses the exact observed maximum above 100', () => {
   assert.equal(shared.pointsChartMaximum(137, 100), 137);
 });
 
+test('points chart geometry shares stable ticks and coordinates across renderers', () => {
+  const geometry = shared.pointsChartGeometry({ width: 300, height: 180, maxRound: 9, maxTotal: 73, target: 100 });
+
+  assert.deepEqual(geometry.xTicks, [0, 2, 4, 6, 8, 9]);
+  assert.equal(geometry.yTicks.length, 6);
+  assert.equal(geometry.coordinate(geometry.x(9)), 290);
+  assert.equal(geometry.coordinate(geometry.y(geometry.yMax)), 12);
+});
+
 test('score history series start at zero and stop when a player leaves', () => {
   const series = shared.scoreHistorySeries([
     { round: 1, players: [{ id: 'ada', name: 'Ada', total: 8 }, { id: 'ben', name: 'Ben', total: 12 }] },

@@ -84,7 +84,7 @@ function createHarness(overrides = {}) {
     addLog: (text) => calls.logs.push(text),
     beginTurnsIfReady: () => { calls.beganTurns += 1; },
     botBestSwapTarget: () => ({ index: 0 }),
-    shouldBotSwapDrawn: () => false,
+    botDeckCardDecision: () => ({ swapTarget: null }),
     finishSpecial: () => {},
     specialName: (rank) => rank,
     advanceTurn: () => {},
@@ -166,8 +166,7 @@ test('bot runner discards a deck card when protection leaves no swap target', ()
       }
     },
     deps: {
-      botBestSwapTarget: () => null,
-      shouldBotSwapDrawn: () => false
+      botDeckCardDecision: () => ({ swapTarget: null })
     }
   });
 
@@ -178,6 +177,41 @@ test('bot runner discards a deck card when protection leaves no swap target', ()
   assert.equal(calls.discarded, 1);
   assert.equal(calls.swapped, 0);
   assert.equal(calls.broadcasts, 1);
+});
+
+test('bot runner reuses the selected deck response without evaluating a second target', () => {
+  let decisionCalls = 0;
+  let legacyTargetCalls = 0;
+  const { runner, calls } = createHarness({
+    state: {
+      round: {
+        stage: 'turn',
+        botTick: 4,
+        specialQueue: [],
+        drawn: { playerId: 'bot', source: 'deck', card: card('drawn-low', '2') },
+        turnComplete: false,
+        throwIn: null
+      }
+    },
+    deps: {
+      botDeckCardDecision: () => {
+        decisionCalls += 1;
+        return { swapTarget: { index: 1 } };
+      },
+      botBestSwapTarget: () => {
+        legacyTargetCalls += 1;
+        return { index: 0 };
+      }
+    }
+  });
+
+  runner.scheduleBotAutomation();
+  calls.timers[0].fn();
+
+  assert.equal(decisionCalls, 1);
+  assert.equal(legacyTargetCalls, 0);
+  assert.equal(calls.swapped, 1);
+  assert.equal(calls.discarded, 0);
 });
 
 test('bot runner records a red King recovery only after a successful throw-in', () => {

@@ -4,3 +4,5 @@ node_modules
 usage.log
 
 game-logs/
+
+*.orig

@@ -1,0 +1,258 @@
+(function initClientWaiting(root, factory) {
+  const api = factory(root);
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.DutchClientWaiting = api;
+})(typeof window !== 'undefined' ? window : globalThis, function createClientWaiting(root) {
+  function create(deps) {
+    const window = root;
+    const document = root.document;
+    const app = deps.app;
+    const t = deps.translate;
+    const getLanguage = deps.getLanguage;
+    const escapeHtml = deps.escapeHtml;
+    const i18n = deps.i18n;
+    const BOT_LABELS = deps.botLabels;
+    const BOT_PERSONALITIES = deps.botPersonalities;
+    const PLAYER_NAME_MAX_LENGTH = deps.playerNameMaxLength;
+    const GAME_DESCRIPTION = deps.gameDescription;
+    const playerNameHtml = deps.playerNameHtml;
+    const helpDisclosureHtml = deps.helpDisclosureHtml;
+    const inactivityTimeoutSettingHtml = deps.inactivityTimeoutSettingHtml;
+    const languageSettingHtml = deps.languageSettingHtml;
+    const repoLink = deps.repoLink;
+    const canJoinWithName = deps.canJoinWithName;
+    const clientActions = deps.clientActions;
+    const rememberPlayerName = deps.rememberPlayerName;
+    const rememberPlayerTokenBackup = deps.rememberPlayerTokenBackup;
+    const playerToken = deps.playerToken;
+    const emit = deps.emit;
+    const wireHelpDisclosures = deps.wireHelpDisclosures;
+    const wireAnimatedDrawers = deps.wireAnimatedDrawers;
+    const wireInactivityTimeoutSelect = deps.wireInactivityTimeoutSelect;
+    const wireLanguageSelect = deps.wireLanguageSelect;
+    const waitingDrawerPreferences = { bots: false, settings: false };
+
+    function botTypeLabel(type) {
+      return BOT_LABELS[type] || 'Bot';
+    }
+    
+    function renderBotPersonality(type) {
+      const basePersonality = BOT_PERSONALITIES[type] || null;
+      const personality = i18n.localizedBotPersonality(getLanguage(), type, basePersonality);
+      const fallbackStats = i18n.localizedBotPersonality(getLanguage(), 'dory', Object.values(BOT_PERSONALITIES)[0]).stats;
+      const stats = (personality ? personality.stats : fallbackStats).map(([label, value]) => {
+        const barWidth = personality ? value * 10 : 0;
+        const valueText = personality ? escapeHtml(value + "/10") : "-/--";
+        return (
+          '<div class="bot-stat">' +
+            '<span class="bot-stat-name">' + escapeHtml(label) + '</span>' +
+            '<span class="bot-stat-bar" aria-hidden="true"><span style="width: ' + barWidth + '%"></span></span>' +
+            '<span class="bot-stat-value">' + valueText + '</span>' +
+          '</div>'
+        );
+      }).join("");
+      return '<div id="botPersonality" class="bot-personality' + (personality ? '' : ' empty') + '">' +
+        '<p>' + (personality ? escapeHtml(personality.summary) : '&nbsp;') + '</p>' +
+        '<div class="bot-stats">' + stats + '</div>' +
+      '</div>';
+    }
+    
+    function renderWaiting(state) {
+      const selectedTheme = window.DutchTheme.getStoredTheme(window);
+      const botTypes = ['dory', 'norman', 'athena', 'roswell'];
+      const usedBotTypes = new Set(state.players.filter((p) => p.isBot).map((p) => p.botType));
+      const firstAvailableBot = botTypes.find((type) => !usedBotTypes.has(type));
+      let startDisabled = state.canStart === false || state.joined === false;
+      const botsOpen = waitingDrawerPreferences.bots ? 'open' : '';
+      const settingsOpen = waitingDrawerPreferences.settings ? 'open' : '';
+      const botOptions = '<option value="" selected>' + escapeHtml(t('Choose bot...')) + '</option>' + botTypes.map((type) => `
+        <option value="${escapeHtml(type)}" ${usedBotTypes.has(type) ? 'disabled' : ''}>${escapeHtml(botTypeLabel(type))}</option>
+      `).join('');
+      const players = state.players.map((p, index) => {
+        const isMe = p.id === state.you;
+        const moveControls = `
+          <div class="player-line-actions">
+            ${isMe ? '<button data-action="leaveWaitingPlayer">' + escapeHtml(t('Leave')) + '</button>' : `<button data-action="removeWaitingPlayer" data-player-id="${escapeHtml(p.id)}">${escapeHtml(t('Remove'))}</button>`}
+            <button class="icon-button" title="${escapeHtml(t('Move up'))}" aria-label="${escapeHtml(t('Move {name} up', { name: p.name }))}" data-action="moveWaitingPlayer" data-player-id="${escapeHtml(p.id)}" data-direction="up" ${index === 0 ? 'disabled' : ''}>↑</button>
+            <button class="icon-button" title="${escapeHtml(t('Move down'))}" aria-label="${escapeHtml(t('Move {name} down', { name: p.name }))}" data-action="moveWaitingPlayer" data-player-id="${escapeHtml(p.id)}" data-direction="down" ${index === state.players.length - 1 ? 'disabled' : ''}>↓</button>
+          </div>
+        `;
+        return `
+          <div class="player-line" data-waiting-player-id="${escapeHtml(p.id)}">
+            <span>${index + 1}. ${playerNameHtml(state, p)}${p.isBot ? ' <span class="bot-badge">' + escapeHtml(t('bot')) + '</span>' : ''}${p.isSpectator ? ' <span class="spectator-badge">' + escapeHtml(t('spectator')) + '</span>' : ''}${isMe ? ' <span class="you-badge">' + escapeHtml(t('you')) + '</span>' : ''} ${p.connected ? '' : '(' + escapeHtml(t('missing')) + ')'}</span>
+            ${moveControls}
+          </div>
+        `;
+      }).join('');
+      const joined = state.joined;
+      const me = state.players.find((p) => p.id === state.you);
+      const humanCount = state.players.filter((p) => !p.isBot && !p.isSpectator).length;
+      const playerHintText = humanCount === 0 ? t('Waiting for a human player.') : t('Waiting for another human or a bot.');
+      const playerHint = state.players.length > 0 && !state.canStart ? `<p class="hint">${playerHintText}</p>` : '';
+      app.innerHTML = `
+        <div class="page waiting-page">
+          <h1 class="app-title">Dutch! 🂡</h1>
+          <div class="waiting-panel">
+            <p class="waiting-description">${escapeHtml(t(GAME_DESCRIPTION))}</p>
+            <div class="waiting-controls">
+              <div class="row join-row">
+                <input id="nameInput" placeholder="${escapeHtml(t('Name'))}" maxlength="${PLAYER_NAME_MAX_LENGTH}" value="${joined && me ? escapeHtml(me.name) : ''}" ${joined ? 'disabled' : ''}>
+                <button id="joinBtn" disabled>${escapeHtml(t('Join'))}</button>
+                <button id="leaveBtn" ${joined ? '' : 'disabled'}>${escapeHtml(t('Leave'))}</button>
+              </div>
+              <details class="drawer waiting-drawer" data-waiting-drawer="bots" ${botsOpen}>
+                <summary>${escapeHtml(t('Bots'))}</summary>
+                <div class="drawer-content drawer-animation-content">
+                  <div class="row bot-row">
+                    <select id="botTypeSelect" ${firstAvailableBot && state.players.length < 9 ? '' : 'disabled'}>
+                      ${botOptions}
+                    </select>
+                    <button id="addBotBtn" class="expected-action" disabled>${escapeHtml(t('Add bot'))}</button>
+                  </div>
+                  <div id="botPersonalitySlot">${renderBotPersonality('')}</div>
+                </div>
+              </details>
+              <details class="drawer waiting-drawer" data-waiting-drawer="settings" ${settingsOpen}>
+                <summary>${escapeHtml(t('Settings'))}</summary>
+                <div class="drawer-content drawer-animation-content waiting-selectors">
+                  <div class="setting-row">
+                    ${helpDisclosureHtml('waitingGameLengthHelp', 'Game length', 'Choose how long the game lasts: a double game ends when a player passes 200 points, a full game uses 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.')}
+                    <select id="gameTargetSelect" aria-label="${escapeHtml(t('Game length'))}">
+                      <option value="single" ${state.singleRound ? 'selected' : ''}>${escapeHtml(t('Single round'))}</option>
+                      <option value="50" ${!state.singleRound && state.gameTarget === 50 ? 'selected' : ''}>${escapeHtml(t('Short game, 50 points'))}</option>
+                      <option value="100" ${!state.singleRound && state.gameTarget === 100 ? 'selected' : ''}>${escapeHtml(t('Full game, 100 points'))}</option>
+                      <option value="200" ${!state.singleRound && state.gameTarget === 200 ? 'selected' : ''}>${escapeHtml(t('Double game, 200 points'))}</option>
+                    </select>
+                  </div>
+                  ${inactivityTimeoutSettingHtml(state, 'inactivityTimeoutSelect')}
+                  <div class="setting-row">
+                    ${helpDisclosureHtml('deckAmountHelp', 'Deck amount', 'More decks make the game less predictable and add more special cards, though some may remain undealt. Two decks are required for more than four players.')}
+                    <select id="deckSettingSelect" aria-label="${escapeHtml(t('Deck amount'))}">
+                      <option value="one" ${state.deckSetting === 'one' ? 'selected' : ''} ${state.oneDeckDisabled ? 'disabled' : ''}>${escapeHtml(t('One deck'))}</option>
+                      <option value="two" ${state.deckSetting === 'two' ? 'selected' : ''}>${escapeHtml(t('Two decks'))}</option>
+                    </select>
+                  </div>
+                  <div class="setting-row">
+                    ${helpDisclosureHtml('waitingAppearanceHelp', 'Appearance', 'Choose the light or dark color theme.')}
+                    <select id="themeSelect" aria-label="${escapeHtml(t('Appearance'))}">
+                      <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>${escapeHtml(t('Light mode'))}</option>
+                      <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>${escapeHtml(t('Dark mode'))}</option>
+                    </select>
+                  </div>
+                  ${languageSettingHtml('languageSelect')}
+                </div>
+              </details>
+              <section class="waiting-player-list player-list" aria-labelledby="waitingPlayersHeading">
+                <h2 id="waitingPlayersHeading">${escapeHtml(t('Players'))}</h2>
+                ${players || '<p class="hint">' + escapeHtml(t('No players yet.')) + '</p>'}
+                ${players ? playerHint : ""}
+              </section>
+            </div>
+            <button id="startBtn" class="expected-action" ${startDisabled ? 'disabled' : ''}>${escapeHtml(t('Start game'))}</button>
+          </div>
+          ${repoLink(state.version)}
+        </div>
+      `;
+    
+      const nameInput = document.getElementById('nameInput');
+      wireHelpDisclosures(document);
+      const joinBtn = document.getElementById('joinBtn');
+      if (nameInput && joinBtn) {
+        nameInput.addEventListener('input', () => {
+          if (nameInput.value.length > PLAYER_NAME_MAX_LENGTH) nameInput.value = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
+          joinBtn.disabled = !canJoinWithName(state, nameInput.value);
+        });
+        joinBtn.disabled = !canJoinWithName(state, nameInput.value);
+        joinBtn.addEventListener('click', () => {
+          const name = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
+          clientActions.clearPendingConfirm();
+          rememberPlayerName(name);
+          rememberPlayerTokenBackup(playerToken);
+          emit('join', { name, token: playerToken });
+        });
+        nameInput.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' && !joinBtn.disabled) {
+            const name = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
+            clientActions.clearPendingConfirm();
+            rememberPlayerName(name);
+            rememberPlayerTokenBackup(playerToken);
+            emit('join', { name, token: playerToken });
+          }
+        });
+      }
+      const leaveBtn = document.getElementById('leaveBtn');
+      if (leaveBtn) leaveBtn.addEventListener('click', () => clientActions.confirmThen(leaveBtn, 'leave-waiting', t('Confirm leave'), () => emit('leave')));
+      wireAnimatedDrawers(document, (details, open) => {
+        if (details.dataset.waitingDrawer) waitingDrawerPreferences[details.dataset.waitingDrawer] = open;
+      });
+      const botTypeSelect = document.getElementById('botTypeSelect');
+      const addBotBtn = document.getElementById('addBotBtn');
+      if (botTypeSelect && addBotBtn) {
+        const botPersonalitySlot = document.getElementById('botPersonalitySlot');
+        const updateBotPersonality = () => {
+          const selectedOption = botTypeSelect.selectedOptions[0];
+          const type = selectedOption && !selectedOption.disabled ? botTypeSelect.value : '';
+          if (botPersonalitySlot) botPersonalitySlot.innerHTML = renderBotPersonality(type);
+          addBotBtn.disabled = !type || state.players.length >= 9;
+          const startButton = document.getElementById('startBtn');
+          if (startButton) startButton.disabled = !state.canStart || !joined || !!type;
+        };
+        updateBotPersonality();
+        botTypeSelect.addEventListener('change', updateBotPersonality);
+        addBotBtn.addEventListener('click', () => {
+          clientActions.clearPendingConfirm();
+          emit('addBot', botTypeSelect.value);
+        });
+      }
+      const deckSettingSelect = document.getElementById('deckSettingSelect');
+      if (deckSettingSelect) {
+        deckSettingSelect.addEventListener('change', () => {
+          clientActions.clearPendingConfirm();
+          emit('setDeckSetting', deckSettingSelect.value);
+        });
+      }
+      const gameTargetSelect = document.getElementById('gameTargetSelect');
+      if (gameTargetSelect) {
+        gameTargetSelect.addEventListener('change', () => {
+          clientActions.clearPendingConfirm();
+          emit('setGameTarget', gameTargetSelect.value);
+        });
+      }
+      wireInactivityTimeoutSelect('inactivityTimeoutSelect');
+      const themeSelect = document.getElementById('themeSelect');
+      if (themeSelect) {
+        themeSelect.addEventListener('change', () => {
+          window.DutchTheme.setTheme(themeSelect.value, window);
+        });
+      }
+      wireLanguageSelect('languageSelect');
+      document.querySelectorAll('[data-action="moveWaitingPlayer"]').forEach((button) => {
+        button.addEventListener('click', () => {
+          clientActions.clearPendingConfirm();
+          emit('moveWaitingPlayer', { playerId: button.dataset.playerId || '', direction: button.dataset.direction || '' });
+        });
+      });
+      document.querySelectorAll('[data-action="removeWaitingPlayer"]').forEach((button) => {
+        button.addEventListener('click', () => {
+          clientActions.confirmThen(button, `remove-${button.dataset.playerId}`, t('Confirm remove'), () => emit('removeWaitingPlayer', button.dataset.playerId || ''));
+        });
+      });
+      document.querySelectorAll('[data-action="leaveWaitingPlayer"]').forEach((button) => {
+        button.addEventListener('click', () => {
+          clientActions.confirmThen(button, 'leave-waiting', t('Confirm leave'), () => emit('leave'));
+        });
+      });
+      const startBtn = document.getElementById('startBtn');
+      if (startBtn) startBtn.addEventListener('click', () => {
+        clientActions.clearPendingConfirm();
+        emit('startGame');
+      });
+    }
+    
+
+    return { renderWaiting };
+  }
+
+  return { create };
+});
+
