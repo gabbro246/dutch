@@ -290,12 +290,6 @@ test('a deliberate failed Dutch call requires exact arithmetic that lowers the t
     outcome.exactThreshold && outcome.totalAfterHalving === 25 && outcome.beneficialFailure
   )));
   assert.equal(beneficial.decisions.botShouldCallDutch(beneficial.bot), true);
-  const exception = beneficial.state.botDiagnostics.at(-1).exception;
-  assert.ok(exception.types.includes('above-five-dutch-call'));
-  assert.ok(exception.types.includes('deliberate-round-loss'));
-  assert.ok(exception.reasons.includes('exact-threshold-beneficial-failure'));
-  assert.ok(exception.calculatedScoreConsequence.exactThresholdOutcomeProbability >= 0.9);
-  assert.equal(typeof exception.calculatedScoreConsequence.actionValueDifference, 'number');
 
   const nonExact = harness({
     own: [card('6')],
@@ -1183,7 +1177,7 @@ test('guaranteed throw-ins, valuable specials, and exact thresholds can justify 
   assert.ok(threshold.metadata.protection.thresholdBenefit > 0);
 });
 
-test('bot diagnostics retain hidden decision state outside the public game log', () => {
+test('bot decisions do not retain diagnostic state', () => {
   const setup = harness({
     own: [card('A'), card('2'), card('K', 'hearts')],
     opponents: [[card('8'), card('9')]]
@@ -1192,11 +1186,8 @@ test('bot diagnostics retain hidden decision state outside the public game log',
   setup.decisions.evaluateDrawSources(setup.bot);
   setup.decisions.botShouldCallDutch(setup.bot);
 
-  assert.deepEqual(setup.state.log, undefined);
-  assert.equal(setup.state.botDiagnostics.length, 2);
-  assert.equal(setup.state.botDiagnostics[0].decision, 'draw-source');
-  assert.equal(setup.state.botDiagnostics[1].decision, 'dutch');
-  assert.equal(setup.state.botDiagnostics[1].actualHands[0].score, 3);
+  assert.equal(Object.hasOwn(setup.state, 'botDiagnostics'), false);
+  assert.equal(Object.hasOwn(setup.memory, 'lastDecision'), false);
 });
 
 test('forced final turns use the dedicated evaluator and preserve a confirmed low card', () => {
@@ -1361,9 +1352,7 @@ test('regression: weak three-or-four draws do not justify replacing an Ace', () 
       opponents: [[card('10'), card('9'), card('8'), card('7')]]
     });
     assert.equal(setup.decisions.shouldBotSwapDrawn(setup.bot, card(rank)), false);
-    const selected = setup.state.botDiagnostics.at(-1);
-    assert.equal(selected.decision, 'draw-response');
-    assert.equal(selected.selected, 'discard-drawn');
+    assert.equal(Object.hasOwn(setup.memory, 'lastDecision'), false);
   }
 });
 

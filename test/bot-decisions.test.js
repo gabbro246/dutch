@@ -135,6 +135,7 @@ test('Dutch and throw-in helpers use expected scores and known ranks', () => {
   memory[1].memory.card = { rank: 'K', suit: 'hearts', red: true, points: 0 };
   memory[1].memory.rank = 'K';
   assert.equal(decisions.botShouldCallDutch(bot), true);
+  assert.equal(Object.hasOwn(state, 'botDiagnostics'), false);
 
   state.round.throwIn = { open: true, rank: '2' };
   const candidate = decisions.botThrowInCandidate(bot);

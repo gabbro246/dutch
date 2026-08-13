@@ -188,12 +188,14 @@ test('throw-in handles valid and wrong cards', () => {
   assert.equal(wrong.valid, false);
   assert.equal(wrong.penalty.id, 'd2');
   assert.equal(state.players[0].cards.some((item) => item.id === 'd2'), false);
+  assert.equal(state.round.pendingWrongThrowPenalties, 1);
   assert.equal(calls.unknownSlots.length, 0);
   assert.equal(calls.logs.length, 0);
   assert.equal(calls.scheduled.at(-1).ms, 1500);
   assert.deepEqual(calls.cardHighlights.at(-1), { cardId: 'a2', kind: 'wrong-throw', ms: 2200, options: { playerId: 'ada' } });
 
   calls.scheduled.at(-1).fn();
+  assert.equal(state.round.pendingWrongThrowPenalties, 0);
   assert.equal(state.players[0].cards.at(-1).id, 'd2');
   assert.deepEqual(calls.unknownSlots.at(-1), { ownerId: 'ada', source: 'wrong throw-in penalty' });
   assert.deepEqual(calls.changedCards.at(-1), { ownerId: 'ada', cardId: 'd2' });

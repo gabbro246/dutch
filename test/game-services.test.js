@@ -182,7 +182,7 @@ test('connected players can start again immediately after manually ending a game
   }
 });
 
-test('fixed-seed games record the full private shuffle and initial state without exposing it live', () => {
+test('fixed-seed games stay deterministic without retaining bot thoughts', () => {
   function startedGame() {
     const setup = serviceFor({ gameSeed: 424242 });
     const first = fakeSocket('socket-a');
@@ -200,20 +200,15 @@ test('fixed-seed games record the full private shuffle and initial state without
   const one = startedGame();
   const two = startedGame();
   try {
-    const firstArchive = one.services.getState().replayArchive;
-    const secondArchive = two.services.getState().replayArchive;
-    assert.equal(firstArchive.gameSeed, 424242);
-    assert.equal(firstArchive.rounds.length, 1);
-    assert.equal(firstArchive.rounds[0].shuffledDeckOrder.length, 52);
+    const firstState = one.services.getState();
+    const secondState = two.services.getState();
+    assert.deepEqual(firstState.round.deck, secondState.round.deck);
     assert.deepEqual(
-      firstArchive.rounds[0].initialHands.map((entry) => entry.cards.length),
-      [4, 4]
+      firstState.players.map((player) => player.cards),
+      secondState.players.map((player) => player.cards)
     );
-    assert.deepEqual(
-      firstArchive.rounds[0].shuffledDeckOrder,
-      secondArchive.rounds[0].shuffledDeckOrder
-    );
-    assert.deepEqual(firstArchive.initialState.round.deck, secondArchive.initialState.round.deck);
+    assert.equal(Object.hasOwn(firstState, 'replayArchive'), false);
+    assert.equal(Object.hasOwn(firstState, 'botDiagnostics'), false);
     const liveStatePayloads = one.first.emitted
       .filter((event) => event.event === 'state')
       .map((event) => event.payload);

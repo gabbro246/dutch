@@ -199,4 +199,18 @@ test('controls reflect current player draw and turn-complete states', () => {
 
   const observerAfterDraw = viewFor(state).buildView('ben');
   assert.equal(observerAfterDraw.round.drawn.card.back, true);
+
+  state.round.drawn = null;
+  state.round.turnComplete = true;
+  state.round.roundEndPending = true;
+  state.round.roundEndAt = 2500;
+  const graceView = viewFor(state).buildView('ada');
+  assert.equal(graceView.round.controls.canThrowIn, true);
+  assert.equal(graceView.round.controls.canEndTurn, false);
+  assert.equal(graceView.round.roundEndPending, true);
+  assert.equal(graceView.round.roundEndAt, 2500);
+  state.round.stage = 'special';
+  state.round.specialQueue = [{ type: 'Q', actorId: 'ada', selected: [] }];
+  const specialGraceView = viewFor(state).buildView('ada');
+  assert.equal(specialGraceView.round.controls.canEndTurn, true);
 });

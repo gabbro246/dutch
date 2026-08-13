@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.53
+- added a quick half-second chance to throw in after the final turn
+- made the zero-point red Kings clearer in the game guide
+
+## 1.3.52
+- fixed errors at the end of long bot games by making saved game logs much smaller
+- reduced memory and processing used by bots
+
 ## 1.3.51
 - made saved game log pages follow the stored light or dark appearance
 - made the logs list read only the header and points table instead of loading every full log

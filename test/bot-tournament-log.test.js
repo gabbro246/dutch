@@ -6,7 +6,6 @@ const path = require('path');
 const zlib = require('zlib');
 const { runTournament } = require('../lib/bot-simulation.js');
 const { createTournamentLogWriter } = require('../lib/bot-tournament-log.js');
-const { replayArchiveFromFinishedLog } = require('../lib/bot-replay.js');
 
 test('tournaments stream every captured game into one timestamped log subfolder', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dutch-tournament-logs-'));
@@ -45,13 +44,9 @@ test('tournaments stream every captured game into one timestamped log subfolder'
 
   const compressed = fs.readFileSync(path.join(writer.directory, writer.files[0]));
   const logText = zlib.gunzipSync(compressed).toString('utf8');
-  const archive = replayArchiveFromFinishedLog(logText);
   assert.match(logText, /Game log:/);
-  assert.match(logText, /Bot strategy diagnostics:/);
-  assert.ok(archive);
-  assert.equal(archive.gameSeed, 41);
-  assert.equal(archive.rounds.length, 1);
-  assert.ok(archive.decisions.length > 0);
+  assert.doesNotMatch(logText, /Bot strategy diagnostics:/);
+  assert.doesNotMatch(logText, /Deterministic replay archive/);
 
   const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
   assert.equal(summary.gameLogCompression, 'gzip');

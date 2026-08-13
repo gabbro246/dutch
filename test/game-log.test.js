@@ -51,7 +51,7 @@ test('finished game log includes winner, score table, and relative log lines', (
   assert.match(text, /Game log:\n\+00:00\.000 1\. \[system\] game started\n\+00:01\.500 2\. Ada swapped cards\n$/);
 });
 
-test('hidden bot diagnostics appear only in the finished-game log section', () => {
+test('finished-game logs ignore bot diagnostics and replay archives', () => {
   const diagnostic = {
     round: 2,
     botName: 'Roswell',
@@ -67,11 +67,14 @@ test('hidden bot diagnostics appear only in the finished-game log section', () =
     roundNumber: 2,
     scoreHistory: [],
     log: [{ text: 'public move', kind: 'game', at: '2026-01-01T00:00:00.000Z' }],
-    botDiagnostics: [diagnostic]
+    botDiagnostics: [diagnostic],
+    replayArchive: { decisions: [{ private: 'thought' }] }
   });
 
-  assert.match(text, /Game log:\n\+00:00\.000 1\. public move\n\nBot strategy diagnostics:/);
-  assert.match(text, new RegExp(JSON.stringify(diagnostic).replace(/[.*+?^$()|[\]\\]/g, '\\$&')));
+  assert.match(text, /Game log:\n\+00:00\.000 1\. public move\n$/);
+  assert.doesNotMatch(text, /Bot strategy diagnostics/);
+  assert.doesNotMatch(text, /Deterministic replay archive/);
+  assert.doesNotMatch(text, /Roswell|thought/);
 });
 
 test('finished game log labels a single-round game', () => {

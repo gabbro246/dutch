@@ -836,6 +836,8 @@ function renderStatus(state) {
     text = t('Opening card…');
   } else if (r.stage === 'special' && r.special) {
     text = t('{name} may use {special} or click Next player.', { name: r.special.actorName, special: i18n.specialLabel(language, r.special.type) });
+  } else if (r.roundEndPending) {
+    text = t('Last chance to throw in…');
   } else if (r.turnComplete && r.currentPlayerId === state.you) {
     text = t('Your turn is complete. Say Dutch or click Next player.');
   } else if (r.turnComplete) {

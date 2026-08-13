@@ -226,6 +226,30 @@ test('advance turn completes Dutch queue and ends the round', () => {
   assert.deepEqual(calls.clearedHandHighlights, ['ben']);
 
   lifecycle.advanceTurn();
+  assert.equal(getState().round.stage, 'turn');
+  assert.equal(getState().round.roundEndPending, true);
+  assert.equal(getState().round.roundEndAt, 1500);
+  assert.equal(getState().round.throwIn.open, true);
+  assert.equal(getState().scoreHistory.length, 0);
+  assert.equal(calls.timeouts.at(-1).delay, 500);
+
+  getState().round.pendingPileReveal = { cardId: 'late-throw' };
+  getState().round.stage = 'revealing';
+  calls.timeouts.at(-1).fn();
+  assert.equal(getState().round.stage, 'revealing');
+  assert.equal(getState().scoreHistory.length, 0);
+  assert.equal(calls.timeouts.at(-1).delay, 100);
+
+  getState().round.pendingPileReveal = null;
+  getState().round.pendingWrongThrowPenalties = 1;
+  getState().round.stage = 'turn';
+  calls.timeouts.at(-1).fn();
+  assert.equal(getState().round.stage, 'turn');
+  assert.equal(getState().scoreHistory.length, 0);
+  assert.equal(calls.timeouts.at(-1).delay, 100);
+
+  getState().round.pendingWrongThrowPenalties = 0;
+  calls.timeouts.at(-1).fn();
   assert.equal(getState().round.stage, 'roundEnd');
   assert.equal(getState().players[0].roundPoints, 0);
   assert.equal(getState().players[1].roundPoints, 9);
@@ -261,6 +285,11 @@ test('single-round game ends when its first round is scored', () => {
   const { lifecycle, calls, getState } = lifecycleFor(state);
 
   lifecycle.advanceTurn();
+  assert.equal(getState().round.stage, 'turn');
+  assert.equal(getState().round.roundEndPending, true);
+  assert.equal(getState().round.winnerId, null);
+  assert.equal(calls.timeouts.at(-1).delay, 500);
+  calls.timeouts.at(-1).fn();
 
   assert.equal(getState().round.stage, 'gameEnd');
   assert.equal(getState().round.winnerId, 'ben');

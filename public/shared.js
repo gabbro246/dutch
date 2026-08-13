@@ -255,7 +255,7 @@
     <p><strong>Start:</strong> Each player gets 4 cards face down and may look at 2 of them. The first discard card is turned up only after everyone has finished peeking.</p>
     <p><strong>Turn:</strong> Draw one card. Either swap it with one of your own cards or discard it again.</p>
     <p><strong>Throwing in:</strong> Matching cards may be thrown in immediately unless the top card was itself thrown in. Wrong throw-in: one penalty card, and the top card stays open for another throw-in.</p>
-    <p><strong>Points:</strong> Number cards count their value. A=1, J=11, Q=12, ♥♦K=0, ♣♠K=13.</p>
+    <p><strong>Points:</strong> Number cards count their value. A=1, J=11, Q=12, <span class="red-card-value">♥♦K=0</span>, ♣♠K=13.</p>
     <p><strong>Special cards:</strong> A may add one card to someone. Q may look at any one card. J may swap any two cards. These actions are optional.</p>
     <p>Anyone who believes they have 5 points or less may say <strong>Dutch</strong>. After that, everyone else gets one more turn. Then reveal and count. The player with the most points in the last round starts the next round.</p>
   `;

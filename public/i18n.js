@@ -39,6 +39,7 @@
     '{name} made a wrong throw-in and gets a penalty card.': '{name} hat falsch eingeworfen und erhält eine Strafkarte.',
     'A player': 'Ein Spieler', 'Start peek: each player must look at exactly two own cards.': 'Startblick: Jeder muss genau zwei eigene Karten ansehen.',
     'Opening card…': 'Startkarte wird aufgedeckt …', '{name} may use {special} or click Next player.': '{name} darf {special} einsetzen oder auf „Nächster“ klicken.',
+    'Last chance to throw in…': 'Letzte Chance zum Einwerfen …',
     'Your turn is complete. Say Dutch or click Next player.': 'Dein Zug ist beendet. Sage Dutch oder klicke auf „Nächster“.',
     "{name}'s turn is complete. Waiting for Next player.": 'Der Zug von {name} ist beendet. Warte auf „Nächster“.',
     "{name}'s move.": '{name} ist am Zug.', 'The current player': 'Der aktuelle Spieler',
@@ -96,7 +97,7 @@
   }
   function quickRulesHtml(language) {
     if (normalizeLanguage(language) !== 'de') return '';
-    return '<p><strong>Ziel:</strong> So wenige Punkte wie möglich.</p><p><strong>Start:</strong> Jeder erhält 4 verdeckte Karten und darf 2 davon ansehen. Die erste Ablagekarte wird erst aufgedeckt, nachdem alle fertig sind.</p><p><strong>Zug:</strong> Ziehe eine Karte. Tausche sie gegen eine eigene Karte oder lege sie wieder ab.</p><p><strong>Einwerfen:</strong> Passende Karten dürfen sofort eingeworfen werden, außer die oberste Karte wurde selbst eingeworfen. Bei einem falschen Einwurf gibt es eine Strafkarte.</p><p><strong>Punkte:</strong> Zahlenkarten zählen ihren Wert. A=1, J=11, Q=12, ♥♦K=0, ♣♠K=13.</p><p><strong>Sonderkarten:</strong> Mit A darf jemandem eine Karte gegeben werden. Mit Q darf eine Karte angesehen werden. Mit J dürfen zwei Karten getauscht werden.</p><p>Wer glaubt, höchstens 5 Punkte zu haben, darf <strong>Dutch</strong> sagen. Danach erhält jeder andere einen letzten Zug. Dann wird aufgedeckt und gezählt.</p>';
+    return '<p><strong>Ziel:</strong> So wenige Punkte wie möglich.</p><p><strong>Start:</strong> Jeder erhält 4 verdeckte Karten und darf 2 davon ansehen. Die erste Ablagekarte wird erst aufgedeckt, nachdem alle fertig sind.</p><p><strong>Zug:</strong> Ziehe eine Karte. Tausche sie gegen eine eigene Karte oder lege sie wieder ab.</p><p><strong>Einwerfen:</strong> Passende Karten dürfen sofort eingeworfen werden, außer die oberste Karte wurde selbst eingeworfen. Bei einem falschen Einwurf gibt es eine Strafkarte.</p><p><strong>Punkte:</strong> Zahlenkarten zählen ihren Wert. A=1, J=11, Q=12, <span class="red-card-value">♥♦K=0</span>, ♣♠K=13.</p><p><strong>Sonderkarten:</strong> Mit A darf jemandem eine Karte gegeben werden. Mit Q darf eine Karte angesehen werden. Mit J dürfen zwei Karten getauscht werden.</p><p>Wer glaubt, höchstens 5 Punkte zu haben, darf <strong>Dutch</strong> sagen. Danach erhält jeder andere einen letzten Zug. Dann wird aufgedeckt und gezählt.</p>';
   }
   function fullRulesHtml(language, gameTarget, singleRound) {
     if (normalizeLanguage(language) !== 'de') return '';

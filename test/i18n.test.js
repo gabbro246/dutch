@@ -31,6 +31,7 @@ test('German translations interpolate dynamic UI text', () => {
     'Runde 3'
   );
   assert.equal(i18n.specialLabel('de', 'Q'), 'Dame: Karte ansehen');
+  assert.equal(i18n.translate('de', 'Last chance to throw in…'), 'Letzte Chance zum Einwerfen …');
 });
 
 test('German card labels remain compact for fixed-width controls', () => {
@@ -41,6 +42,7 @@ test('German card labels remain compact for fixed-width controls', () => {
 
 test('German rules and server-originated game text are localized', () => {
   assert.match(i18n.quickRulesHtml('de'), /Ziel:/);
+  assert.match(i18n.quickRulesHtml('de'), /<span class="red-card-value">♥♦K=0<\/span>/);
   assert.match(i18n.fullRulesHtml('de', 100, false), /mehr als 100 Punkte/);
   assert.equal(i18n.translateGameText('de', 'Ada said Dutch'), 'Ada hat Dutch gesagt');
   assert.equal(

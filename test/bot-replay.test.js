@@ -8,7 +8,6 @@ const {
   counterfactualReplay,
   replayArchiveFromFinishedLog
 } = require('../lib/bot-replay.js');
-const { finishedGameLogText } = require('../lib/game-log.js');
 
 function card(id, rank) {
   return { id, rank, suit: 'clubs', deckColor: 'blue' };
@@ -142,17 +141,15 @@ test('counterfactual replay starts every legal action from an isolated identical
   assert.deepEqual(archive.decisions[0].checkpoint.round.deck, ['hidden-a', 'hidden-b']);
 });
 
-test('private replay data is serialized only in the finished-game log and can be loaded', () => {
+test('legacy private replay data can still be loaded', () => {
   const archive = createReplayArchive(314);
   archive.initialState = { round: { deck: [card('secret', 'K')] } };
-  const text = finishedGameLogText({
-    winnerName: 'Ada',
-    gameTarget: 100,
-    roundNumber: 1,
-    scoreHistory: [],
-    log: [],
-    replayArchive: archive
-  });
+  const text = [
+    'Dutch game log 2026-01-01_01-02-03',
+    '',
+    'Deterministic replay archive (post-game only):',
+    JSON.stringify(archive)
+  ].join('\n');
 
   assert.match(text, /Deterministic replay archive \(post-game only\):/);
   assert.deepEqual(replayArchiveFromFinishedLog(text), archive);
