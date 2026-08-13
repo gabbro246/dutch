@@ -39,7 +39,7 @@ function stateWithTurn() {
   };
 }
 
-function actionsFor(state) {
+function actionsFor(state, overrides = {}) {
   const calls = {
     logs: [],
     pileTakes: [],
@@ -102,7 +102,8 @@ function actionsFor(state) {
       calls.scheduled.push({ fn, ms });
       return { unref() {} };
     },
-    broadcastState: () => { calls.broadcasts += 1; }
+    broadcastState: () => { calls.broadcasts += 1; },
+    ...overrides
   };
   return { actions: createGameActions(deps), calls };
 }
@@ -123,6 +124,86 @@ test('taking a deck card keeps throw-in open while taking the pile closes it', (
   assert.equal(state.round.drawn.source, 'pile');
   assert.equal(state.round.throwIn.open, false);
   assert.deepEqual(calls.pileTakes, [{ playerId: 'ada', card: pileCard }]);
+});
+
+function explicitShuffleDeps(state) {
+  return {
+    drawFromDeck: () => {
+      const round = state.round;
+      if (round.deck.length === 0) {
+        round.needsReshuffle = round.discard.length > 1;
+        return null;
+      }
+      const drawn = round.deck.pop();
+      round.needsReshuffle = round.deck.length === 0 && round.discard.length > 1;
+      return drawn;
+    },
+    reshuffleDrawPile: () => {
+      const round = state.round;
+      if (round.deck.length > 0 || round.discard.length <= 1) return false;
+      const top = round.discard.pop();
+      round.deck = round.discard.splice(0).reverse();
+      round.discard = [top];
+      round.needsReshuffle = false;
+      round.reshuffleToken = (round.reshuffleToken || 0) + 1;
+      return true;
+    },
+    activePlayablePlayers: () => state.players.filter((item) => !item.left && !item.isSpectator)
+  };
+}
+
+test('Ace draw pauses for shuffle and continues against the original target', () => {
+  const state = stateWithTurn();
+  const top = state.round.discard[0];
+  state.round.deck = [];
+  state.round.discard = [card('buried-1', '2'), card('buried-2', '3'), top];
+  state.round.stage = 'special';
+  state.round.specialQueue = [{ type: 'A', actorId: 'ada' }];
+  const { actions, calls } = actionsFor(state, explicitShuffleDeps(state));
+  const targetCount = state.players[1].cards.length;
+
+  assert.equal(actions.aceAddForPlayer(state.players[0], 'ben'), true);
+  assert.equal(state.round.needsReshuffle, true);
+  assert.equal(state.round.specialQueue.length, 1);
+  assert.equal(state.players[1].cards.length, targetCount);
+
+  assert.equal(actions.shuffleForPlayer(state.players[0]), true);
+
+  assert.equal(state.round.discard[0], top);
+  assert.equal(state.players[1].cards.length, targetCount + 1);
+  assert.equal(state.players[1].cards.at(-1).id, 'buried-1');
+  assert.equal(state.round.specialQueue.length, 0);
+  assert.deepEqual(calls.aceObservations, [{ actorId: 'ada', targetId: 'ben' }]);
+});
+
+test('wrong-throw penalty pauses for shuffle and is still applied afterward', () => {
+  const state = stateWithTurn();
+  const top = state.round.discard[0];
+  state.round.deck = [];
+  state.round.discard = [card('penalty', '7'), card('buried', '6'), top];
+  state.round.throwIn.rank = 'K';
+  const { actions, calls } = actionsFor(state, explicitShuffleDeps(state));
+  const handCount = state.players[0].cards.length;
+
+  const result = actions.throwInForPlayer(state.players[0], 'a2');
+  assert.equal(result.pending, true);
+  assert.equal(state.round.needsReshuffle, true);
+  assert.equal(calls.scheduled.length, 0);
+
+  assert.equal(actions.shuffleForPlayer(state.players[1]), true);
+  assert.equal(calls.scheduled.length, 1);
+  calls.scheduled[0].fn();
+
+  assert.equal(state.round.discard[0], top);
+  assert.equal(state.players[0].cards.length, handCount + 1);
+  assert.equal(state.players[0].cards.at(-1).id, 'penalty');
+  assert.deepEqual(state.round.wrongThrowPenalty, {
+    id: 'penalty:a2',
+    cardId: 'penalty',
+    playerId: 'ada',
+    wrongThrowCardId: 'a2'
+  });
+  assert.equal(calls.logs.at(-1), 'ADA made a wrong throw-in and took a penalty card');
 });
 
 test('a player can throw in after the current player draws from the deck', () => {
@@ -197,6 +278,12 @@ test('throw-in handles valid and wrong cards', () => {
   calls.scheduled.at(-1).fn();
   assert.equal(state.round.pendingWrongThrowPenalties, 0);
   assert.equal(state.players[0].cards.at(-1).id, 'd2');
+  assert.deepEqual(state.round.wrongThrowPenalty, {
+    id: 'd2:a2',
+    cardId: 'd2',
+    playerId: 'ada',
+    wrongThrowCardId: 'a2'
+  });
   assert.deepEqual(calls.unknownSlots.at(-1), { ownerId: 'ada', source: 'wrong throw-in penalty' });
   assert.deepEqual(calls.changedCards.at(-1), { ownerId: 'ada', cardId: 'd2' });
   assert.equal(calls.logs.at(-1), 'ADA made a wrong throw-in and took a penalty card');

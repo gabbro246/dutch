@@ -12,6 +12,7 @@
     const activeCardMoves = new Map();
     const activeWrongThrows = new Map();
     const activeFaceTurns = new Map();
+    let activeReshuffle = null;
 
     function emptyAnimationSnapshot() {
       return { cards: new Map(), roles: new Map(), locations: new Map(), panels: new Map(), waitingPlayers: new Map() };
@@ -88,10 +89,12 @@
       if (previousState.roundNumber !== state.roundNumber) return;
       animatePlayerPanelResizes(previousState, state, before, after);
       animateJackSwapSelections(previousState, state);
+      animateReshuffle(previousState, state, before, after);
       const previousCards = stateCardLocations(previousState);
       const currentCards = stateCardLocations(state);
       const previousWrongThrow = previousState.round.wrongThrowIn;
       const currentWrongThrow = state.round.wrongThrowIn;
+      const currentWrongThrowPenalty = state.round.wrongThrowPenalty;
       if (currentWrongThrow && (!previousWrongThrow || previousWrongThrow.id !== currentWrongThrow.id)) {
         animateWrongThrowIn(currentWrongThrow, before, after);
       }
@@ -174,7 +177,14 @@
         if (!previous && current.locationKey.startsWith('player:')) {
           const sourceData = before.roles.get('deck-top');
           if (sourceData) {
-            animateCardMove(cardId, sourceData, targetData);
+            const isWrongThrowPenalty = currentWrongThrowPenalty
+              && currentWrongThrowPenalty.cardId === cardId
+              && currentWrongThrowPenalty.playerId === current.ownerId;
+            if (isWrongThrowPenalty) {
+              animateWrongThrowPenaltyMove(currentWrongThrowPenalty, cardId, sourceData, targetData);
+            } else {
+              animateCardMove(cardId, sourceData, targetData);
+            }
             movedIds.add(cardId);
           }
         }
@@ -268,6 +278,64 @@
           easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)'
         });
       });
+    }
+
+    function finishReshuffle(reshuffle) {
+      reshuffle.ghosts.forEach((ghost) => ghost.remove());
+      reshuffle.ghosts.clear();
+      if (reshuffle.deckStack) reshuffle.deckStack.classList.remove('reshuffle-target-hidden');
+      if (reshuffle.timer) window.clearTimeout(reshuffle.timer);
+      if (activeReshuffle === reshuffle) activeReshuffle = null;
+    }
+
+    function cancelAllReshuffles() {
+      if (!activeReshuffle) return;
+      activeReshuffle.animations.forEach((animation) => animation.cancel());
+      finishReshuffle(activeReshuffle);
+    }
+
+    function animateReshuffle(previousState, state, before, after) {
+      const previousToken = Number(previousState.round && previousState.round.reshuffleToken) || 0;
+      const currentToken = Number(state.round && state.round.reshuffleToken) || 0;
+      if (!currentToken || currentToken === previousToken) return;
+      cancelAllReshuffles();
+      if (!Element.prototype.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const sourceData = before.locations.get('pile-top');
+      const targetData = after.roles.get('deck-top');
+      const deckStack = document.querySelector('[data-stack="deck"]');
+      if (!sourceData || !targetData || !deckStack) return;
+
+      const reshuffle = {
+        animations: new Set(),
+        ghosts: new Set(),
+        deckStack,
+        timer: null
+      };
+      activeReshuffle = reshuffle;
+      deckStack.classList.add('reshuffle-target-hidden');
+      const dx = targetData.rect.left - sourceData.rect.left;
+      const dy = targetData.rect.top - sourceData.rect.top;
+      for (let index = 0; index < 5; index += 1) {
+        const color = state.round.deckBack === 'mixed' && index % 2 ? 'red' : (state.round.deckBack === 'red' ? 'red' : 'blue');
+        const ghostHtml = cardHtml({ id: '', back: true, deckColor: color }, false);
+        const ghost = movingFaceFromHtml(ghostHtml, sourceData.rect);
+        if (!ghost) continue;
+        ghost.classList.add('reshuffle-ghost');
+        reshuffle.ghosts.add(ghost);
+        const arc = 10 + index * 2;
+        const animation = ghost.animate([
+          { transform: 'translate(0, 0) rotate(0deg)' },
+          { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - arc}px) rotate(${index % 2 ? -3 : 3}deg)` },
+          { transform: `translate(${dx}px, ${dy}px) rotate(0deg)` }
+        ], {
+          duration: 340,
+          delay: index * 55,
+          easing: 'cubic-bezier(0.35, 0, 0.25, 1)',
+          fill: 'forwards'
+        });
+        reshuffle.animations.add(animation);
+      }
+      reshuffle.timer = window.setTimeout(() => finishReshuffle(reshuffle), 600);
     }
     
     function animatePlayerPanelResizes(previousState, state, before, after) {
@@ -394,6 +462,57 @@
       return face;
     }
     
+    function startWrongThrowPenaltyMove(cardId, sourceData, targetData) {
+      const target = cardElement(cardId, targetData.locationKey);
+      if (!target) return null;
+      const rect = target.getBoundingClientRect();
+      const latestTargetData = {
+        ...targetData,
+        rect: {
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height
+        }
+      };
+      const cardMove = animateCardMove(cardId, sourceData, latestTargetData);
+      if (cardMove) cardMove.clone.classList.add('wrong-throw-penalty-card');
+      else target.classList.remove('anim-target-hidden');
+      return cardMove;
+    }
+
+    function animateWrongThrowPenaltyMove(event, cardId, sourceData, targetData) {
+      const wrongThrowMove = activeWrongThrows.get(event.wrongThrowCardId);
+      if (!wrongThrowMove || wrongThrowMove.shakeFinished) {
+        return startWrongThrowPenaltyMove(cardId, sourceData, targetData);
+      }
+
+      const target = cardElement(cardId, targetData.locationKey);
+      if (target) target.classList.add('anim-target-hidden');
+      const deferredMove = {
+        start: () => startWrongThrowPenaltyMove(cardId, sourceData, targetData),
+        cancel: () => {
+          const latestTarget = cardElement(cardId, targetData.locationKey);
+          if (latestTarget) latestTarget.classList.remove('anim-target-hidden');
+        }
+      };
+      wrongThrowMove.afterShake.add(deferredMove);
+      return null;
+    }
+
+    function releaseWrongThrowPenaltyMoves(move) {
+      if (move.shakeFinished) return;
+      move.shakeFinished = true;
+      const deferredMoves = Array.from(move.afterShake);
+      move.afterShake.clear();
+      deferredMoves.forEach((deferredMove) => deferredMove.start());
+    }
+
+    function cancelWrongThrowPenaltyMoves(move) {
+      move.afterShake.forEach((deferredMove) => deferredMove.cancel());
+      move.afterShake.clear();
+    }
+
     function playWrongThrowPhase(move, face, keyframes, options) {
       if (move.cancelled) return Promise.resolve(false);
       const animation = face.animate(keyframes, options);
@@ -436,6 +555,7 @@
     
     function cancelWrongThrow(move) {
       move.cancelled = true;
+      cancelWrongThrowPenaltyMoves(move);
       if (move.animation) move.animation.cancel();
       finishWrongThrow(move);
     }
@@ -459,6 +579,8 @@
         locationKey: targetData.locationKey,
         clones: new Set(),
         animation: null,
+        afterShake: new Set(),
+        shakeFinished: false,
         cancelled: false
       };
       activeWrongThrows.set(event.cardId, move);
@@ -471,6 +593,7 @@
         return;
       }
       move.clones.add(backFace);
+      backFace.classList.add("wrong-throw-card");
     
       try {
         if (!await playWrongThrowPhase(move, backFace, [
@@ -486,6 +609,7 @@
           return;
         }
         move.clones.add(frontFace);
+        frontFace.classList.add("wrong-throw-card");
         if (!await playWrongThrowPhase(move, frontFace, [
           { transform: "scaleX(0)" },
           { transform: "scaleX(1)" }
@@ -493,14 +617,18 @@
     
         if (!await playWrongThrowRectPhase(move, frontFace, sourceData.rect, pileData.rect, 320)) return;
     
-        if (!await playWrongThrowPhase(move, frontFace, [
+        frontFace.classList.add("wrong-throw-shaking");
+        const shakeFinished = await playWrongThrowPhase(move, frontFace, [
           { transform: "translateX(0)" },
           { transform: "translateX(-9px)" },
           { transform: "translateX(9px)" },
           { transform: "translateX(-7px)" },
           { transform: "translateX(7px)" },
           { transform: "translateX(0)" }
-        ], { duration: 280, easing: "ease-in-out" })) return;
+        ], { duration: 280, easing: "ease-in-out" });
+        frontFace.classList.remove("wrong-throw-shaking");
+        if (!shakeFinished) return;
+        releaseWrongThrowPenaltyMoves(move);
     
         const latestTarget = cardElement(event.cardId, targetData.locationKey);
         const returnRect = latestTarget ? latestTarget.getBoundingClientRect() : targetData.rect;
@@ -692,10 +820,10 @@
       hideActiveCardMoveTargets,
       cancelAllCardMoves,
       cancelAllWrongThrows,
-      cancelAllFaceTurns
+      cancelAllFaceTurns,
+      cancelAllReshuffles
     };
   }
 
   return { create };
 });
-

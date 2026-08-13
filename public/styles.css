@@ -136,8 +136,32 @@ body {
   background: var(--page-bg);
 }
 
-#app { min-height: 100vh; }
+#app {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
 .page { padding: 12px; }
+
+.winner-confetti-layer {
+  position: fixed;
+  z-index: 9000;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.winner-confetti-origin {
+  position: relative;
+  z-index: 9001;
+}
+
+.winner-confetti-piece {
+  position: absolute;
+  display: block;
+  border-radius: 1px;
+  will-change: transform, opacity;
+}
 
 button,
 input,
@@ -273,6 +297,13 @@ summary {
 }
 
 .active-game-summary { margin-top: 4px; }
+
+.occupied-room-drawers {
+  margin-top: 12px;
+  border-top: 1px solid var(--divider-color);
+}
+
+.occupied-room-drawers > .drawer:first-child { border-top: 0; }
 
 .waiting-controls {
   display: flex;
@@ -433,17 +464,6 @@ button.help-disclosure-button[aria-expanded="true"] {
   width: 100%;
 }
 
-.waiting-player-list {
-  border-top: 1px solid var(--divider-color);
-  padding: 9px 0 0;
-}
-
-.waiting-player-list h2 {
-  margin: 0 0 9px;
-  font-size: 16px;
-  line-height: 1.25;
-}
-
 .waiting-player-list .hint { margin-bottom: 0; }
 .player-list { margin-top: 0; }
 .player-list h2 { margin-bottom: 2px; }
@@ -589,6 +609,31 @@ button.help-disclosure-button[aria-expanded="true"] {
 .log-file-summary { overflow-wrap: anywhere; }
 .log-file-meta { flex: 0 0 auto; }
 
+.log-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding-top: 2px;
+  font-size: 12px;
+}
+
+.log-page-link {
+  min-width: 52px;
+  color: var(--link-color);
+  text-align: center;
+  text-decoration: none;
+}
+
+.log-page-link:hover { text-decoration: underline; }
+
+.log-page-link.is-disabled {
+  color: var(--muted-color);
+  cursor: default;
+}
+
+.log-page-status { color: var(--muted-color); }
+
 .log-view-header {
   display: flex;
   align-items: flex-start;
@@ -649,7 +694,10 @@ button.help-disclosure-button[aria-expanded="true"] {
   margin: 0;
 }
 
-.saved-log-chart .points-chart-svg { max-height: 240px; }
+.saved-log-chart .points-chart-svg-responsive {
+  height: 240px;
+  max-height: none;
+}
 
 .saved-log-section {
   display: flex;
@@ -807,9 +855,6 @@ button.help-disclosure-button[aria-expanded="true"] {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: -2px;
-  padding-inline: 2px;
-  padding-top: 2px;
   overflow: visible;
   max-height: calc(100vh - 20px);
 }
@@ -853,13 +898,17 @@ button.help-disclosure-button[aria-expanded="true"] {
   min-height: 100%;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
   gap: 10px;
 }
 
 .side-status-card .status-info { align-self: start; }
 
 .side-status-card .status-actions {
-  width: auto;
+  width: max-content;
+  max-width: 100%;
+  margin-left: 0;
   align-self: end;
   justify-self: end;
   justify-content: flex-end;
@@ -1244,6 +1293,10 @@ button.help-disclosure-button[aria-expanded="true"] {
   pointer-events: none;
 }
 
+.stack.reshuffle-target-hidden .card { visibility: hidden; }
+
+.reshuffle-ghost { opacity: 0.94; }
+
 .anim-target-hidden { visibility: hidden; }
 
 /* Rules and scores */
@@ -1392,4 +1445,3 @@ button.help-disclosure-button[aria-expanded="true"] {
   min-height: 0;
   font-weight: 650;
 }
-

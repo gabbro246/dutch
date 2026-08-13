@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.57
+- made empty-deck reshuffling an explicit Shuffle action with a pile-to-deck animation, while bots shuffle automatically when no humans remain
+- preserved pending normal, special, and penalty draws across reshuffles without moving the top discard card
+- restored same-tab player names on the rejoin screen without sharing names across tabs
+- sent complete score history on reconnect and manual rejoin before returning to compact live updates
+- added repository and version links to saved-log pages and paginated the logs list at 20 games per page
+- added quick-guide and complete-rules drawers to the waiting room and occupied-game page, plus appearance and language settings for spectators
+- kept the waiting-room player list closed while empty and opened it automatically when the first player joins
+- selected an available bot at random in the Add bot section, automatically selected another after each addition, and showed “No bots left” once all bots were added
+- removed the unnecessary right-panel inset and kept game controls in a compact row below the information text at the panel's bottom-right
+- delayed wrong throw-in penalty-card movement until the rejected card finishes shaking at the pile
+- made saved-log graphs responsive by changing only plot spacing while preserving readable text, marker, and line sizes within the panel
+- added confetti for the winner
+
 ## 1.3.56
 - added complete Russian localization for the interface, rules, bot descriptions, and game messages
 - added theme-aware shadows to waiting-room, player, information, and side panels while preserving player-state highlights

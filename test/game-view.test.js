@@ -121,6 +121,12 @@ test('build view reveals only cards visible to the viewer', () => {
       drawn: null,
       turnComplete: false,
       throwIn: null,
+      wrongThrowPenalty: {
+        id: 'd1:b1',
+        cardId: 'd1',
+        playerId: 'ben',
+        wrongThrowCardId: 'b1'
+      },
       specialQueue: [],
       reveals: [
         { viewerId: 'ada', cardId: 'a1', until: Date.now() + 60_000 },
@@ -156,6 +162,12 @@ test('build view reveals only cards visible to the viewer', () => {
   assert.equal(view.round.wrongThrowIn.cardId, 'b1');
   assert.equal(view.round.wrongThrowIn.card.back, false);
   assert.equal(view.round.wrongThrowIn.card.rank, '9');
+  assert.deepEqual(view.round.wrongThrowPenalty, {
+    id: 'd1:b1',
+    cardId: 'd1',
+    playerId: 'ben',
+    wrongThrowCardId: 'b1'
+  });
   assert.equal(view.round.discardTop.rank, 'Q');
   assert.deepEqual(view.round.infoEvent, { text: 'BEN used Queen peek' });
 
@@ -249,4 +261,44 @@ test('controls reflect current player draw and turn-complete states', () => {
   state.round.specialQueue = [{ type: 'Q', actorId: 'ada', selected: [] }];
   const specialGraceView = viewFor(state).buildView('ada');
   assert.equal(specialGraceView.round.controls.canEndTurn, true);
+});
+
+test('an empty deck exposes human reshuffle controls and pauses other actions', () => {
+  const state = {
+    phase: 'playing',
+    deckSetting: 'one',
+    gameTarget: 100,
+    players: [player('ada', [card('a1')]), player('ben', [card('b1')])],
+    log: [],
+    roundNumber: 1,
+    scoreHistory: [],
+    gameStartedAt: 0,
+    waitingMessage: '',
+    round: {
+      stage: 'turn',
+      deck: [],
+      discard: [card('p1'), card('p2')],
+      currentPlayerIndex: 0,
+      drawn: null,
+      turnComplete: false,
+      throwIn: { open: true },
+      specialQueue: [],
+      reveals: [],
+      pileHighlight: null,
+      needsReshuffle: true,
+      reshuffleToken: 0,
+      dutchCallerId: null,
+      dutchQueue: [],
+      roundWinnerIds: [],
+      winnerId: null
+    }
+  };
+
+  const view = viewFor(state, { canPlayerSayDutch: () => true }).buildView('ada');
+
+  assert.equal(view.round.needsReshuffle, true);
+  assert.equal(view.round.controls.canReshuffle, true);
+  assert.equal(view.round.controls.canTake, false);
+  assert.equal(view.round.controls.canThrowIn, false);
+  assert.equal(view.round.controls.canDutch, false);
 });

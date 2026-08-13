@@ -40,6 +40,7 @@ test('player count helpers distinguish active, playable, human, and bot players'
   assert.equal(table.activeHumanCount(), 2);
   assert.deepEqual(table.activeBots().map((item) => item.id), ['bot']);
   assert.equal(table.hasPlayableHumanGame(), true);
+  assert.equal(table.hasPlayableGame(), true);
 });
 
 test('current player and active index skip spectators and left players', () => {
@@ -94,4 +95,15 @@ test('empty tables have no active index or current player', () => {
   assert.equal(table.findActiveIndexFrom(0), -1);
   assert.equal(table.currentPlayer(), null);
   assert.equal(table.hasPlayableHumanGame(), false);
+  assert.equal(table.hasPlayableGame(), false);
+});
+
+test('two active bots remain a playable game without a human', () => {
+  const table = tableFor({
+    players: [player('bot-a', { isBot: true }), player('bot-b', { isBot: true })],
+    round: null
+  });
+
+  assert.equal(table.hasPlayableHumanGame(), false);
+  assert.equal(table.hasPlayableGame(), true);
 });

@@ -61,6 +61,7 @@ test('animation signatures ignore status-only changes and detect card layout cha
       discardTop: null,
       discardCount: 0,
       drawn: null,
+      wrongThrowPenalty: null,
       wrongThrowIn: null
     }
   };
@@ -72,4 +73,13 @@ test('animation signatures ignore status-only changes and detect card layout cha
 
   assert.equal(cardAnimationSignature(state), cardAnimationSignature(statusOnly));
   assert.notEqual(cardAnimationSignature(state), cardAnimationSignature(moved));
+
+  const reshuffled = { ...state, round: { ...state.round, reshuffleToken: 1 } };
+  assert.notEqual(cardAnimationSignature(state), cardAnimationSignature(reshuffled));
+
+  const penalized = {
+    ...state,
+    round: { ...state.round, wrongThrowPenalty: { id: 'penalty:wrong-card' } }
+  };
+  assert.notEqual(cardAnimationSignature(state), cardAnimationSignature(penalized));
 });

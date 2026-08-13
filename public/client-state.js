@@ -52,7 +52,9 @@
       ]),
       discardTop: round.discardTop && [round.discardTop.id, !!round.discardTop.back],
       discardCount: round.discardCount,
+      reshuffleToken: round.reshuffleToken || 0,
       drawn: round.drawn && [round.drawn.source, round.drawn.card && round.drawn.card.id, !!(round.drawn.card && round.drawn.card.back)],
+      wrongThrowPenalty: round.wrongThrowPenalty && round.wrongThrowPenalty.id,
       wrongThrowIn: round.wrongThrowIn && round.wrongThrowIn.id
     });
   }

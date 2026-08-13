@@ -10,10 +10,13 @@ const {
 } = require('../lib/game-log.js');
 const {
   formatLogFileSize,
+  logListPage,
   logSummaryFromContent,
   pageShell,
   readBrowserLogContent,
   readLogSummaryContent,
+  renderLogList,
+  renderLogViewer,
   renderSavedLogContent
 } = require("../lib/http-app.js");
 
@@ -144,10 +147,12 @@ test("saved log viewer renders public sections and omits private bot data", () =
   assert.doesNotMatch(html, /<h2>(?:Points graph|Points table|Game log)<\/h2>/);
   assert.doesNotMatch(html, /points-chart-legend/);
   assert.match(html, /<figure class="points-chart" aria-label="Points over time">/);
-  assert.match(html, /viewBox="0 0 640 240"/);
-  assert.match(html, /<path class="points-chart-line" d="M34 215 L630 206\.88"><\/path>/);
+  assert.doesNotMatch(html, /viewBox=/);
+  assert.match(html, /class="points-chart-svg points-chart-svg-responsive" height="240"/);
+  assert.match(html, /<svg class="points-chart-plot" x="8%" width="87%" height="240" overflow="visible">/);
+  assert.match(html, /<line class="points-chart-line" x1="0%" y1="215" x2="100%" y2="206\.88"><\/line>/);
   assert.match(html, /<g class="points-chart-target">/);
-  assert.match(html, /<text x="332"[^>]*>Target: 100<\/text>/);
+  assert.match(html, /<text x="50%"[^>]*>Target: 100<\/text>/);
   assert.match(html, /<g class="points-chart-halving"><title>Score halves at 50 points<\/title>/);
   assert.match(html, /aria-label="Round 1: &lt;Bot&gt;, 8 points"/);
   assert.match(html, /<table class=saved-log-table>/);
@@ -213,4 +218,45 @@ test('saved log page shell applies the stored theme before styles load', () => {
   assert.match(html, /<meta name="theme-color" content="#f6f7f9">/);
   assert.match(html, /<script src="\/theme\.js\?v=1\.2%263"><\/script>/);
   assert.ok(html.indexOf('<script src="/theme.js') < html.indexOf('<link rel="stylesheet"'));
+});
+
+test('log list and viewer display the repository and app version', () => {
+  const pages = [
+    renderLogList([], '1.2&3'),
+    renderLogViewer('dutch-game-log.txt', 'Dutch game log', '1.2&3')
+  ];
+
+  for (const html of pages) {
+    assert.match(html, /<p class="repo-link"><a href="https:\/\/github\.com\/gabbro246\/dutch" target="_blank" rel="noopener">github\.com\/gabbro246\/dutch<\/a> <span class="version-label">v1\.2&amp;3<\/span><\/p>/);
+  }
+});
+
+test('log list pages contain 20 entries and render navigation below the list', () => {
+  const files = Array.from({ length: 45 }, (_, index) => ({
+    name: 'dutch-game-log-2026-01-01_00-00-' + String(index).padStart(2, '0') + '.txt',
+    sizeText: (index + 1) + ' KB',
+    summaryText: ''
+  }));
+
+  const secondPage = logListPage(files, '2');
+  assert.equal(secondPage.currentPage, 2);
+  assert.equal(secondPage.totalPages, 3);
+  assert.equal(secondPage.files.length, 20);
+  assert.equal(secondPage.files[0], files[20]);
+  assert.equal(secondPage.files.at(-1), files[39]);
+
+  const html = renderLogList(files, 'test', '2');
+  assert.doesNotMatch(html, /00:00:19/);
+  assert.match(html, /00:00:20/);
+  assert.match(html, /00:00:39/);
+  assert.doesNotMatch(html, /00:00:40/);
+  assert.match(html, /<nav class="log-pagination" aria-label="Log pages"><a class="log-page-link" href="\/logs\?page=1" rel="prev">Previous<\/a><span class="log-page-status">Page 2 of 3<\/span><a class="log-page-link" href="\/logs\?page=3" rel="next">Next<\/a><\/nav>/);
+  assert.ok(html.indexOf('class="log-file-list"') < html.indexOf('class="log-pagination"'));
+});
+
+test('log list page numbers are clamped and single pages omit navigation', () => {
+  const files = Array.from({ length: 21 }, (_, index) => ({ name: String(index) }));
+  assert.equal(logListPage(files, 'not-a-page').currentPage, 1);
+  assert.equal(logListPage(files, '999').currentPage, 2);
+  assert.doesNotMatch(renderLogList(files.slice(0, 20), 'test', 1), /log-pagination/);
 });

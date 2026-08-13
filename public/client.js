@@ -16,6 +16,7 @@ let currentDetailsMode = '';
 let logExpanded = false;
 let detailPreferencesGameKey = '';
 const detailPreferencesByMode = {};
+const occupiedDrawerPreferences = { guide: false, rules: false, settings: false };
 const pointColorAssignments = { order: [], byPlayerId: new Map() };
 const wiredHelpDisclosureButtons = new WeakSet();
 const SPECTATOR_TRIGGER_NAME = 'spectator';
@@ -49,7 +50,8 @@ const {
   hideActiveCardMoveTargets,
   cancelAllCardMoves,
   cancelAllWrongThrows,
-  cancelAllFaceTurns
+  cancelAllFaceTurns,
+  cancelAllReshuffles
 } = cardAnimations;
 const uiAnimations = window.DutchClientUiAnimations.create({
   getLastState: () => lastState,
@@ -60,6 +62,7 @@ const {
   captureDrawerTransitions,
   animateDrawerTransitions,
   animateWaitingPlayerListChanges,
+  animateWinnerConfetti,
   captureRightPanelScroll,
   restoreRightPanelScroll
 } = uiAnimations;
@@ -98,6 +101,8 @@ const { renderWaiting } = window.DutchClientWaiting.create({
   helpDisclosureHtml,
   inactivityTimeoutSettingHtml,
   languageSettingHtml,
+  shortInstructions,
+  fullRules,
   repoLink,
   canJoinWithName,
   clientActions,
@@ -264,6 +269,7 @@ function applyIncomingState(state) {
     cancelAllCardMoves();
     cancelAllWrongThrows();
     cancelAllFaceTurns();
+    cancelAllReshuffles();
   }
   const afterSnapshot = captureGameLayout
     ? captureAnimationSnapshot('game')
@@ -273,6 +279,7 @@ function applyIncomingState(state) {
   } else if (waitingTransition) {
     animateWaitingPlayerListChanges(previousState, mergedState, beforeSnapshot, afterSnapshot);
   }
+  animateWinnerConfetti(previousState, mergedState);
   hasRenderedGame = mergedState.phase === 'playing' && !!mergedState.round;
   lastState = mergedState;
 }
@@ -390,16 +397,19 @@ function bindActiveGameRejoin(missingPlayers = []) {
 
 function render(state) {
   if (!state.joined && state.phase === 'playing') {
+    const selectedTheme = window.DutchTheme.getStoredTheme(window);
     const gameStarted = gameStartedText(state.gameStartedAt);
     const gameSummary = activeGameSummary(state);
     const rejoinPlayers = (state.players || []).filter((player) => !player.isBot && !player.connected);
     const rejoinAvailable = rejoinPlayers.length > 0;
+    const knownRejoinPlayer = rejoinPlayers.find((player) => player.id === state.you);
+    const rejoinName = knownRejoinPlayer ? knownRejoinPlayer.name : '';
     const activeGameMessage = rejoinAvailable
       ? t('A game is already active. If you were disconnected, enter your name to rejoin.')
       : t('A game is already active. Join after the game ends.');
     const rejoinControls = rejoinAvailable ? `
           <div class="row join-row active-rejoin-row">
-            <input id="rejoinNameInput" placeholder="${escapeHtml(t('Name'))}" maxlength="${PLAYER_NAME_MAX_LENGTH}" value="">
+            <input id="rejoinNameInput" placeholder="${escapeHtml(t('Name'))}" maxlength="${PLAYER_NAME_MAX_LENGTH}" value="${escapeHtml(rejoinName)}">
             <button id="rejoinBtn" class="expected-action" disabled>${escapeHtml(t('Rejoin'))}</button>
           </div>` : '';
     app.innerHTML = `
@@ -411,11 +421,45 @@ function render(state) {
           ${rejoinControls}
           ${gameStarted}
           ${gameSummary}
+          <div class="occupied-room-drawers">
+            <details class="drawer waiting-drawer" data-occupied-drawer="guide" ${occupiedDrawerPreferences.guide ? 'open' : ''}>
+              <summary>${escapeHtml(t('Quick guide'))}</summary>
+              <div class="drawer-animation-content">${shortInstructions()}</div>
+            </details>
+            <details class="drawer waiting-drawer rules-body" data-occupied-drawer="rules" ${occupiedDrawerPreferences.rules ? 'open' : ''}>
+              <summary>${escapeHtml(t('Complete rules'))}</summary>
+              <div class="drawer-animation-content">${fullRules(state)}</div>
+            </details>
+            <details class="drawer waiting-drawer" data-occupied-drawer="settings" ${occupiedDrawerPreferences.settings ? 'open' : ''}>
+              <summary>${escapeHtml(t('Settings'))}</summary>
+              <div class="drawer-content drawer-animation-content waiting-selectors">
+                <div class="setting-row">
+                  ${helpDisclosureHtml('occupiedAppearanceHelp', 'Appearance', 'Choose the light or dark color theme.')}
+                  <select id="occupiedThemeSelect" aria-label="${escapeHtml(t('Appearance'))}">
+                    <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>${escapeHtml(t('Light mode'))}</option>
+                    <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>${escapeHtml(t('Dark mode'))}</option>
+                  </select>
+                </div>
+                ${languageSettingHtml('occupiedLanguageSelect')}
+              </div>
+            </details>
+          </div>
         </div>
         ${repoLink(state.version)}
       </div>
     `;
     bindActiveGameRejoin(rejoinPlayers);
+    wireHelpDisclosures(document);
+    wireAnimatedDrawers(document, (details, open) => {
+      if (details.dataset.occupiedDrawer) occupiedDrawerPreferences[details.dataset.occupiedDrawer] = open;
+    });
+    const occupiedThemeSelect = document.getElementById('occupiedThemeSelect');
+    if (occupiedThemeSelect) {
+      occupiedThemeSelect.addEventListener('change', () => {
+        window.DutchTheme.setTheme(occupiedThemeSelect.value, window);
+      });
+    }
+    wireLanguageSelect('occupiedLanguageSelect');
     return;
   }
   if (state.phase === 'waiting') renderWaiting(state);
@@ -635,6 +679,9 @@ function renderDeckPile(state) {
   const discardButton = r.drawn
     ? `<button data-action="discardDrawn" ${r.controls.canDiscardDrawn ? '' : 'disabled'}>${escapeHtml(t('Discard'))}</button>`
     : '<button class="drawn-button-spacer" disabled aria-hidden="true" tabindex="-1">' + escapeHtml(t('Discard')) + '</button>';
+  const pileButton = r.needsReshuffle
+    ? `<button data-action="shuffle" class="expected-action" ${r.controls.canReshuffle ? '' : 'disabled'}>${escapeHtml(t('Shuffle'))}</button>`
+    : `<button data-action="takePile" class="expected-action" ${r.controls.canTake && r.discardCount > 0 ? '' : 'disabled'}>${escapeHtml(t('Take'))}</button>`;
 
   return `
     <section class="deck-pile-area" data-game-region="deck">
@@ -657,7 +704,7 @@ function renderDeckPile(state) {
         <div class="stack" data-stack="pile">
           ${stackPile(r)}
         </div>
-        <button data-action="takePile" class="expected-action" ${r.controls.canTake && r.discardCount > 0 ? '' : 'disabled'}>${escapeHtml(t('Take'))}</button>
+        ${pileButton}
       </div>
     </section>
   `;

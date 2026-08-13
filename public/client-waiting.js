@@ -19,6 +19,8 @@
     const helpDisclosureHtml = deps.helpDisclosureHtml;
     const inactivityTimeoutSettingHtml = deps.inactivityTimeoutSettingHtml;
     const languageSettingHtml = deps.languageSettingHtml;
+    const shortInstructions = deps.shortInstructions;
+    const fullRules = deps.fullRules;
     const repoLink = deps.repoLink;
     const canJoinWithName = deps.canJoinWithName;
     const clientActions = deps.clientActions;
@@ -30,7 +32,9 @@
     const wireAnimatedDrawers = deps.wireAnimatedDrawers;
     const wireInactivityTimeoutSelect = deps.wireInactivityTimeoutSelect;
     const wireLanguageSelect = deps.wireLanguageSelect;
-    const waitingDrawerPreferences = { bots: false, settings: false };
+    const waitingDrawerPreferences = { bots: false, players: false, guide: false, rules: false, settings: false };
+    let previousWaitingPlayerCount = 0;
+    let selectedBotType = '';
 
     function botTypeLabel(type) {
       return BOT_LABELS[type] || 'Bot';
@@ -61,12 +65,25 @@
       const selectedTheme = window.DutchTheme.getStoredTheme(window);
       const botTypes = ['dory', 'norman', 'athena', 'roswell'];
       const usedBotTypes = new Set(state.players.filter((p) => p.isBot).map((p) => p.botType));
-      const firstAvailableBot = botTypes.find((type) => !usedBotTypes.has(type));
+      const availableBotTypes = botTypes.filter((type) => !usedBotTypes.has(type));
+      if (!availableBotTypes.includes(selectedBotType)) {
+        selectedBotType = availableBotTypes.length
+          ? availableBotTypes[Math.floor(window.Math.random() * availableBotTypes.length)]
+          : '';
+      }
       let startDisabled = state.canStart === false || state.joined === false;
+      if (previousWaitingPlayerCount === 0 && state.players.length > 0) waitingDrawerPreferences.players = true;
+      previousWaitingPlayerCount = state.players.length;
       const botsOpen = waitingDrawerPreferences.bots ? 'open' : '';
+      const playersOpen = waitingDrawerPreferences.players ? 'open' : '';
+      const guideOpen = waitingDrawerPreferences.guide ? 'open' : '';
+      const rulesOpen = waitingDrawerPreferences.rules ? 'open' : '';
       const settingsOpen = waitingDrawerPreferences.settings ? 'open' : '';
-      const botOptions = '<option value="" selected>' + escapeHtml(t('Choose bot...')) + '</option>' + botTypes.map((type) => `
-        <option value="${escapeHtml(type)}" ${usedBotTypes.has(type) ? 'disabled' : ''}>${escapeHtml(botTypeLabel(type))}</option>
+      const noBotsLeftOption = availableBotTypes.length
+        ? ''
+        : '<option value="" selected disabled>' + escapeHtml(t('No bots left')) + '</option>';
+      const botOptions = noBotsLeftOption + botTypes.map((type) => `
+        <option value="${escapeHtml(type)}" ${usedBotTypes.has(type) ? 'disabled' : ''} ${type === selectedBotType ? 'selected' : ''}>${escapeHtml(botTypeLabel(type))}</option>
       `).join('');
       const players = state.players.map((p, index) => {
         const isMe = p.id === state.you;
@@ -104,13 +121,28 @@
                 <summary>${escapeHtml(t('Bots'))}</summary>
                 <div class="drawer-content drawer-animation-content">
                   <div class="row bot-row">
-                    <select id="botTypeSelect" ${firstAvailableBot && state.players.length < 9 ? '' : 'disabled'}>
+                    <select id="botTypeSelect" ${availableBotTypes.length && state.players.length < 9 ? '' : 'disabled'}>
                       ${botOptions}
                     </select>
                     <button id="addBotBtn" class="expected-action" disabled>${escapeHtml(t('Add bot'))}</button>
                   </div>
                   <div id="botPersonalitySlot">${renderBotPersonality('')}</div>
                 </div>
+              </details>
+              <details class="drawer waiting-drawer" data-waiting-drawer="players" ${playersOpen}>
+                <summary>${escapeHtml(t('Players'))}</summary>
+                <div class="drawer-content drawer-animation-content waiting-player-list player-list">
+                  ${players || '<p class="hint">' + escapeHtml(t('No players yet.')) + '</p>'}
+                  ${players ? playerHint : ""}
+                </div>
+              </details>
+              <details class="drawer waiting-drawer" data-waiting-drawer="guide" ${guideOpen}>
+                <summary>${escapeHtml(t('Quick guide'))}</summary>
+                <div class="drawer-animation-content">${shortInstructions()}</div>
+              </details>
+              <details class="drawer waiting-drawer rules-body" data-waiting-drawer="rules" ${rulesOpen}>
+                <summary>${escapeHtml(t('Complete rules'))}</summary>
+                <div class="drawer-animation-content">${fullRules(state)}</div>
               </details>
               <details class="drawer waiting-drawer" data-waiting-drawer="settings" ${settingsOpen}>
                 <summary>${escapeHtml(t('Settings'))}</summary>
@@ -142,11 +174,6 @@
                   ${languageSettingHtml('languageSelect')}
                 </div>
               </details>
-              <section class="waiting-player-list player-list" aria-labelledby="waitingPlayersHeading">
-                <h2 id="waitingPlayersHeading">${escapeHtml(t('Players'))}</h2>
-                ${players || '<p class="hint">' + escapeHtml(t('No players yet.')) + '</p>'}
-                ${players ? playerHint : ""}
-              </section>
             </div>
             <button id="startBtn" class="expected-action" ${startDisabled ? 'disabled' : ''}>${escapeHtml(t('Start game'))}</button>
           </div>
@@ -192,10 +219,11 @@
         const updateBotPersonality = () => {
           const selectedOption = botTypeSelect.selectedOptions[0];
           const type = selectedOption && !selectedOption.disabled ? botTypeSelect.value : '';
+          selectedBotType = type;
           if (botPersonalitySlot) botPersonalitySlot.innerHTML = renderBotPersonality(type);
           addBotBtn.disabled = !type || state.players.length >= 9;
           const startButton = document.getElementById('startBtn');
-          if (startButton) startButton.disabled = !state.canStart || !joined || !!type;
+          if (startButton) startButton.disabled = !state.canStart || !joined;
         };
         updateBotPersonality();
         botTypeSelect.addEventListener('change', updateBotPersonality);

@@ -64,7 +64,9 @@ test('buried discards return to draw probability on reshuffle while top stays ex
     broadcastState: () => {},
     suitSymbol: () => ''
   });
-  flow.ensureDrawPile();
+  assert.equal(flow.ensureDrawPile(), false);
+  assert.equal(state.round.needsReshuffle, true);
+  assert.equal(flow.reshuffleDrawPile(), true);
 
   const after = buildBeliefState({
     state,

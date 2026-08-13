@@ -8,6 +8,14 @@
     ['status-info', '.side-status-card .status-info'],
     ['score-scroll', '.score-scroll']
   ];
+  const CONFETTI_COLORS = [
+    'var(--game-winner-border)',
+    'var(--winner-border)',
+    'var(--accent-color)',
+    'var(--current-border)',
+    'var(--chart-color-3)'
+  ];
+  const CONFETTI_PIECE_COUNT = 40;
 
   function create(deps) {
     const window = root;
@@ -16,6 +24,8 @@
     const wiredAnimatedDrawers = new WeakSet();
     const getLastState = deps.getLastState;
     const render = deps.render;
+    const random = deps.random || Math.random;
+    const schedule = deps.schedule || window.setTimeout.bind(window);
 
     function cssEscape(value) {
       if (window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(value);
@@ -219,13 +229,94 @@
         element.scrollLeft = position.left;
       });
     }
-    
+
+    function visibleWinnerIds(state) {
+      if (!state || state.phase !== 'playing' || !state.round) return [];
+      if (state.round.stage !== 'gameEnd' || !state.round.winnerId) return [];
+      return [String(state.round.winnerId)];
+    }
+
+    function launchWinnerConfetti(panel) {
+      const rect = panel.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+
+      const layer = document.createElement('div');
+      layer.className = 'winner-confetti-layer';
+      layer.setAttribute('aria-hidden', 'true');
+      const host = document.getElementById('app') || document.body;
+      panel.classList.add('winner-confetti-origin');
+      host.appendChild(layer);
+
+      const originX = rect.left + rect.width / 2;
+      const originY = rect.top + rect.height * 0.66;
+      const nearViewportTop = rect.top < Math.max(80, rect.height * 0.75);
+      const animations = [];
+      for (let index = 0; index < CONFETTI_PIECE_COUNT; index += 1) {
+        const piece = document.createElement('i');
+        const square = index % 5 === 0;
+        const width = square ? 7 : 6 + Math.round(random());
+        const height = square ? 7 : 10 + Math.round(random() * 3);
+        const direction = index % 2 === 0 ? -1 : 1;
+        const minimumSpread = nearViewportTop ? 0.3 : 0.12;
+        const variableSpread = nearViewportTop ? 0.65 : 0.63;
+        const spreadX = direction * rect.width * (minimumSpread + random() * variableSpread);
+        const rise = rect.height * (0.65 + random() * 0.75);
+        const unconstrainedDriftY = rise * (0.82 + random() * 0.18);
+        const visibleRiseLimit = Math.max(rect.height * 0.35, originY - 12);
+        const driftY = nearViewportTop
+          ? Math.min(unconstrainedDriftY, visibleRiseLimit)
+          : unconstrainedDriftY;
+        const startRotation = random() * 180;
+        const endRotation = startRotation + (random() < 0.5 ? -1 : 1) * (360 + random() * 720);
+        const flightDuration = 1180 + random() * 320;
+        const duration = flightDuration * 3;
+
+        piece.className = 'winner-confetti-piece';
+        piece.style.left = String(originX - width / 2) + 'px';
+        piece.style.top = String(originY - height / 2) + 'px';
+        piece.style.width = String(width) + 'px';
+        piece.style.height = String(height) + 'px';
+        piece.style.background = CONFETTI_COLORS[index % CONFETTI_COLORS.length];
+        layer.appendChild(piece);
+
+        animations.push(piece.animate([
+          { transform: 'translate(0, 0) rotate(' + String(startRotation) + 'deg)', opacity: 0 },
+          { transform: 'translate(' + String(spreadX * 0.12) + 'px, ' + String(-driftY * 0.18) + 'px) rotate(' + String(startRotation + 90) + 'deg)', opacity: 1, offset: 0.053 },
+          { transform: 'translate(' + String(spreadX) + 'px, ' + String(-driftY) + 'px) rotate(' + String(endRotation) + 'deg)', opacity: 1, offset: 0.24, easing: 'linear' },
+          { transform: 'translate(' + String(spreadX * 1.1) + 'px, ' + String(-driftY + rise * 0.45) + 'px) rotate(' + String(endRotation + 180) + 'deg)', opacity: 0 }
+        ], {
+          duration,
+          easing: 'cubic-bezier(0.18, 0.7, 0.3, 1)',
+          fill: 'forwards'
+        }));
+      }
+
+      const removeLayer = () => {
+        layer.remove();
+        panel.classList.remove('winner-confetti-origin');
+      };
+      Promise.allSettled(animations.map((animation) => animation.finished)).then(removeLayer);
+      schedule(removeLayer, 4700);
+    }
+
+    function animateWinnerConfetti(previousState, state) {
+      if (!Element.prototype.animate) return;
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const previousWinnerIds = new Set(visibleWinnerIds(previousState));
+      visibleWinnerIds(state).forEach((winnerId) => {
+        if (previousWinnerIds.has(winnerId)) return;
+        const selector = '[data-player-panel-id="' + cssEscape(winnerId) + '"]';
+        const panel = document.querySelector(selector);
+        if (panel) launchWinnerConfetti(panel);
+      });
+    }
 
     return {
       wireAnimatedDrawers,
       captureDrawerTransitions,
       animateDrawerTransitions,
       animateWaitingPlayerListChanges,
+      animateWinnerConfetti,
       captureRightPanelScroll,
       restoreRightPanelScroll
     };

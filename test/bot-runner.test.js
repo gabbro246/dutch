@@ -41,7 +41,8 @@ function createHarness(overrides = {}) {
     tookDeck: 0,
     tookPile: 0,
     discarded: 0,
-    swapped: 0
+    swapped: 0,
+    shuffled: 0
   };
   const runner = createBotRunner({
     getState: () => state,
@@ -59,6 +60,13 @@ function createHarness(overrides = {}) {
     mustPlayerSayDutch: () => false,
     canPlayerSayDutch: () => false,
     shouldBotTakePile: () => false,
+    shuffleForPlayer: (player, options) => {
+      calls.shuffled += 1;
+      calls.shufflePlayer = player;
+      calls.shuffleOptions = options;
+      state.round.needsReshuffle = false;
+      return true;
+    },
     takeDeckForPlayer: () => {
       calls.tookDeck += 1;
       state.round.drawn = { playerId: bot.id, source: 'deck', card: card('drawn') };
@@ -261,4 +269,40 @@ test('bot runner clears scheduled timers', () => {
   runner.clearBotTimers();
 
   assert.equal(calls.cleared.length, 1);
+});
+
+test('bot-only tables automatically schedule the shared shuffle action', () => {
+  const { runner, state, bot, calls } = createHarness();
+  state.players.push({ ...bot, id: 'bot-2', name: 'BOT 2', cards: [card('x1')] });
+  state.round = {
+    stage: 'turn',
+    botTick: 5,
+    specialQueue: [],
+    drawn: null,
+    turnComplete: false,
+    throwIn: null,
+    needsReshuffle: true,
+    reshuffleToken: 2
+  };
+
+  runner.scheduleBotAutomation();
+
+  assert.equal(calls.timers.length, 1);
+  assert.equal(calls.timers[0].delay, 925);
+  calls.timers[0].fn();
+  assert.equal(calls.shuffled, 1);
+  assert.equal(calls.shufflePlayer, bot);
+  assert.deepEqual(calls.shuffleOptions, { automatic: true });
+  assert.equal(calls.broadcasts, 1);
+});
+
+test('bots wait for a human to shuffle when a human remains in the game', () => {
+  const { runner, state, bot, calls } = createHarness();
+  state.players.push({ ...bot, id: 'human', name: 'HUMAN', isBot: false, cards: [card('h1')] });
+  state.round.needsReshuffle = true;
+
+  runner.scheduleBotAutomation();
+
+  assert.equal(calls.timers.length, 0);
+  assert.equal(calls.shuffled, 0);
 });

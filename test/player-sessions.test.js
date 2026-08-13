@@ -62,6 +62,7 @@ function sessionsFor(state) {
     },
     addLog: (text, kind = 'game') => calls.logs.push({ text, kind }),
     hasPlayableHumanGame: () => state.players.filter((item) => !item.left && !item.isBot && !item.isSpectator).length >= 1 && state.players.filter((item) => !item.left && !item.isSpectator).length >= 2,
+    hasPlayableGame: () => state.players.filter((item) => !item.left && !item.isSpectator).length >= 2,
     resetToWaiting: (...args) => calls.resets.push(args),
     handleMissingPlayers: () => {
       calls.handledMissing += 1;
@@ -94,6 +95,7 @@ test('joining and identifying use stable tokens without duplicating players', ()
   assert.equal(state.players[0].connected, true);
   assert.equal(state.players[0].socketId, 'socket-1');
   assert.equal(calls.logs.at(-1).text, 'Ada reconnected');
+  assert.deepEqual(client.emitted.at(-1), { event: 'state', payload: { you: 'token-a' } });
   assert.ok(calls.broadcasts >= 2);
 });
 
@@ -118,7 +120,9 @@ test('active game join can reattach a disconnected player by name', () => {
   assert.equal(state.players[0].socketId, 'socket-new');
   assert.equal(calls.logs.at(-1).text, 'Ada reconnected');
   assert.equal(calls.broadcasts, 1);
-  assert.deepEqual(client.emitted, []);
+  assert.deepEqual(client.emitted, [
+    { event: 'state', payload: { you: 'ada-token' } }
+  ]);
 });
 
 test('active game join rejects wrong rejoin names even with the old token', () => {
@@ -218,4 +222,35 @@ test('leave and disconnect update session state for active games', () => {
 test('tokens are normalized and capped', () => {
   const longToken = '  ' + 'x'.repeat(100) + '  ';
   assert.equal(normalizePlayerToken(longToken), 'x'.repeat(80));
+});
+
+test('a game continues when a leaving human leaves two playable bots', () => {
+  const state = {
+    phase: 'playing',
+    players: [
+      player('ada', 'Ada', { socketId: 'socket-1' }),
+      player('bot-a', 'Bot A', { isBot: true }),
+      player('bot-b', 'Bot B', { isBot: true })
+    ],
+    round: {
+      stage: 'turn',
+      dutchQueue: [],
+      specialQueue: [],
+      roundWinnerIds: [],
+      dutchCallerId: null,
+      winnerId: null,
+      drawn: null,
+      turnComplete: false,
+      throwIn: null
+    }
+  };
+  const { sessions, calls } = sessionsFor(state);
+  const client = socket();
+  client.data.playerId = 'ada';
+
+  sessions.leave(client);
+
+  assert.equal(calls.resets.length, 0);
+  assert.equal(calls.handledMissing, 1);
+  assert.deepEqual(state.players.filter((item) => !item.left).map((item) => item.id), ['bot-a', 'bot-b']);
 });

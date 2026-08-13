@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createGameServices } = require('../lib/game-services.js');
+const { mergeIncrementalState } = require('../public/client-state.js');
 
 function config(overrides = {}) {
   return {
@@ -117,6 +118,49 @@ test('registered sockets can join and update waiting-room settings', () => {
   }
 });
 
+test('reconnecting receives complete score history before limited live updates', () => {
+  const { services, io } = serviceFor();
+  try {
+    const ada = fakeSocket('socket-a');
+    const ben = fakeSocket('socket-b');
+    io.sockets.sockets.set(ada.id, ada);
+    io.sockets.sockets.set(ben.id, ben);
+    io.handlers.connection(ada);
+    io.handlers.connection(ben);
+    ada.handlers.join({ name: 'Ada', token: 'ada-token' });
+    ben.handlers.join({ name: 'Ben', token: 'ben-token' });
+    ada.handlers.startGame();
+
+    services.getState().scoreHistory = Array.from({ length: 6 }, (_, index) => ({
+      round: index + 1,
+      players: []
+    }));
+    ada.handlers.disconnect();
+
+    const reloaded = fakeSocket('socket-a-reloaded');
+    io.sockets.sockets.set(reloaded.id, reloaded);
+    io.handlers.connection(reloaded);
+    reloaded.handlers.identify('ada-token');
+
+    const reconnectStates = reloaded.emitted
+      .filter((event) => event.event === 'state')
+      .map((event) => event.payload);
+    assert.ok(reconnectStates.length >= 2);
+    assert.equal(reconnectStates[0].scoreHistoryComplete, true);
+    assert.deepEqual(reconnectStates[0].scoreHistory.map((entry) => entry.round), [1, 2, 3, 4, 5, 6]);
+    assert.equal(reconnectStates.at(-1).scoreHistoryComplete, false);
+    assert.deepEqual(reconnectStates.at(-1).scoreHistory.map((entry) => entry.round), [3, 4, 5, 6]);
+
+    const clientState = reconnectStates.reduce(
+      (previousState, nextState) => mergeIncrementalState(previousState, nextState),
+      null
+    );
+    assert.deepEqual(clientState.scoreHistory.map((entry) => entry.round), [1, 2, 3, 4, 5, 6]);
+  } finally {
+    services.close();
+  }
+});
+
 test('changed-card highlighting is a shared in-game setting', () => {
   const { services, io } = serviceFor();
   try {
@@ -148,6 +192,60 @@ test('changed-card highlighting is a shared in-game setting', () => {
     );
     const latestAdaState = ada.emitted.filter((event) => event.event === 'state').at(-1).payload;
     assert.equal(latestAdaState.highlightChangedCards, false);
+  } finally {
+    services.close();
+  }
+});
+
+test('socket shuffle preserves the pile top and resumes a pending human draw', () => {
+  const { services, io } = serviceFor();
+  try {
+    const ada = fakeSocket('socket-a');
+    const ben = fakeSocket('socket-b');
+    io.sockets.sockets.set(ada.id, ada);
+    io.sockets.sockets.set(ben.id, ben);
+    io.handlers.connection(ada);
+    io.handlers.connection(ben);
+    ada.handlers.join({ name: 'Ada', token: 'ada-token' });
+    ben.handlers.join({ name: 'Ben', token: 'ben-token' });
+    ada.handlers.startGame();
+
+    const state = services.getState();
+    const round = state.round;
+    round.stage = 'turn';
+    round.currentPlayerIndex = state.players.findIndex((player) => player.id === 'ada-token');
+    round.drawn = null;
+    round.turnComplete = false;
+    round.specialQueue = [];
+    const top = { id: 'pile-top', rank: 'K', suit: 'hearts', deckColor: 'blue' };
+    round.deck = [];
+    round.discard = [
+      { id: 'buried-1', rank: '2', suit: 'clubs', deckColor: 'blue' },
+      { id: 'buried-2', rank: '3', suit: 'clubs', deckColor: 'blue' },
+      top
+    ];
+    round.needsReshuffle = false;
+
+    ada.handlers.takeDeck();
+
+    assert.equal(round.drawn, null);
+    assert.equal(round.needsReshuffle, true);
+    assert.deepEqual(round.pendingDeckDraws.map((item) => item.type), ['takeDeck']);
+    const waitingView = ada.emitted.filter((event) => event.event === 'state').at(-1).payload;
+    assert.equal(waitingView.round.needsReshuffle, true);
+    assert.equal(waitingView.round.controls.canReshuffle, true);
+
+    ben.handlers.shuffle();
+
+    assert.equal(round.discard.length, 1);
+    assert.equal(round.discard[0], top);
+    assert.equal(round.needsReshuffle, false);
+    assert.equal(round.pendingDeckDraws.length, 0);
+    assert.equal(round.drawn.playerId, 'ada-token');
+    assert.equal(round.drawn.source, 'deck');
+    assert.equal(round.deck.length, 1);
+    assert.equal(round.reshuffleToken, 1);
+    assert.equal(state.log[0].text, 'discard pile reshuffled into draw pile');
   } finally {
     services.close();
   }

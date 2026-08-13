@@ -55,7 +55,7 @@ function flowFor(state, overrides = {}) {
   };
 }
 
-test('drawFromDeck reshuffles discard under the top card when the deck is empty', () => {
+test('an empty draw pile waits for an explicit reshuffle and preserves the top discard', () => {
   const top = card('top', 'K');
   const state = {
     round: {
@@ -67,10 +67,20 @@ test('drawFromDeck reshuffles discard under the top card when the deck is empty'
 
   const drawn = flow.drawFromDeck();
 
-  assert.equal(drawn.id, 'd1');
-  assert.deepEqual(state.round.deck.map((item) => item.id), ['d2']);
+  assert.equal(drawn, null);
+  assert.equal(state.round.needsReshuffle, true);
+  assert.deepEqual(state.round.deck, []);
+  assert.deepEqual(state.round.discard.map((item) => item.id), ['d1', 'd2', 'top']);
+  assert.deepEqual(calls.logs, []);
+
+  assert.equal(flow.reshuffleDrawPile(), true);
+
+  assert.deepEqual(state.round.deck.map((item) => item.id), ['d2', 'd1']);
   assert.deepEqual(state.round.discard, [top]);
   assert.deepEqual(calls.logs, ['discard pile reshuffled into draw pile']);
+  assert.equal(state.round.needsReshuffle, false);
+  assert.equal(state.round.reshuffleToken, 1);
+  assert.equal(flow.drawFromDeck().id, 'd1');
 });
 
 test('pushDiscard creates throw-in state, queues specials, logs, and updates stage', () => {
