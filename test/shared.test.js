@@ -44,10 +44,13 @@ test('point colors are a stable shuffled permutation for each game', () => {
   );
 });
 
-test('points chart uses the exact observed maximum above 100', () => {
+test('points chart maximum always includes the target and observed scores', () => {
+  assert.equal(shared.pointsChartMaximum(42, 50), 50);
   assert.equal(shared.pointsChartMaximum(42, 100), 100);
-  assert.equal(shared.pointsChartMaximum(101, 100), 101);
+  assert.equal(shared.pointsChartMaximum(101, 200), 200);
+  assert.equal(shared.pointsChartMaximum(137, 200), 200);
   assert.equal(shared.pointsChartMaximum(137, 100), 137);
+  assert.equal(shared.pointsChartMaximum(201, 200), 201);
 });
 
 test('points chart geometry shares stable ticks and coordinates across renderers', () => {
@@ -59,6 +62,14 @@ test('points chart geometry shares stable ticks and coordinates across renderers
   assert.equal(geometry.coordinate(geometry.y(geometry.yMax)), 12);
 });
 
+
+test('points chart keeps a 200-point target inside the plot above 100 observed points', () => {
+  const geometry = shared.pointsChartGeometry({ width: 300, height: 180, maxRound: 4, maxTotal: 137, target: 200 });
+
+  assert.equal(geometry.yMax, 200);
+  assert.equal(geometry.coordinate(geometry.y(200)), geometry.margin.top);
+  assert.ok(geometry.y(200) >= geometry.margin.top);
+});
 test('score history series start at zero and stop when a player leaves', () => {
   const series = shared.scoreHistorySeries([
     { round: 1, players: [{ id: 'ada', name: 'Ada', total: 8 }, { id: 'ben', name: 'Ben', total: 12 }] },

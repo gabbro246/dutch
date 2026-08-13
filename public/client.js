@@ -804,6 +804,7 @@ function languageSettingHtml(id) {
       <select id="${id}" aria-label="${escapeHtml(t('Language'))}">
         <option value="en" ${language === 'en' ? 'selected' : ''}>${escapeHtml(t('English'))}</option>
         <option value="de" ${language === 'de' ? 'selected' : ''}>${escapeHtml(t('German'))}</option>
+        <option value="ru" ${language === 'ru' ? 'selected' : ''}>${escapeHtml(t('Russian'))}</option>
       </select>
     </div>
   `;

@@ -20,6 +20,7 @@
   --page-bg: #f6f7f9;
   --panel-border: #d4d7dc;
   --panel-radius: 10px;
+  --panel-shadow: 0 4px 8px rgba(32, 33, 36, 0.14);
   --divider-color: #e8eaed;
   --red-card-text: #b00000;
   --line-border: #e3e5e8;
@@ -79,6 +80,7 @@
   --panel-bg: #111318;
   --page-bg: #000;
   --panel-border: #30343a;
+  --panel-shadow: 0 4px 8px rgba(0, 0, 0, 0.6);
   --divider-color: #272a2f;
   --line-border: #24272c;
   --text-color: #f1f3f4;
@@ -205,6 +207,7 @@ summary {
   border-radius: var(--panel-radius);
   padding: 14px;
   background: var(--panel-bg);
+  box-shadow: var(--panel-shadow);
 }
 
 .hint,
@@ -807,7 +810,7 @@ button.help-disclosure-button[aria-expanded="true"] {
   margin-top: -2px;
   padding-inline: 2px;
   padding-top: 2px;
-  overflow-y: auto;
+  overflow: visible;
   max-height: calc(100vh - 20px);
 }
 
@@ -821,13 +824,21 @@ button.help-disclosure-button[aria-expanded="true"] {
 .side-area p { margin: 8px 0; }
 
 .side-panel {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   max-width: none;
   padding: 8px;
 }
 
 .side-status-card {
   container-type: inline-size;
+  flex: 0 0 auto;
   --status-reserved-height: calc(16px + 4lh + 10px + 68px);
+}
+
+.side-area > .repo-link {
+  flex: 0 0 auto;
 }
 
 .side-status-card + .side-panel { margin-top: 0; }
@@ -869,7 +880,7 @@ button.help-disclosure-button[aria-expanded="true"] {
 .status {
   --surface-border: var(--panel-border);
   --surface-bg: var(--panel-bg);
-  --surface-shadow: none;
+  --surface-shadow: var(--panel-shadow);
   border: 1px solid var(--surface-border);
   border-radius: var(--panel-radius);
   background: var(--surface-bg);
@@ -918,13 +929,13 @@ button.help-disclosure-button[aria-expanded="true"] {
 :is(.player-field, .own-area).current {
   --surface-border: var(--current-border);
   --surface-bg: var(--current-bg);
-  --surface-shadow: 0 0 0 2px var(--current-ring);
+  --surface-shadow: 0 0 0 2px var(--current-ring), var(--panel-shadow);
 }
 
 :is(.player-field, .own-area).dutch-caller {
   --surface-border: var(--dutch-border);
   --surface-bg: var(--dutch-bg);
-  --surface-shadow: 0 0 0 2px var(--dutch-ring);
+  --surface-shadow: 0 0 0 2px var(--dutch-ring), var(--panel-shadow);
 }
 
 :is(.player-field, .own-area).current.dutch-caller {
@@ -934,13 +945,13 @@ button.help-disclosure-button[aria-expanded="true"] {
 :is(.player-field, .own-area).wrong-dutch-call {
   --surface-border: var(--wrong-dutch-border);
   --surface-bg: var(--wrong-dutch-bg);
-  --surface-shadow: 0 0 0 2px var(--wrong-dutch-ring);
+  --surface-shadow: 0 0 0 2px var(--wrong-dutch-ring), var(--panel-shadow);
 }
 
 :is(.player-field, .own-area).final-turn-done {
   --surface-border: var(--control-border);
   --surface-bg: var(--done-bg);
-  --surface-shadow: 0 0 0 2px var(--done-ring);
+  --surface-shadow: 0 0 0 2px var(--done-ring), var(--panel-shadow);
   color: var(--muted-color);
 }
 
@@ -951,7 +962,7 @@ button.help-disclosure-button[aria-expanded="true"] {
 :is(.player-field, .own-area).round-winner {
   --surface-border: var(--winner-border);
   --surface-bg: var(--winner-bg);
-  --surface-shadow: 0 0 0 2px var(--winner-ring);
+  --surface-shadow: 0 0 0 2px var(--winner-ring), var(--panel-shadow);
 }
 
 :is(.player-field, .own-area).current.round-winner {
@@ -962,7 +973,7 @@ button.help-disclosure-button[aria-expanded="true"] {
 .status.game-ended-status {
   --surface-border: var(--game-winner-border);
   --surface-bg: var(--game-winner-bg);
-  --surface-shadow: 0 0 0 2px var(--game-winner-ring);
+  --surface-shadow: 0 0 0 2px var(--game-winner-ring), var(--panel-shadow);
 }
 
 :is(.player-field, .own-area).current.game-winner {

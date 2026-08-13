@@ -62,3 +62,55 @@ test('German rules and server-originated game text are localized', () => {
     'Ben hat das Hervorheben geänderter Karten ausgeschaltet'
   );
 });
+
+test('language preference persists Russian and normalizes regional locale tags', () => {
+  const target = fakeWindow();
+  assert.equal(i18n.normalizeLanguage('ru-RU'), 'ru');
+  assert.equal(i18n.setLanguage('ru', target), 'ru');
+  assert.equal(i18n.getStoredLanguage(target), 'ru');
+  assert.equal(target.document.documentElement.lang, 'ru');
+});
+
+test('Russian translations cover dynamic UI text and compact card controls', () => {
+  assert.equal(i18n.translate('ru', 'Join'), 'Войти');
+  assert.equal(i18n.translate('ru', 'Russian'), 'Русский');
+  assert.equal(i18n.translate('de', 'Russian'), 'Russisch');
+  assert.equal(
+    i18n.translate('ru', 'Round {number}', { number: 3 }),
+    'Раунд 3'
+  );
+  assert.equal(i18n.specialLabel('ru', 'Q'), 'Дама: смотреть');
+  for (const label of ['Peek', 'Swap', 'Throw in', 'add', 'peek', 'swap']) {
+    assert.ok(i18n.translate('ru', label).length <= 7);
+  }
+});
+
+test('Russian rules, bot descriptions, and game text are localized', () => {
+  assert.match(i18n.quickRulesHtml('ru'), /Цель:/);
+  assert.match(i18n.quickRulesHtml('ru'), /<span class="red-card-value">♥♦K=0<\/span>/);
+  assert.match(i18n.fullRulesHtml('ru', 100, false), /больше 100 очков/);
+  const fallback = {
+    summary: 'English summary',
+    stats: [['Memory', 5], ['Pace', 4], ['Risk', 3], ['Pressure', 2], ['Discipline', 1]]
+  };
+  const personality = i18n.localizedBotPersonality('ru', 'athena', fallback);
+  assert.match(personality.summary, /запоминает карты/);
+  assert.deepEqual(personality.stats.map((stat) => stat[0]), ['Память', 'Темп', 'Риск', 'Напор', 'Дисциплина']);
+  assert.equal(i18n.translateGameText('ru', 'Ada said Dutch'), 'Ada объявляет Dutch');
+  assert.equal(
+    i18n.translateGameText('ru', 'Ada changed game length from 100 points to single round'),
+    'Ada меняет длину игры: 100 очков → один раунд'
+  );
+  assert.equal(
+    i18n.translateGameText('ru', 'Ben changed inactivity timeout from 15 to 90 minutes'),
+    'Ben меняет время до завершения при бездействии: 15 → 90 мин.'
+  );
+  assert.equal(
+    i18n.translateGameText('ru', 'Ben turned changed-card highlighting off'),
+    'Ben выключает подсветку изменённых карт'
+  );
+  assert.equal(
+    i18n.translateGameText('ru', 'round ended. Ada gained 5 points'),
+    'Раунд завершён. Ada получает 5 очк.'
+  );
+});

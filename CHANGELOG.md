@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.56
+- added complete Russian localization for the interface, rules, bot descriptions, and game messages
+- added theme-aware shadows to waiting-room, player, information, and side panels while preserving player-state highlights
+- kept the right-side details panel compact when possible and independently scrollable when its content exceeds the viewport
+- fixed points-graph scaling so 50-, 100-, and 200-point target lines always remain inside the graph
+
 ## 1.3.55
 - made live game updates smoother by updating only changed page regions and sending recent score history incrementally
 - reduced server and browser work for logs, score charts, drawers, and bot decisions

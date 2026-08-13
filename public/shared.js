@@ -215,8 +215,10 @@
 
   function pointsChartMaximum(maxTotal, gameTarget) {
     const observed = Math.max(0, Number(maxTotal) || 0);
-    if (observed > 100) return observed;
-    const safeValue = Math.max(10, observed, Number(gameTarget) || 0);
+    const target = Math.max(0, Number(gameTarget) || 0);
+    const requiredMaximum = Math.max(observed, target);
+    if (requiredMaximum > 100) return requiredMaximum;
+    const safeValue = Math.max(10, requiredMaximum);
     const magnitude = 10 ** Math.floor(Math.log10(safeValue));
     const fraction = safeValue / magnitude;
     const niceFraction = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
