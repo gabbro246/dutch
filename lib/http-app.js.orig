@@ -261,7 +261,7 @@ function renderSavedPointsChart(lines, target, seed = '') {
   if (maxRound === 0 || players.every((player) => player.points.length === 1)) return '';
 
   const width = 640;
-  const height = 240;
+  const height = 200;
   const margin = { top: 12, right: 10, bottom: 25, left: 34 };
   const maxTotal = Math.max(0, ...players.flatMap((player) => player.points.map((point) => point.total)));
   const numericTarget = Number(target) || 0;
@@ -288,7 +288,7 @@ function renderSavedPointsChart(lines, target, seed = '') {
     .map((value) => `<g class="points-chart-halving"><title>Score halves at ${value} points</title><line x1="${margin.left}" y1="${coordinate(y(value))}" x2="${width - margin.right}" y2="${coordinate(y(value))}"></line></g>`)
     .join('');
   const targetLine = numericTarget > 0 && numericTarget <= yMax
-    ? `<g class="points-chart-target"><line x1="${margin.left}" y1="${coordinate(y(numericTarget))}" x2="${width - margin.right}" y2="${coordinate(y(numericTarget))}"></line><text x="${coordinate((margin.left + width - margin.right) / 2)}" y="${Math.max(10, coordinate(y(numericTarget)) - 4)}">Target: ${escapeHtml(numericTarget)}</text></g>`
+    ? `<g class="points-chart-target"><line x1="${margin.left}" y1="${coordinate(y(numericTarget))}" x2="${width - margin.right}" y2="${coordinate(y(numericTarget))}"></line><text x="${margin.left + 6}" y="${Math.max(10, coordinate(y(numericTarget)) - 4)}">Target: ${escapeHtml(numericTarget)}</text></g>`
     : '';
   const chartSeries = players.map((player, index) => {
     const colorIndex = colors[index % colors.length];

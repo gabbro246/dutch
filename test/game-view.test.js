@@ -131,14 +131,21 @@ test('build view reveals only cards visible to the viewer', () => {
   assert.deepEqual(view.round.infoEvent, { text: 'BEN used Queen peek' });
 
   state.players[0].total = 50;
-  assert.equal(viewFor(state).buildView('ada').canChangeGameTarget, false);
+  assert.deepEqual(viewFor(state).buildView('ada').selectableGameTargets, [50, 100, 200]);
+  state.players[0].total = 51;
+  assert.equal(viewFor(state).buildView('ada').canChangeGameTarget, true);
+  assert.deepEqual(viewFor(state).buildView('ada').selectableGameTargets, [100, 200]);
   state.players[0].left = true;
   assert.equal(viewFor(state).buildView('ada').canChangeGameTarget, true);
+  assert.deepEqual(viewFor(state).buildView('ada').selectableGameTargets, [50, 100, 200]);
   state.players[0].left = false;
   state.players[0].total = 0;
 
   state.round.stage = 'roundEnd';
   assert.equal(viewFor(state).buildView('ada').canSelectSingleRound, false);
+  state.round.stage = 'gameEnd';
+  assert.equal(viewFor(state).buildView('ada').canChangeGameTarget, false);
+  assert.deepEqual(viewFor(state).buildView('ada').selectableGameTargets, []);
   state.round.stage = 'turn';
   state.roundNumber = 2;
   assert.equal(viewFor(state).buildView('ada').canSelectSingleRound, false);

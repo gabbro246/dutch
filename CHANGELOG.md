@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.54
+- kept in-game settings dropdowns open during live moves without pausing game updates
+- kept longer game lengths selectable after a lower target was exceeded, while disabling only targets already passed
+- improved saved game logs with readable times, game duration, a larger graph, and a clearer score table
+- improved score graphs with centered labels and guides for score-halving points
+
 ## 1.3.53
 - added a quick half-second chance to throw in after the final turn
 - made the zero-point red Kings clearer in the game guide

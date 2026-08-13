@@ -64,7 +64,7 @@ test('setDeckSetting only accepts valid waiting-room settings and reclamps', () 
   assert.equal(state.deckSetting, 'two');
 });
 
-test('setGameTarget accepts supported targets until a player reaches 50', () => {
+test('setGameTarget accepts point targets that no active player has exceeded', () => {
   const state = {
     phase: 'waiting',
     gameTarget: 100,
@@ -109,7 +109,19 @@ test('setGameTarget accepts supported targets until a player reaches 50', () => 
 
   state.players = [player('a', { total: 50 })];
   settings.setGameTarget(50);
+  assert.equal(state.gameTarget, 50);
+  settings.setGameTarget(100);
   assert.equal(state.gameTarget, 100);
+
+  state.players[0].total = 51;
+  settings.setGameTarget(50);
+  assert.equal(state.gameTarget, 100);
+  settings.setGameTarget(200);
+  assert.equal(state.gameTarget, 200);
+
+  state.players[0].total = 101;
+  settings.setGameTarget(100);
+  assert.equal(state.gameTarget, 200);
 
   state.players[0].left = true;
   settings.setGameTarget(50);

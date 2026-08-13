@@ -111,8 +111,9 @@ test('log list summary ranks players by final score without winner text', () => 
 test("saved log viewer renders public sections and omits private bot data", () => {
   const content = [
     "Dutch game log 2026-01-01_01-02-03",
+    "Exported: 2026-01-01_01-03-26",
     "Winner: Ada",
-    "Target: 50",
+    "Target: 100",
     "Rounds: 1",
     "",
     "Points table:",
@@ -122,6 +123,7 @@ test("saved log viewer renders public sections and omits private bot data", () =
     "",
     "Game log:",
     "+00:00.000 1. [system] game started",
+    "+01:23.107 2. [system] game ended. Ada won",
     "",
     "Bot strategy diagnostics:",
     "Earlier diagnostics dropped: 2",
@@ -130,9 +132,30 @@ test("saved log viewer renders public sections and omits private bot data", () =
 
   const html = renderSavedLogContent(content);
 
+  assert.doesNotMatch(html, /<h2>Dutch game log<\/h2>/);
+  assert.match(html, /<dt>Game started<\/dt><dd>January 1, 2026 at 01:02:03<\/dd>/);
+  assert.match(html, /<dt>Exported<\/dt><dd>January 1, 2026 at 01:03:26<\/dd>/);
+  assert.match(html, /<dt>Game duration<\/dt><dd>1 minute 23 seconds<\/dd>/);
+  assert.match(html, /<dt>Winner<\/dt><dd>Ada<\/dd>/);
+  assert.match(html, /<section class=saved-log-section aria-label="Points table">/);
+  assert.match(html, /<section class="saved-log-section saved-log-chart" aria-label="Points graph">/);
+  assert.match(html, /<section class=saved-log-section aria-label="Game log">/);
+  assert.ok(html.indexOf('aria-label="Points table"') < html.indexOf('aria-label="Points graph"'));
+  assert.doesNotMatch(html, /<h2>(?:Points graph|Points table|Game log)<\/h2>/);
+  assert.doesNotMatch(html, /points-chart-legend/);
+  assert.match(html, /<figure class="points-chart" aria-label="Points over time">/);
+  assert.match(html, /viewBox="0 0 640 240"/);
+  assert.match(html, /<path class="points-chart-line" d="M34 215 L630 206\.88"><\/path>/);
+  assert.match(html, /<g class="points-chart-target">/);
+  assert.match(html, /<text x="332"[^>]*>Target: 100<\/text>/);
+  assert.match(html, /<g class="points-chart-halving"><title>Score halves at 50 points<\/title>/);
+  assert.match(html, /aria-label="Round 1: &lt;Bot&gt;, 8 points"/);
   assert.match(html, /<table class=saved-log-table>/);
-  assert.match(html, /<th scope=col>&lt;Bot&gt;<\/th>/);
-  assert.match(html, /<td>8<\/td>/);
+  const adaColor = (html.match(/<span class="saved-log-player-name" style="--series-color: var\(--chart-color-(\d)\)">Ada<\/span>/) || [])[1];
+  assert.ok(adaColor);
+  assert.match(html, new RegExp('<g class="points-chart-series" style="--series-color: var\\(--chart-color-' + adaColor + '\\)'));
+  assert.match(html, /<span class="saved-log-player-name"[^>]*>&lt;Bot&gt;<\/span>/);
+  assert.match(html, /<td class="saved-log-player-points"[^>]*>8<\/td>/);
   assert.match(html, /<time>\+00:00\.000<\/time><span>1\. \[system\] game started<\/span>/);
   assert.doesNotMatch(html, /Bot strategy/);
   assert.doesNotMatch(html, /draw-source/);
@@ -190,3 +213,4 @@ test('saved log page shell applies the stored theme before styles load', () => {
   assert.match(html, /<meta name="theme-color" content="#f6f7f9">/);
   assert.match(html, /<script src="\/theme\.js\?v=1\.2%263"><\/script>/);
   assert.ok(html.indexOf('<script src="/theme.js') < html.indexOf('<link rel="stylesheet"'));
+});

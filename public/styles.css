@@ -618,31 +618,35 @@ button.help-disclosure-button[aria-expanded="true"] {
 }
 
 .saved-log-summary h2,
-.saved-log-section h2,
 .saved-log-thought h3 { margin: 0; }
 
-.saved-log-summary h2,
-.saved-log-section h2 {
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--divider-color);
+.saved-log-summary h2 {
   font-size: 16px;
   font-weight: 700;
 }
 
 .saved-log-summary dl {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px 18px;
-  margin: 8px 0 0;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
 }
 
 .saved-log-summary dl div {
   display: flex;
   gap: 5px;
+  align-items: baseline;
 }
 
 .saved-log-summary dt { font-weight: 700; }
 .saved-log-summary dd { margin: 0; }
+
+.saved-log-chart .points-chart {
+  width: 100%;
+  margin: 0;
+}
+
+.saved-log-chart .points-chart-svg { max-height: 240px; }
 
 .saved-log-section {
   display: flex;
@@ -660,8 +664,9 @@ button.help-disclosure-button[aria-expanded="true"] {
 
 .saved-log-table th,
 .saved-log-table td {
-  border: 1px solid var(--divider-color);
-  padding: 7px 10px;
+  border-bottom: 1px solid var(--line-border);
+  padding-block: 4px;
+  padding-inline: 0;
   text-align: center;
   white-space: nowrap;
 }
@@ -669,8 +674,24 @@ button.help-disclosure-button[aria-expanded="true"] {
 .saved-log-table th:first-child,
 .saved-log-table td:first-child { text-align: left; }
 
-.saved-log-table thead,
-.saved-log-table tbody th { background: var(--control-bg); }
+.saved-log-table th { font-weight: 650; }
+.saved-log-table tbody th { font-weight: 400; }
+
+.saved-log-table tbody th,
+.saved-log-table tbody td {
+  padding-block: 3px;
+  padding-inline: 0;
+}
+
+.saved-log-player-name {
+  color: var(--series-color);
+  font-weight: 650;
+}
+
+.saved-log-player-points {
+  color: var(--series-color);
+  font-weight: 650;
+}
 
 .saved-log-lines {
   display: flex;
@@ -1227,8 +1248,9 @@ button.help-disclosure-button[aria-expanded="true"] {
 .points-chart-legend {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 3px 10px;
-  margin-bottom: 4px;
+  margin-top: 4px;
   font-size: 11px;
 }
 
@@ -1255,7 +1277,8 @@ button.help-disclosure-button[aria-expanded="true"] {
 
 .points-chart-grid text,
 .points-chart-round,
-.points-chart-target text {
+.points-chart-target text,
+.points-chart-halving text {
   fill: var(--muted-color);
   font-size: 9px;
 }
@@ -1263,15 +1286,21 @@ button.help-disclosure-button[aria-expanded="true"] {
 .points-chart-grid text { text-anchor: end; }
 .points-chart-round { text-anchor: middle; }
 
-.points-chart-target line {
+.points-chart-target line,
+.points-chart-halving line {
   stroke: var(--muted-color);
   stroke-width: 1;
   stroke-dasharray: 4 3;
   vector-effect: non-scaling-stroke;
 }
 
+.points-chart-halving line {
+  opacity: 0.55;
+  stroke-dasharray: 2 3;
+}
+
 .points-chart-target text {
-  text-anchor: end;
+  text-anchor: middle;
   font-weight: 650;
 }
 

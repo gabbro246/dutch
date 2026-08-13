@@ -1483,7 +1483,7 @@ function renderPointsChart(state, currentPlayers) {
     .map((value) => `<g class="points-chart-halving"><line x1="${margin.left}" y1="${coordinate(y(value))}" x2="${width - margin.right}" y2="${coordinate(y(value))}"></line></g>`)
     .join('');
   const targetLine = target > 0 && target <= yMax
-    ? `<g class="points-chart-target"><line x1="${margin.left}" y1="${coordinate(y(target))}" x2="${width - margin.right}" y2="${coordinate(y(target))}"></line><text x="${coordinate(margin.left + plotWidth / 2)}" y="${Math.max(10, coordinate(y(target)) - 4)}">${escapeHtml(t('Target: {points}', { points: target }))}</text></g>`
+    ? `<g class="points-chart-target"><line x1="${margin.left}" y1="${coordinate(y(target))}" x2="${width - margin.right}" y2="${coordinate(y(target))}"></line><text x="${margin.left + 6}" y="${Math.max(10, coordinate(y(target)) - 4)}">${escapeHtml(t('Target: {points}', { points: target }))}</text></g>`
     : '';
 
   const chartSeries = series.map((item) => {
@@ -1512,15 +1512,14 @@ function renderPointsChart(state, currentPlayers) {
 
   return `
     <figure class="points-chart" aria-label="${escapeHtml(t('Points over time'))}">
+      <div class="points-chart-legend" role="list" aria-label="${escapeHtml(t('Players'))}">${legend}</div>
       <svg class="points-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(t('Points over time'))}">
         <title>${escapeHtml(t('Points over time'))}</title>
         ${grid}
-        ${halvingLines}
         ${targetLine}
         ${chartSeries}
         ${roundLabels}
       </svg>
-      <div class="points-chart-legend" role="list" aria-label="${escapeHtml(t('Players'))}">${legend}</div>
     </figure>
   `;
 }
