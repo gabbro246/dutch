@@ -135,6 +135,7 @@ test('build view reveals only cards visible to the viewer', () => {
       ],
       pileHighlight: null,
       infoEvent: { text: 'BEN used Queen peek', until: Date.now() + 60_000 },
+      pendingPileReveal: { cardId: 'p1', actorId: 'ben' },
       handHighlights: [{ ownerId: 'ben', cardId: 'b2' }],
       dutchCallerId: null,
       dutchQueue: [],
@@ -169,6 +170,7 @@ test('build view reveals only cards visible to the viewer', () => {
     wrongThrowCardId: 'b1'
   });
   assert.equal(view.round.discardTop.rank, 'Q');
+  assert.equal(view.round.pendingPileReveal.actorId, 'ben');
   assert.deepEqual(view.round.infoEvent, { text: 'BEN used Queen peek' });
 
   state.players[0].total = 50;
@@ -244,6 +246,7 @@ test('controls reflect current player draw and turn-complete states', () => {
   assert.equal(afterDraw.round.controls.canTake, false);
   assert.equal(afterDraw.round.controls.canDiscardDrawn, true);
   assert.equal(afterDraw.round.drawn.card.back, false);
+  assert.equal(afterDraw.round.drawn.playerId, 'ada');
 
   const observerAfterDraw = viewFor(state).buildView('ben');
   assert.equal(observerAfterDraw.round.drawn.card.back, true);

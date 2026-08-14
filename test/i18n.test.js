@@ -27,6 +27,7 @@ test('German translations interpolate dynamic UI text', () => {
   assert.equal(i18n.translate('de', 'Show help'), 'Hilfe anzeigen');
   assert.equal(i18n.translate('de', 'No bots left'), 'Keine Bots übrig');
   assert.equal(i18n.translate('de', 'Double game, 200 points'), 'Doppeltes Spiel, 200 Punkte');
+  assert.equal(i18n.translate('de', 'Sound effects'), 'Soundeffekte');
   assert.equal(
     i18n.translate('de', 'Round {number}', { number: 3 }),
     'Runde 3'
@@ -77,6 +78,7 @@ test('Russian translations cover dynamic UI text and compact card controls', () 
   assert.equal(i18n.translate('ru', 'Russian'), 'Русский');
   assert.equal(i18n.translate('de', 'Russian'), 'Russisch');
   assert.equal(i18n.translate('ru', 'No bots left'), 'Ботов не осталось');
+  assert.equal(i18n.translate('ru', 'Sound effects'), 'Звуковые эффекты');
   assert.equal(
     i18n.translate('ru', 'Round {number}', { number: 3 }),
     'Раунд 3'

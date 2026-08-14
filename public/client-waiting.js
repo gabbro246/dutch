@@ -19,6 +19,7 @@
     const helpDisclosureHtml = deps.helpDisclosureHtml;
     const inactivityTimeoutSettingHtml = deps.inactivityTimeoutSettingHtml;
     const languageSettingHtml = deps.languageSettingHtml;
+    const soundSettingHtml = deps.soundSettingHtml;
     const shortInstructions = deps.shortInstructions;
     const fullRules = deps.fullRules;
     const repoLink = deps.repoLink;
@@ -32,6 +33,7 @@
     const wireAnimatedDrawers = deps.wireAnimatedDrawers;
     const wireInactivityTimeoutSelect = deps.wireInactivityTimeoutSelect;
     const wireLanguageSelect = deps.wireLanguageSelect;
+    const wireSoundSelect = deps.wireSoundSelect;
     const waitingDrawerPreferences = { bots: false, players: false, guide: false, rules: false, settings: false };
     let previousWaitingPlayerCount = 0;
     let selectedBotType = '';
@@ -171,6 +173,7 @@
                       <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>${escapeHtml(t('Dark mode'))}</option>
                     </select>
                   </div>
+                  ${soundSettingHtml('soundSelect')}
                   ${languageSettingHtml('languageSelect')}
                 </div>
               </details>
@@ -253,6 +256,7 @@
           window.DutchTheme.setTheme(themeSelect.value, window);
         });
       }
+      wireSoundSelect('soundSelect');
       wireLanguageSelect('languageSelect');
       document.querySelectorAll('[data-action="moveWaitingPlayer"]').forEach((button) => {
         button.addEventListener('click', () => {
@@ -283,4 +287,3 @@
 
   return { create };
 });
-

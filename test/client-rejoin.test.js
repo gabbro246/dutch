@@ -104,6 +104,13 @@ function loadClient({ token, tabId, storedName = '' }) {
     },
     DutchClientActions: { create: () => ({}) },
     DutchClientWaiting: { create: () => ({ renderWaiting: noop }) },
+    DutchClientSounds: {
+      create: () => ({
+        isEnabled: () => true,
+        setEnabled: noop,
+        handleStateTransition: noop
+      })
+    },
     DutchSelectInteraction: {
       create: () => ({ current: () => null, release: noop, releaseIfOutside: noop, wire: noop })
     },
@@ -163,6 +170,7 @@ test('occupied game room includes rules and device-only settings', () => {
   assert.match(client.app.innerHTML, /data-occupied-drawer="rules"/);
   assert.match(client.app.innerHTML, /data-occupied-drawer="settings"/);
   assert.match(client.app.innerHTML, /id="occupiedThemeSelect"/);
+  assert.match(client.app.innerHTML, /id="occupiedSoundSelect"/);
   assert.match(client.app.innerHTML, /id="occupiedLanguageSelect"/);
   assert.doesNotMatch(client.app.innerHTML, /id="inGameTargetSelect"/);
 });

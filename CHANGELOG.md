@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.58
+- added sound effects for a couple of actions. more will follow
+
 ## 1.3.57
 - made empty-deck reshuffling an explicit Shuffle action with a pile-to-deck animation, while bots shuffle automatically when no humans remain
 - preserved pending normal, special, and penalty draws across reshuffles without moving the top discard card

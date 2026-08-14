@@ -8,6 +8,7 @@ const PLAYER_NAME_KEY = 'dutchPlayerName';
 const i18n = window.DutchI18n;
 let language = i18n.getStoredLanguage(window);
 i18n.setLanguage(language, window);
+const soundEffects = window.DutchClientSounds.create();
 const playerToken = getPlayerToken();
 let lastState = null;
 let pendingManualRejoin = null;
@@ -101,6 +102,7 @@ const { renderWaiting } = window.DutchClientWaiting.create({
   helpDisclosureHtml,
   inactivityTimeoutSettingHtml,
   languageSettingHtml,
+  soundSettingHtml,
   shortInstructions,
   fullRules,
   repoLink,
@@ -113,7 +115,8 @@ const { renderWaiting } = window.DutchClientWaiting.create({
   wireHelpDisclosures,
   wireAnimatedDrawers,
   wireInactivityTimeoutSelect,
-  wireLanguageSelect
+  wireLanguageSelect,
+  wireSoundSelect
 });
 const selectInteraction = window.DutchSelectInteraction.create();
 const { mergeIncrementalState, cardAnimationSignature } = window.DutchClientState;
@@ -280,6 +283,7 @@ function applyIncomingState(state) {
     animateWaitingPlayerListChanges(previousState, mergedState, beforeSnapshot, afterSnapshot);
   }
   animateWinnerConfetti(previousState, mergedState);
+  soundEffects.handleStateTransition(previousState, mergedState);
   hasRenderedGame = mergedState.phase === 'playing' && !!mergedState.round;
   lastState = mergedState;
 }
@@ -440,6 +444,7 @@ function render(state) {
                     <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>${escapeHtml(t('Dark mode'))}</option>
                   </select>
                 </div>
+                ${soundSettingHtml('occupiedSoundSelect')}
                 ${languageSettingHtml('occupiedLanguageSelect')}
               </div>
             </details>
@@ -459,6 +464,7 @@ function render(state) {
         window.DutchTheme.setTheme(occupiedThemeSelect.value, window);
       });
     }
+    wireSoundSelect('occupiedSoundSelect');
     wireLanguageSelect('occupiedLanguageSelect');
     return;
   }
@@ -494,7 +500,8 @@ function renderGame(state) {
     const gameThemeSelect = document.getElementById('gameThemeSelect');
     const inGameTargetSelect = document.getElementById('inGameTargetSelect');
     const highlightChangedCardsSelect = document.getElementById('highlightChangedCardsSelect');
-    [gameThemeSelect, inGameTargetSelect, highlightChangedCardsSelect].forEach((select) => {
+    const gameSoundSelect = document.getElementById('gameSoundSelect');
+    [gameThemeSelect, inGameTargetSelect, highlightChangedCardsSelect, gameSoundSelect].forEach((select) => {
       selectInteraction.wire(select);
     });
     if (inGameTargetSelect) {
@@ -515,6 +522,7 @@ function renderGame(state) {
         window.DutchTheme.setTheme(gameThemeSelect.value, window);
       });
     }
+    wireSoundSelect('gameSoundSelect');
     wireLanguageSelect('gameLanguageSelect');
     selectInteraction.wire(document.getElementById('gameLanguageSelect'));
   }
@@ -868,6 +876,27 @@ function wireLanguageSelect(id) {
   });
 }
 
+function soundSettingHtml(id) {
+  const enabled = soundEffects.isEnabled();
+  return `
+    <div class="setting-row">
+      ${helpDisclosureHtml(id + 'Help', 'Sound effects', 'Play game sound effects on this device.')}
+      <select id="${id}" aria-label="${escapeHtml(t('Sound effects'))}">
+        <option value="on" ${enabled ? 'selected' : ''}>${escapeHtml(t('On'))}</option>
+        <option value="off" ${enabled ? '' : 'selected'}>${escapeHtml(t('Off'))}</option>
+      </select>
+    </div>
+  `;
+}
+
+function wireSoundSelect(id) {
+  const select = document.getElementById(id);
+  if (!select) return;
+  select.addEventListener('change', () => {
+    soundEffects.setEnabled(select.value !== 'off');
+  });
+}
+
 function inactivityTimeoutSettingHtml(state, id) {
   const minutes = state.inactivityTimeoutMinutes || 15;
   return `
@@ -944,6 +973,7 @@ function renderSideArea(state) {
                   <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>${escapeHtml(t('Dark mode'))}</option>
                 </select>
               </div>
+              ${soundSettingHtml('gameSoundSelect')}
               ${languageSettingHtml('gameLanguageSelect')}
             </div>
           `, false)}
