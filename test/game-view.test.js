@@ -136,6 +136,8 @@ test('build view reveals only cards visible to the viewer', () => {
       pileHighlight: null,
       infoEvent: { text: 'BEN used Queen peek', until: Date.now() + 60_000 },
       pendingPileReveal: { cardId: 'p1', actorId: 'ben' },
+      cardAddEvent: { id: 'd1:wrong-throw:b1', playerId: 'ben', source: 'wrong-throw' },
+      peekEvent: { id: 2, playerId: 'ada', cardId: 'a1' },
       handHighlights: [{ ownerId: 'ben', cardId: 'b2' }],
       dutchCallerId: null,
       dutchQueue: [],
@@ -171,6 +173,9 @@ test('build view reveals only cards visible to the viewer', () => {
   });
   assert.equal(view.round.discardTop.rank, 'Q');
   assert.equal(view.round.pendingPileReveal.actorId, 'ben');
+  assert.equal(view.round.pendingPileReveal.kind, 'discard');
+  assert.equal(view.round.cardAddEvent, null);
+  assert.deepEqual(view.round.peekEvent, { id: '2', cardId: 'a1' });
   assert.deepEqual(view.round.infoEvent, { text: 'BEN used Queen peek' });
 
   state.players[0].total = 50;
@@ -195,6 +200,12 @@ test('build view reveals only cards visible to the viewer', () => {
   state.roundNumber = 1;
 
   const observerView = viewFor(state).buildView('ben');
+  assert.equal(observerView.round.peekEvent, null);
+  assert.deepEqual(observerView.round.cardAddEvent, {
+    id: 'd1:wrong-throw:b1',
+    playerId: 'ben',
+    source: 'wrong-throw'
+  });
   assert.equal(observerView.round.players[0].cards[1].back, true);
   assert.equal(observerView.round.players[0].cards[1].highlight, 'peek');
   assert.equal(observerView.round.players[1].cards[1].highlight, 'changed');

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.59
+- added sound effects for throwing in, receiving cards and peeking
+- timed card sounds to match their movements and made rapid consecutive sounds play reliably
+- kept game sounds limited to participating game pages, so an open “game already active” page no longer repeats them
+
 ## 1.3.58
 - added sound effects for a couple of actions. more will follow
 

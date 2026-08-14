@@ -164,7 +164,41 @@ test('browser smoke covers drawers, reconnect, persistent regions, and card anim
   const sameRepositoryNode = await repositoryRegion.evaluate((element) => element === window.__dutchRepositoryRegion);
   assert.equal(sameRepositoryNode, false, 'Reload should create a new document before region persistence is tested.');
   await repositoryRegion.evaluate((element) => { window.__dutchRepositoryRegion = element; });
+  await page.evaluate(() => {
+    const originalPlay = HTMLMediaElement.prototype.play;
+    window.__dutchAudioPlays = [];
+    HTMLMediaElement.prototype.play = function recordAudioPlay() {
+      window.__dutchAudioPlays.push({
+        source: String(this.currentSrc || this.src || ''),
+        muted: !!this.muted,
+        volume: this.volume
+      });
+      return originalPlay.call(this);
+    };
+  });
+  await occupiedPage.evaluate(() => {
+    const originalPlay = HTMLMediaElement.prototype.play;
+    window.__dutchAudioPlays = [];
+    HTMLMediaElement.prototype.play = function recordAudioPlay() {
+      window.__dutchAudioPlays.push({
+        source: String(this.currentSrc || this.src || ''),
+        muted: !!this.muted,
+        volume: this.volume
+      });
+      return originalPlay.call(this);
+    };
+  });
   await page.locator('[data-action="discardDrawn"]:not([disabled])').click();
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  const discardPlays = await page.evaluate(() => window.__dutchAudioPlays.filter((item) => (
+    !item.muted && item.source.includes('/sounds/card-discard.mp3')
+  )));
+  assert.equal(discardPlays.length, 1, 'One discard state event should invoke audio playback exactly once.');
+  assert.match(discardPlays[0].source, /card-discard\.mp3\?v=/, 'Sound assets should use the app cache-buster.');
+  const occupiedDiscardPlays = await occupiedPage.evaluate(() => window.__dutchAudioPlays.filter((item) => (
+    !item.muted && item.source.includes('/sounds/card-discard.mp3')
+  )));
+  assert.equal(occupiedDiscardPlays.length, 0, 'The occupied non-game page must not play game sounds.');
   await assertEventually(
     () => repositoryRegion.evaluate((element) => element === window.__dutchRepositoryRegion),
     'Unchanged repository region was replaced during a game update.'

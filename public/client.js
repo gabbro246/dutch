@@ -123,7 +123,12 @@ const { mergeIncrementalState, cardAnimationSignature } = window.DutchClientStat
 const { patchGameLayout } = window.DutchClientRender;
 
 document.addEventListener('pointerdown', (event) => {
+  soundEffects.unlock();
   selectInteraction.releaseIfOutside(event.target);
+}, true);
+
+document.addEventListener('keydown', () => {
+  soundEffects.unlock();
 }, true);
 
 
@@ -894,6 +899,7 @@ function wireSoundSelect(id) {
   if (!select) return;
   select.addEventListener('change', () => {
     soundEffects.setEnabled(select.value !== 'off');
+    if (select.value !== 'off') soundEffects.unlock();
   });
 }
 

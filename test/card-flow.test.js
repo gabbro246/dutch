@@ -166,6 +166,7 @@ test('reveal and highlight helpers schedule cleanup and remove expired state', (
     { viewerId: 'ada', cardId: 'a1', until: 1300 },
     { public: true, kind: 'event', cardId: 'b1', exceptViewerId: 'ben', playerId: '', until: 1400 }
   ]);
+  assert.deepEqual(state.round.peekEvent, { id: 1, playerId: 'ada', cardId: 'a1' });
   assert.deepEqual(state.round.pileHighlight, { kind: 'peek', until: 1500 });
 
   setNow(1450);

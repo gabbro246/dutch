@@ -172,6 +172,11 @@ test('Ace draw pauses for shuffle and continues against the original target', ()
   assert.equal(state.round.discard[0], top);
   assert.equal(state.players[1].cards.length, targetCount + 1);
   assert.equal(state.players[1].cards.at(-1).id, 'buried-1');
+  assert.deepEqual(state.round.cardAddEvent, {
+    id: 'buried-1:ace',
+    playerId: 'ben',
+    source: 'ace'
+  });
   assert.equal(state.round.specialQueue.length, 0);
   assert.deepEqual(calls.aceObservations, [{ actorId: 'ada', targetId: 'ben' }]);
 });
@@ -202,6 +207,11 @@ test('wrong-throw penalty pauses for shuffle and is still applied afterward', ()
     cardId: 'penalty',
     playerId: 'ada',
     wrongThrowCardId: 'a2'
+  });
+  assert.deepEqual(state.round.cardAddEvent, {
+    id: 'penalty:wrong-throw:a2',
+    playerId: 'ada',
+    source: 'wrong-throw'
   });
   assert.equal(calls.logs.at(-1), 'ADA made a wrong throw-in and took a penalty card');
 });
@@ -284,6 +294,11 @@ test('throw-in handles valid and wrong cards', () => {
     playerId: 'ada',
     wrongThrowCardId: 'a2'
   });
+  assert.deepEqual(state.round.cardAddEvent, {
+    id: 'd2:wrong-throw:a2',
+    playerId: 'ada',
+    source: 'wrong-throw'
+  });
   assert.deepEqual(calls.unknownSlots.at(-1), { ownerId: 'ada', source: 'wrong throw-in penalty' });
   assert.deepEqual(calls.changedCards.at(-1), { ownerId: 'ada', cardId: 'd2' });
   assert.equal(calls.logs.at(-1), 'ADA made a wrong throw-in and took a penalty card');
@@ -299,6 +314,11 @@ test('Ace and Queen special actions mutate targets and finish the special', () =
   const aceUsed = actions.aceAddForPlayer(state.players[0], 'ben');
   assert.equal(aceUsed, true);
   assert.equal(state.players[1].cards.at(-1).id, 'd2');
+  assert.deepEqual(state.round.cardAddEvent, {
+    id: 'd2:ace',
+    playerId: 'ben',
+    source: 'ace'
+  });
   assert.deepEqual(calls.aceObservations, [{ actorId: 'ada', targetId: 'ben' }]);
   assert.deepEqual(calls.changedCards, [{ ownerId: 'ben', cardId: 'd2' }]);
   assert.equal(state.round.specialQueue.length, 0);

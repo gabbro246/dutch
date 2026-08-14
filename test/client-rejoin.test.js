@@ -108,6 +108,7 @@ function loadClient({ token, tabId, storedName = '' }) {
       create: () => ({
         isEnabled: () => true,
         setEnabled: noop,
+        unlock: noop,
         handleStateTransition: noop
       })
     },
