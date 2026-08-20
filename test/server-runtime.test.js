@@ -130,7 +130,10 @@ test('hostAddresses and startup logging use external IPv4 addresses', () => {
   runtime.logServerStarted(4567);
 
   assert.deepEqual(calls.logs, [
-    'Dutch! 🂡 server running on http://localhost:4567',
-    'Dutch! 🂡 network address: http://192.168.1.44:4567'
+    'Dutch! 🂡 server: http://localhost:4567',
+    'game logs:       http://localhost:4567/logs',
+    'interactions:    http://localhost:4567/interactions',
+    'network address: http://192.168.1.44:4567',
+    ''
   ]);
 });

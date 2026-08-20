@@ -92,6 +92,7 @@ test('live views bound log payloads while initial views include complete history
   assert.equal(live.scoreHistoryLength, scoreHistory.length);
   assert.equal(live.scoreHistoryStart, 3);
   assert.equal(live.scoreHistoryComplete, false);
+  assert.equal(live.botTimingPercent, 50);
 });
 
 test('build view reveals only cards visible to the viewer', () => {
@@ -101,6 +102,7 @@ test('build view reveals only cards visible to the viewer', () => {
     deckColor: 'blue',
     gameTarget: 100,
     singleRound: false,
+    botTimingPercent: 25,
     highlightChangedCards: true,
     players: [
       player('ada', [card('a1', '2'), card('a2', '3')]),
@@ -150,6 +152,7 @@ test('build view reveals only cards visible to the viewer', () => {
 
   assert.equal(view.version, 'test-version');
   assert.equal(view.inactivityTimeoutMinutes, 15);
+  assert.equal(view.botTimingPercent, 25);
   assert.equal(view.highlightChangedCards, true);
   assert.equal(view.canChangeGameTarget, true);
   assert.equal(view.canSelectSingleRound, true);
@@ -176,6 +179,12 @@ test('build view reveals only cards visible to the viewer', () => {
   assert.equal(view.round.pendingPileReveal.kind, 'discard');
   assert.equal(view.round.cardAddEvent, null);
   assert.deepEqual(view.round.peekEvent, { id: '2', cardId: 'a1' });
+
+  state.round.stage = 'revealing';
+  assert.equal(viewFor(state).buildView('ada').round.players[0].isCurrent, true);
+  state.round.stage = 'peek';
+  assert.equal(viewFor(state).buildView('ada').round.players[0].isCurrent, false);
+  state.round.stage = 'turn';
   assert.deepEqual(view.round.infoEvent, { text: 'BEN used Queen peek' });
 
   state.players[0].total = 50;

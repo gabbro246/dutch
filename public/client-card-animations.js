@@ -88,7 +88,6 @@
       if (!previousState.round || !state.round) return;
       if (previousState.roundNumber !== state.roundNumber) return;
       animatePlayerPanelResizes(previousState, state, before, after);
-      animateJackSwapSelections(previousState, state);
       animateReshuffle(previousState, state, before, after);
       const previousCards = stateCardLocations(previousState);
       const currentCards = stateCardLocations(state);
@@ -242,43 +241,6 @@
       });
     }
     
-    function animateJackSwapSelections(previousState, state) {
-      const previousSpecial = previousState.round && previousState.round.special;
-      const currentSpecial = state.round && state.round.special;
-      if (!currentSpecial || currentSpecial.type !== 'J') return;
-    
-      const previousSelected = new Set(
-        previousSpecial && previousSpecial.type === 'J' && previousSpecial.actorId === currentSpecial.actorId
-          ? (previousSpecial.selected || [])
-          : []
-      );
-      (currentSpecial.selected || []).forEach((cardId) => {
-        if (previousSelected.has(cardId)) return;
-        const card = document.querySelector(`.card[data-card-id="${cssEscape(cardId)}"]`);
-        if (!card || !card.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-        const selectedTransform = card.classList.contains('small') ? 'translateY(-20px)' : 'translateY(-24px)';
-        card.animate([
-          { transform: 'translateY(0)' },
-          { transform: selectedTransform }
-        ], {
-          duration: 180,
-          easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)'
-        });
-      });
-      previousSelected.forEach((cardId) => {
-        if ((currentSpecial.selected || []).includes(cardId)) return;
-        const card = document.querySelector(`.card[data-card-id="${cssEscape(cardId)}"]`);
-        if (!card || !card.animate || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-        const selectedTransform = card.classList.contains('small') ? 'translateY(-20px)' : 'translateY(-24px)';
-        card.animate([
-          { transform: selectedTransform },
-          { transform: 'translateY(0)' }
-        ], {
-          duration: 180,
-          easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)'
-        });
-      });
-    }
 
     function finishReshuffle(reshuffle) {
       reshuffle.ghosts.forEach((ghost) => ghost.remove());

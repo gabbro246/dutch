@@ -52,6 +52,7 @@ function lifecycleFor(initialState) {
     admin: [],
     terminal: [],
     savedLogs: 0,
+    savedGameStates: [],
     clearedTimers: 0,
     discardObservations: [],
     synced: 0,
@@ -68,8 +69,14 @@ function lifecycleFor(initialState) {
     gameLogDir: '/tmp/dutch-game-logs-test',
     startingPlayerIndexForNextRound,
     applyRoundScoring,
-    writeFinishedGameLog: () => {
+    writeFinishedGameLog: (gameLogDir, gameState, winnerName) => {
       calls.savedLogs += 1;
+      calls.savedGameStates.push({
+        gameLogDir,
+        gameState,
+        winnerName,
+        latestLog: calls.logs.at(-1)
+      });
     },
     createCombinedDeck: () => [
       card('d1', '2'), card('d2', '3'), card('d3', '4'), card('d4', '5'),
@@ -118,7 +125,7 @@ function lifecycleFor(initialState) {
       calls.clearedHandHighlights.push(playerId);
       state.round.handHighlights = (state.round.handHighlights || []).filter((item) => item.ownerId !== playerId);
     },
-    openingDiscardDelayMs: 500,
+    openingDiscardDelayMs: 1000,
     openingDiscardTravelMs: 500,
     openingDiscardFlipHalfMs: 130,
     nowFn: () => now,
@@ -354,4 +361,20 @@ test('reset to waiting replaces state and keeps connected players', () => {
   assert.equal(calls.clearedTimers, 1);
   assert.equal(calls.admin[0].event, 'manual_reset');
   assert.equal(calls.logs.at(-1).text, 'table reset');
+  assert.equal(calls.savedLogs, 1);
+  assert.equal(calls.savedGameStates[0].gameState, state);
+  assert.equal(calls.savedGameStates[0].winnerName, '');
+  assert.deepEqual(calls.savedGameStates[0].latestLog, { text: 'table reset', kind: 'system' });
+});
+
+test('resetting a finished game does not save its log twice', () => {
+  const state = freshState();
+  state.phase = 'playing';
+  state.players = [player('ada'), player('ben')];
+  state.round = { stage: 'gameEnd', winnerId: 'ada' };
+  const { lifecycle, calls } = lifecycleFor(state);
+
+  lifecycle.resetToWaiting(true, 'finished game returned to waiting room');
+
+  assert.equal(calls.savedLogs, 0);
 });

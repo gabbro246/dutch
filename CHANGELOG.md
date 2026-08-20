@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.60
+- added /interactions page
+- logs of unfinished games are saved now
+- updated console output
+- fixed a bug where J Swap selected cards would be lifted twice
+- reduced waiting time for many bot actions by 50% to lower the duration of games with bots and added setting to change that speed
+
 ## 1.3.59
 - added sound effects for throwing in, receiving cards and peeking
 - timed card sounds to match their movements and made rapid consecutive sounds play reliably

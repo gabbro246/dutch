@@ -15,6 +15,9 @@ const OPENING_DISCARD_DELAY_MS = 1000;
 const OPENING_DISCARD_TRAVEL_MS = 500;
 const OPENING_DISCARD_FLIP_HALF_MS = 130;
 const PILE_REVEAL_MOVE_MS = 360;
+const CARD_MOVE_MS = 360;
+const RESHUFFLE_MOVE_MS = 600;
+const HUMAN_THROW_IN_WINDOW_MS = 1600;
 const FINAL_THROW_IN_GRACE_MS = 500;
 const GAME_LOG_DIR = path.join(__dirname, 'game-logs');
 const ADMIN_LOG_PATH = path.join(GAME_LOG_DIR, 'usage.log');
@@ -38,6 +41,9 @@ const DEFAULT_SERVER_CONFIG = Object.freeze({
   openingDiscardTravelMs: OPENING_DISCARD_TRAVEL_MS,
   openingDiscardFlipHalfMs: OPENING_DISCARD_FLIP_HALF_MS,
   pileRevealMoveMs: PILE_REVEAL_MOVE_MS,
+  cardMoveMs: CARD_MOVE_MS,
+  reshuffleMoveMs: RESHUFFLE_MOVE_MS,
+  humanThrowInWindowMs: HUMAN_THROW_IN_WINDOW_MS,
   finalThrowInGraceMs: FINAL_THROW_IN_GRACE_MS,
   wrongThrowPenaltyDelayMs: 1500
 });

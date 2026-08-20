@@ -114,7 +114,8 @@ test('pushDiscard creates throw-in state, queues specials, logs, and updates sta
     open: true,
     token: 1,
     topCardId: 'q1',
-    rank: 'Q'
+    rank: 'Q',
+    humanUntil: 3090
   });
   assert.deepEqual(state.round.specialQueue, [{ type: 'Q', actorId: 'ada', selected: [] }]);
   assert.deepEqual(calls.logs, ['Ada discarded QH and may use Queen']);

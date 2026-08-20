@@ -70,3 +70,13 @@ test('incoming game states render immediately while settings are preserved in pl
   assert.match(clientSource, /patchGameLayout\(app, gameMarkup, activeSettingsSelect\)/);
   assert.doesNotMatch(clientSource, /deferredState|pendingGameState/);
 });
+
+test('shared bot timing is rendered and wired before and during games', () => {
+  const clientSource = fs.readFileSync(require.resolve('../public/client.js'), 'utf8');
+  const waitingSource = fs.readFileSync(require.resolve('../public/client-waiting.js'), 'utf8');
+
+  assert.match(clientSource, /gameBotTimingSelect/);
+  assert.match(clientSource, /emit\('setBotTimingPercent', select\.value\)/);
+  assert.match(waitingSource, /botTimingSelect/);
+  assert.match(waitingSource, /wireBotTimingSelect\('botTimingSelect'\)/);
+});

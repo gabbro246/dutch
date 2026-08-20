@@ -50,6 +50,7 @@ function createHarness(overrides = {}) {
     syncBotMemories: () => {},
     activeBots: () => state.players.filter((player) => player.isBot),
     activePlayablePlayers: () => state.players,
+    nowFn: () => 1000,
     randomBetween: (min, max) => Math.round((min + max) / 2),
     shuffle: (items) => items,
     findPlayer: (id) => state.players.find((player) => player.id === id),
@@ -126,7 +127,7 @@ test('bot runner schedules and performs the start peek', () => {
 
   runner.scheduleBotAutomation();
   assert.equal(calls.timers.length, 1);
-  assert.equal(calls.timers[0].delay, 1250);
+  assert.equal(calls.timers[0].delay, 625);
 
   calls.timers[0].fn();
   assert.equal(bot.startPeekDone, true);
@@ -136,6 +137,31 @@ test('bot runner schedules and performs the start peek', () => {
   assert.equal(calls.highlighted.length, 2);
   assert.equal(calls.beganTurns, 1);
   assert.equal(calls.broadcasts, 1);
+});
+
+test('bot thinking delays follow every shared timing percentage', () => {
+  const expectedDelays = new Map([
+    [0, 0],
+    [25, 313],
+    [50, 625],
+    [75, 938],
+    [100, 1250]
+  ]);
+
+  for (const [botTimingPercent, expectedDelay] of expectedDelays) {
+    const { runner, calls } = createHarness({ state: { botTimingPercent } });
+    runner.scheduleBotAutomation();
+    assert.equal(calls.timers[0].delay, expectedDelay);
+  }
+});
+
+test('finished bot games still wait 60 seconds at 0% timing', () => {
+  const { runner, state, bot, calls } = createHarness({
+    state: { botTimingPercent: 0, round: { stage: 'gameEnd', specialQueue: [] } }
+  });
+  state.players.push({ ...bot, id: 'bot-2', name: 'BOT 2' });
+  runner.scheduleBotAutomation();
+  assert.equal(calls.timers[0].delay, 60_000);
 });
 
 test('bot runner dispatches a turn draw action through injected game actions', () => {
@@ -222,6 +248,218 @@ test('bot runner reuses the selected deck response without evaluating a second t
   assert.equal(calls.discarded, 0);
 });
 
+test('bot can draw a non-final deck card without consuming the human throw-in window', () => {
+  const { runner, calls } = createHarness({
+    state: {
+      round: {
+        stage: 'turn',
+        botTick: 3,
+        specialQueue: [],
+        deck: [card('d1'), card('d2')],
+        discard: [card('pile')],
+        drawn: null,
+        turnComplete: false,
+        throwIn: { open: true, token: 'window', rank: '5', humanUntil: 2600 }
+      }
+    }
+  });
+
+  runner.scheduleBotAutomation();
+  assert.equal(calls.timers[0].delay, 625);
+  calls.timers[0].fn();
+
+  assert.equal(calls.tookDeck, 1);
+  assert.equal(calls.timers.length, 1);
+});
+
+test('bot waits out the human throw-in window before taking the pile', () => {
+  let currentTime = 1000;
+  const { runner, calls } = createHarness({
+    state: {
+      round: {
+        stage: 'turn',
+        botTick: 3,
+        specialQueue: [],
+        deck: [card('d1'), card('d2')],
+        discard: [card('pile')],
+        drawn: null,
+        turnComplete: false,
+        throwIn: { open: true, token: 'window', rank: '5', humanUntil: 2000 }
+      }
+    },
+    deps: {
+      nowFn: () => currentTime,
+      shouldBotTakePile: () => true
+    }
+  });
+
+  runner.scheduleBotAutomation();
+  calls.timers[0].fn();
+
+  assert.equal(calls.tookPile, 0);
+  assert.equal(calls.timers[1].delay, 1000);
+
+  currentTime = 2000;
+  calls.timers[1].fn();
+  assert.equal(calls.tookPile, 1);
+});
+
+test('post-draw action waits only for movement and the remaining human throw-in window', () => {
+  const { runner, calls } = createHarness({
+    state: {
+      round: {
+        stage: 'turn',
+        botTick: 4,
+        specialQueue: [],
+        deck: [card('d1')],
+        discard: [card('pile')],
+        cardMotionUntil: 1360,
+        drawn: { playerId: 'bot', source: 'deck', card: card('drawn-low', '2') },
+        turnComplete: false,
+        throwIn: { open: true, token: 'window', rank: '5', humanUntil: 2600 }
+      }
+    }
+  });
+
+  runner.scheduleBotAutomation();
+
+  assert.equal(calls.timers[0].delay, 1600);
+});
+
+test('completed bot turns keep the scaled thinking pause when it exceeds movement', () => {
+  const { runner, calls } = createHarness({
+    state: {
+      round: {
+        stage: 'turn',
+        botTick: 5,
+        specialQueue: [],
+        cardMotionUntil: 1360,
+        drawn: null,
+        turnComplete: true,
+        throwIn: { open: true, token: 'window', rank: '5', humanUntil: 2600 }
+      }
+    }
+  });
+
+  runner.scheduleBotAutomation();
+
+  assert.equal(calls.timers[0].delay, 563);
+});
+
+test('bot throw-ins cannot execute before the human throw-in window ends', () => {
+  const human = { id: 'human', name: 'HUMAN', isBot: false, cards: [card('h1')] };
+  const { runner, state, calls } = createHarness({
+    state: {
+      round: {
+        stage: 'turn',
+        botTick: 5,
+        specialQueue: [],
+        drawn: null,
+        turnComplete: true,
+        throwIn: { open: true, token: 'window', rank: '5', humanUntil: 2600 }
+      }
+    },
+    deps: {
+      botThrowInCandidate: () => ({ index: 0, confidence: 1 }),
+      botReactionDelay: () => 100
+    }
+  });
+  state.players.push(human);
+
+  runner.scheduleBotAutomation();
+
+  const throwTimer = calls.timers.find((timer) => timer.delay === 1600);
+  assert.ok(throwTimer);
+});
+
+test('bot-only throw-ins keep their normal reaction delay', () => {
+  const { runner, state, bot, calls } = createHarness({
+    state: {
+      round: {
+        stage: 'turn',
+        botTick: 5,
+        specialQueue: [],
+        drawn: null,
+        turnComplete: true,
+        throwIn: { open: true, token: 'window', rank: '5', humanUntil: 2600 }
+      }
+    },
+    deps: {
+      botThrowInCandidate: () => ({ index: 0, confidence: 1 }),
+      botReactionDelay: () => 100
+    }
+  });
+  state.players.push({ ...bot, id: 'bot-2', name: 'BOT 2', cards: [card('x1')] });
+
+  runner.scheduleBotAutomation();
+
+  const throwTimer = calls.timers.find((timer) => timer.delay === 50);
+  assert.ok(throwTimer);
+});
+
+test('a bot throw-in timer cannot act on a later throw-in window', () => {
+  let attempts = 0;
+  const { runner, state, calls } = createHarness({
+    state: {
+      round: {
+        stage: 'turn',
+        botTick: 5,
+        specialQueue: [],
+        drawn: null,
+        turnComplete: true,
+        throwIn: { open: true, token: 'old-window', rank: '5' }
+      }
+    },
+    deps: {
+      botThrowInCandidate: () => ({ index: 0, confidence: 1 }),
+      throwInForPlayer: () => {
+        attempts += 1;
+        return { valid: true };
+      }
+    }
+  });
+
+  runner.scheduleBotAutomation();
+  const throwTimer = calls.timers.find((timer) => timer.delay === 250);
+  state.round.throwIn = { open: true, token: 'new-window', rank: '5' };
+  throwTimer.fn();
+
+  assert.equal(attempts, 0);
+});
+
+test('a bot recalculates its throw-in card when the timer fires', () => {
+  let candidateCalls = 0;
+  let thrownCardId = null;
+  const { runner, calls } = createHarness({
+    state: {
+      round: {
+        stage: 'turn',
+        botTick: 5,
+        specialQueue: [],
+        drawn: null,
+        turnComplete: true,
+        throwIn: { open: true, token: 'window', rank: '5' }
+      }
+    },
+    deps: {
+      botThrowInCandidate: () => ({
+        index: candidateCalls++ === 0 ? 0 : 1,
+        confidence: 1
+      }),
+      throwInForPlayer: (_player, cardId) => {
+        thrownCardId = cardId;
+        return { valid: true, card: card(cardId) };
+      }
+    }
+  });
+
+  runner.scheduleBotAutomation();
+  const throwTimer = calls.timers.find((timer) => timer.delay === 250);
+  throwTimer.fn();
+
+  assert.equal(thrownCardId, 'b2');
+});
+
 test('bot runner records a red King recovery only after a successful throw-in', () => {
   const recoveryMemory = {};
   const redKing = { id: 'red-king', rank: 'K', suit: 'hearts' };
@@ -250,7 +488,7 @@ test('bot runner records a red King recovery only after a successful throw-in', 
   bot.cards[0] = redKing;
 
   runner.scheduleBotAutomation();
-  const throwTimer = calls.timers.find((timer) => timer.delay === 100);
+  const throwTimer = calls.timers.find((timer) => timer.delay === 50);
   assert.ok(throwTimer);
   throwTimer.fn();
 
@@ -288,7 +526,7 @@ test('bot-only tables automatically schedule the shared shuffle action', () => {
   runner.scheduleBotAutomation();
 
   assert.equal(calls.timers.length, 1);
-  assert.equal(calls.timers[0].delay, 925);
+  assert.equal(calls.timers[0].delay, 463);
   calls.timers[0].fn();
   assert.equal(calls.shuffled, 1);
   assert.equal(calls.shufflePlayer, bot);

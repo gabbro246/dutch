@@ -148,12 +148,25 @@ test('setInactivityTimeout accepts only supported minute values', () => {
   assert.equal(state.inactivityTimeoutMinutes, 60);
 });
 
+test('setBotTimingPercent accepts only the five shared choices', () => {
+  const state = { phase: 'waiting', botTimingPercent: 50, players: [] };
+  const settings = settingsFor(state);
+
+  for (const percent of [0, 25, 50, 75, 100]) {
+    assert.equal(settings.setBotTimingPercent(String(percent)), true);
+    assert.equal(state.botTimingPercent, percent);
+  }
+  settings.setBotTimingPercent(10);
+  assert.equal(state.botTimingPercent, 100);
+});
+
 test('shared setting changes are logged during a game with the actor and old value', () => {
   const state = {
     phase: 'playing',
     gameTarget: 100,
     singleRound: false,
     inactivityTimeoutMinutes: 15,
+    botTimingPercent: 50,
     roundNumber: 1,
     round: { stage: 'turn' },
     players: [player('ada', { name: 'Ada', total: 0 })]
@@ -167,6 +180,8 @@ test('shared setting changes are logged during a game with the actor and old val
   assert.equal(settings.setGameTarget(50, state.players[0]), false);
   assert.equal(settings.setGameTarget('single', state.players[0]), true);
   assert.equal(settings.setInactivityTimeout(60, state.players[0]), true);
+  assert.equal(settings.setBotTimingPercent(25, state.players[0]), true);
+  assert.equal(settings.setBotTimingPercent(25, state.players[0]), false);
   assert.equal(settings.setInactivityTimeout(60, state.players[0]), false);
 
   assert.deepEqual(logs, [
@@ -180,6 +195,10 @@ test('shared setting changes are logged during a game with the actor and old val
     },
     {
       text: 'Ada changed inactivity timeout from 15 to 60 minutes',
+      kind: 'system'
+    },
+    {
+      text: 'Ada changed bot timing from 50% to 25%',
       kind: 'system'
     }
   ]);

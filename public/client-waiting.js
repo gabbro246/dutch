@@ -18,6 +18,7 @@
     const playerNameHtml = deps.playerNameHtml;
     const helpDisclosureHtml = deps.helpDisclosureHtml;
     const inactivityTimeoutSettingHtml = deps.inactivityTimeoutSettingHtml;
+    const botTimingSettingHtml = deps.botTimingSettingHtml;
     const languageSettingHtml = deps.languageSettingHtml;
     const soundSettingHtml = deps.soundSettingHtml;
     const shortInstructions = deps.shortInstructions;
@@ -32,6 +33,7 @@
     const wireHelpDisclosures = deps.wireHelpDisclosures;
     const wireAnimatedDrawers = deps.wireAnimatedDrawers;
     const wireInactivityTimeoutSelect = deps.wireInactivityTimeoutSelect;
+    const wireBotTimingSelect = deps.wireBotTimingSelect;
     const wireLanguageSelect = deps.wireLanguageSelect;
     const wireSoundSelect = deps.wireSoundSelect;
     const waitingDrawerPreferences = { bots: false, players: false, guide: false, rules: false, settings: false };
@@ -159,6 +161,7 @@
                     </select>
                   </div>
                   ${inactivityTimeoutSettingHtml(state, 'inactivityTimeoutSelect')}
+                  ${botTimingSettingHtml(state, 'botTimingSelect')}
                   <div class="setting-row">
                     ${helpDisclosureHtml('deckAmountHelp', 'Deck amount', 'More decks make the game less predictable and add more special cards, though some may remain undealt. Two decks are required for more than four players.')}
                     <select id="deckSettingSelect" aria-label="${escapeHtml(t('Deck amount'))}">
@@ -250,6 +253,7 @@
         });
       }
       wireInactivityTimeoutSelect('inactivityTimeoutSelect');
+      wireBotTimingSelect('botTimingSelect');
       const themeSelect = document.getElementById('themeSelect');
       if (themeSelect) {
         themeSelect.addEventListener('change', () => {

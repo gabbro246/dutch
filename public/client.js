@@ -101,6 +101,7 @@ const { renderWaiting } = window.DutchClientWaiting.create({
   playerNameHtml,
   helpDisclosureHtml,
   inactivityTimeoutSettingHtml,
+  botTimingSettingHtml,
   languageSettingHtml,
   soundSettingHtml,
   shortInstructions,
@@ -115,6 +116,7 @@ const { renderWaiting } = window.DutchClientWaiting.create({
   wireHelpDisclosures,
   wireAnimatedDrawers,
   wireInactivityTimeoutSelect,
+  wireBotTimingSelect,
   wireLanguageSelect,
   wireSoundSelect
 });
@@ -504,9 +506,10 @@ function renderGame(state) {
   if (!patch.patched || patch.changedRegions.includes('drawer:settings')) {
     const gameThemeSelect = document.getElementById('gameThemeSelect');
     const inGameTargetSelect = document.getElementById('inGameTargetSelect');
+    const gameBotTimingSelect = document.getElementById('gameBotTimingSelect');
     const highlightChangedCardsSelect = document.getElementById('highlightChangedCardsSelect');
     const gameSoundSelect = document.getElementById('gameSoundSelect');
-    [gameThemeSelect, inGameTargetSelect, highlightChangedCardsSelect, gameSoundSelect].forEach((select) => {
+    [gameThemeSelect, inGameTargetSelect, gameBotTimingSelect, highlightChangedCardsSelect, gameSoundSelect].forEach((select) => {
       selectInteraction.wire(select);
     });
     if (inGameTargetSelect) {
@@ -517,6 +520,7 @@ function renderGame(state) {
     }
     wireInactivityTimeoutSelect('gameInactivityTimeoutSelect');
     selectInteraction.wire(document.getElementById('gameInactivityTimeoutSelect'));
+    wireBotTimingSelect('gameBotTimingSelect');
     if (highlightChangedCardsSelect) {
       highlightChangedCardsSelect.addEventListener('change', () => {
         emit('setHighlightChangedCards', highlightChangedCardsSelect.value);
@@ -924,6 +928,29 @@ function wireInactivityTimeoutSelect(id) {
   });
 }
 
+function botTimingSettingHtml(state, id) {
+  const percent = [0, 25, 50, 75, 100].includes(Number(state.botTimingPercent))
+    ? Number(state.botTimingPercent)
+    : 50;
+  return `
+    <div class="setting-row">
+      ${helpDisclosureHtml(id + 'Help', 'Bot timing', 'Choose how much of the original bot waiting time is used. 0% is immediate and 100% is the original pace. This setting is shared by everyone.')}
+      <select id="${id}" aria-label="${escapeHtml(t('Bot timing'))}">
+        ${[0, 25, 50, 75, 100].map((value) => `<option value="${value}" ${percent === value ? 'selected' : ''}>${value}%</option>`).join('')}
+      </select>
+    </div>
+  `;
+}
+
+function wireBotTimingSelect(id) {
+  const select = document.getElementById(id);
+  if (!select) return;
+  select.addEventListener('change', () => {
+    clientActions.clearPendingConfirm();
+    emit('setBotTimingPercent', select.value);
+  });
+}
+
 function renderSideArea(state) {
   const r = state.round;
   const selectedTheme = window.DutchTheme.getStoredTheme(window);
@@ -965,6 +992,7 @@ function renderSideArea(state) {
                 </select>
               </div>
               ${inactivityTimeoutSettingHtml(state, 'gameInactivityTimeoutSelect')}
+              ${botTimingSettingHtml(state, 'gameBotTimingSelect')}
               <div class="setting-row">
                 ${helpDisclosureHtml('changedCardsHelp', 'Changed cards', 'Highlight cards that were changed recently for all players, making swaps and other changes easier to follow.')}
                 <select id="highlightChangedCardsSelect" aria-label="${escapeHtml(t('Changed cards'))}">
