@@ -143,17 +143,41 @@ test('bot Jack keeps its first selection stable before adding the second and swa
   assert.equal(turnState.beginBotJackSwapSelection('ada', 'a1', 'b1'), true);
   assert.deepEqual(state.round.specialQueue[0].selected, ['a1']);
   assert.equal(calls.broadcasts, 1);
-  assert.equal(scheduled[0].delay, 250);
+  assert.equal(scheduled[0].delay, 360);
 
   scheduled[0].fn();
   assert.deepEqual(state.round.specialQueue[0].selected, ['a1', 'b1']);
   assert.equal(calls.broadcasts, 2);
-  assert.equal(scheduled[1].delay, 250);
+  assert.equal(scheduled[1].delay, 360);
 
   scheduled[1].fn();
   assert.deepEqual(state.players[0].cards, [b1]);
   assert.deepEqual(state.players[1].cards, [a1]);
   assert.equal(state.round.specialQueue.length, 0);
+});
+
+test('bot Jack selections stay visible at minimum bot timing', () => {
+  const a1 = card('a1', '2');
+  const b1 = card('b1', 'K');
+  const state = {
+    botTimingPercent: 0,
+    players: [player('ada', [a1]), player('ben', [b1])],
+    round: {
+      stage: 'special',
+      currentPlayerIndex: 0,
+      specialQueue: [{ type: 'J', actorId: 'ada', selected: [] }]
+    }
+  };
+  const scheduled = [];
+  const { turnState } = turnStateFor(state, {
+    cardMoveMs: 360,
+    setTimeoutFn: (fn, delay) => scheduled.push({ fn, delay })
+  });
+
+  assert.equal(turnState.beginBotJackSwapSelection('ada', 'a1', 'b1'), true);
+  assert.equal(scheduled[0].delay, 360);
+  scheduled[0].fn();
+  assert.equal(scheduled[1].delay, 360);
 });
 
 test('Dutch call sets the caller, builds the final-turn queue, and advances', () => {

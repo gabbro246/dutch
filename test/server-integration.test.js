@@ -137,7 +137,9 @@ test('socket gameplay flow covers turns, throw-ins, specials, Dutch, reconnect, 
   assert.equal(getState().phase, 'waiting');
 
   await ada.emit('startGame');
-  await waitFor(() => getState().phase === 'playing' && getState().round && getState().round.stage === 'peek', 'Game did not enter start peek.');
+  await waitFor(() => getState().phase === 'playing' && getState().round && getState().round.stage === 'deal', 'Game did not begin dealing.');
+  clock.advanceBy(getState().round.initialDealDurationMs);
+  await waitFor(() => getState().round && getState().round.stage === 'peek', 'Game did not enter start peek.');
 
   const adaCards = getState().players.find((player) => player.id === 'ada-token').cards;
   const benCards = getState().players.find((player) => player.id === 'ben-token').cards;

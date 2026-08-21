@@ -125,6 +125,8 @@ function lifecycleFor(initialState) {
       calls.clearedHandHighlights.push(playerId);
       state.round.handHighlights = (state.round.handHighlights || []).filter((item) => item.ownerId !== playerId);
     },
+    initialDealIntervalMs: 10,
+    initialDealTravelMs: 20,
     openingDiscardDelayMs: 1000,
     openingDiscardTravelMs: 500,
     openingDiscardFlipHalfMs: 130,
@@ -149,8 +151,15 @@ test('start game deals a round and begins turns after all peeks', () => {
 
   assert.equal(getState().phase, 'playing');
   assert.equal(getState().roundNumber, 1);
-  assert.equal(getState().round.stage, 'peek');
+  assert.equal(getState().round.stage, 'deal');
   assert.deepEqual(getState().players.map((item) => item.cards.length), [4, 4]);
+  assert.equal(getState().round.initialDealDurationMs, 90);
+  lifecycle.beginTurnsIfReady();
+  assert.equal(getState().round.stage, 'deal');
+  assert.equal(calls.timeouts[0].delay, 90);
+  calls.timeouts[0].fn();
+  assert.equal(getState().round.stage, 'peek');
+  assert.equal(calls.broadcasts, 1);
   assert.equal(calls.synced, 1);
   assert.equal(calls.admin[0].event, 'game_started');
 
@@ -161,17 +170,17 @@ test('start game deals a round and begins turns after all peeks', () => {
   assert.equal(getState().round.discard.length, 0);
   assert.equal(getState().round.throwIn, null);
   assert.equal(calls.discardObservations.length, 0);
-  assert.equal(calls.timeouts[0].delay, 500);
+  assert.equal(calls.timeouts[1].delay, 500);
 
-  calls.timeouts[0].fn();
+  calls.timeouts[1].fn();
 
   assert.equal(getState().round.stage, 'opening');
   assert.equal(getState().round.discard.length, 1);
   assert.equal(calls.discardObservations.length, 0);
-  assert.equal(calls.broadcasts, 1);
-  assert.equal(calls.timeouts[1].delay, 500);
+  assert.equal(calls.broadcasts, 2);
+  assert.equal(calls.timeouts[2].delay, 500);
 
-  calls.timeouts[1].fn();
+  calls.timeouts[2].fn();
 
   const openingCardId = getState().round.discard[0].id;
   assert.equal(getState().round.stage, 'opening');
@@ -179,8 +188,8 @@ test('start game deals a round and begins turns after all peeks', () => {
   assert.equal(getState().round.openingDiscardAwaitingMidpoint, openingCardId);
   assert.equal(getState().round.throwIn, null);
   assert.equal(calls.discardObservations.length, 0);
-  assert.equal(calls.broadcasts, 2);
-  assert.equal(calls.timeouts[2].delay, 1500);
+  assert.equal(calls.broadcasts, 3);
+  assert.equal(calls.timeouts[3].delay, 1500);
 
   assert.equal(lifecycle.completeOpeningDiscardReveal('missing', openingCardId), false);
   assert.equal(calls.discardObservations.length, 0);
@@ -191,9 +200,9 @@ test('start game deals a round and begins turns after all peeks', () => {
   assert.equal(getState().round.stage, 'turn');
   assert.equal(getState().round.throwIn.token, 1);
   assert.equal(calls.discardObservations[0].source, 'opening discard');
-  assert.equal(calls.broadcasts, 3);
+  assert.equal(calls.broadcasts, 4);
   assert.equal(lifecycle.completeOpeningDiscardReveal('ben', openingCardId), false);
-  calls.timeouts[2].fn();
+  calls.timeouts[3].fn();
   assert.equal(calls.discardObservations.length, 1);
 });
 

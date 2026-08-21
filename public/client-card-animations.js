@@ -86,7 +86,10 @@
     
     function animateStateTransition(previousState, state, before, after) {
       if (!previousState.round || !state.round) return;
-      if (previousState.roundNumber !== state.roundNumber) return;
+      if (previousState.roundNumber !== state.roundNumber) {
+        if (state.round.stage === 'deal') animateInitialDeal(state, after);
+        return;
+      }
       animatePlayerPanelResizes(previousState, state, before, after);
       animateReshuffle(previousState, state, before, after);
       const previousCards = stateCardLocations(previousState);
@@ -242,6 +245,29 @@
     }
     
 
+    function animateInitialDeal(state, snapshot) {
+      const round = state && state.round;
+      if (!round || round.stage !== 'deal') return;
+      if (!Element.prototype.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const sourceData = snapshot.roles.get('deck-top');
+      if (!sourceData) return;
+      const interval = Number(round.initialDealIntervalMs) || 120;
+      const travel = Number(round.initialDealTravelMs) || 240;
+      const players = (round.players || []).filter((player) => !player.isSpectator);
+      const cardCount = players.reduce((max, player) => Math.max(max, (player.cards || []).length), 0);
+      let dealIndex = 0;
+      for (let cardIndex = 0; cardIndex < cardCount; cardIndex += 1) {
+        for (const player of players) {
+          const card = player.cards && player.cards[cardIndex];
+          const targetData = card && snapshot.cards.get(card.id);
+          if (!targetData) continue;
+          const move = animateCardMove(card.id, sourceData, targetData, travel, '', dealIndex * interval);
+          if (move) move.clone.classList.add('initial-deal-card');
+          dealIndex += 1;
+        }
+      }
+    }
+
     function finishReshuffle(reshuffle) {
       reshuffle.ghosts.forEach((ghost) => ghost.remove());
       reshuffle.ghosts.clear();
@@ -346,7 +372,7 @@
       return String(value).replace(/"/g, '\\"');
     }
     
-    function animateCardMove(cardId, sourceData, targetData, duration = 360, cloneHtml = '') {
+    function animateCardMove(cardId, sourceData, targetData, duration = 360, cloneHtml = '', delay = 0) {
       const target = cardElement(cardId, targetData.locationKey) || elementAtRect(targetData.rect, targetData.locationKey);
       let source = sourceData.rect;
       const dest = targetData.rect;
@@ -390,8 +416,9 @@
         { transform: 'translate(0, 0) scale(1, 1)' }
       ], {
         duration,
+        delay,
         easing: 'linear',
-        fill: 'forwards'
+        fill: 'both'
       });
       const move = { cardId, locationKey: targetData.locationKey, clone, animation };
       activeCardMoves.set(cardId, move);
@@ -779,6 +806,7 @@
       emptyAnimationSnapshot,
       captureAnimationSnapshot,
       animateStateTransition,
+      animateInitialDeal,
       hideActiveCardMoveTargets,
       cancelAllCardMoves,
       cancelAllWrongThrows,

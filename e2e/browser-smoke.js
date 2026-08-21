@@ -10,6 +10,8 @@ test('browser smoke covers drawers, reconnect, persistent regions, and card anim
   const runtime = createDutchServer({
     randomBetween: () => 20,
     config: {
+      initialDealIntervalMs: 100,
+      initialDealTravelMs: 800,
       openingDiscardDelayMs: 20,
       openingDiscardTravelMs: 80,
       openingDiscardFlipHalfMs: 50
@@ -86,6 +88,35 @@ test('browser smoke covers drawers, reconnect, persistent regions, and card anim
 
   await page.locator('#startBtn').click();
   await page.locator('[data-game-region="own"]').waitFor();
+  assert.equal(await page.locator('[data-action="peekStart"]:not([disabled])').count(), 0, 'Peek must stay locked while cards are being dealt.');
+  await page.locator('.initial-deal-card').first().waitFor({ state: 'attached' });
+  const dealtSequence = await page.locator('.initial-deal-card').evaluateAll((cards) => {
+    const targets = Array.from(document.querySelectorAll('.card[data-location-key^="player:"]')).map((target) => {
+      const rect = target.getBoundingClientRect();
+      return { location: target.dataset.locationKey, left: rect.left, top: rect.top };
+    });
+    return cards.map((card) => {
+      const left = Number.parseFloat(card.style.left);
+      const top = Number.parseFloat(card.style.top);
+      const target = targets.reduce((closest, candidate) => {
+        const distance = Math.hypot(candidate.left - left, candidate.top - top);
+        return !closest || distance < closest.distance ? { ...candidate, distance } : closest;
+      }, null);
+      const animation = card.getAnimations()[0];
+      return {
+        location: target && target.location,
+        delay: animation && animation.effect.getTiming().delay
+      };
+    }).sort((left, right) => left.delay - right.delay);
+  });
+  const expectedDealSequence = await page.evaluate(() => {
+    const players = eval('lastState.round.players.filter((player) => !player.isSpectator)');
+    return Array.from({ length: 4 }, (_, cardIndex) => (
+      players.map((player) => 'player:' + player.id + ':' + cardIndex)
+    )).flat();
+  });
+  assert.deepEqual(dealtSequence.map((card) => card.location), expectedDealSequence, 'Cards should be dealt one card per player, then continue with each player’s next card.');
+  assert.deepEqual(dealtSequence.map((card) => card.delay), expectedDealSequence.map((_, index) => index * 100));
   for (let count = 0; count < 2; count += 1) {
     await page.locator('[data-action="peekStart"]:not([disabled])').first().click();
   }

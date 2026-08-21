@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.61
+- added a round-robin initial deal animation and kept peeking locked until the final card lands
+- bots now wait for other animations to finish before they do J swap
+
 ## 1.3.60
 - added /interactions page
 - logs of unfinished games are saved now

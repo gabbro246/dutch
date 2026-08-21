@@ -48,6 +48,7 @@ const {
   emptyAnimationSnapshot,
   captureAnimationSnapshot,
   animateStateTransition,
+  animateInitialDeal,
   hideActiveCardMoveTargets,
   cancelAllCardMoves,
   cancelAllWrongThrows,
@@ -286,6 +287,8 @@ function applyIncomingState(state) {
     : (waitingTransition ? captureAnimationSnapshot('waiting') : emptyAnimationSnapshot());
   if (gameTransition) {
     animateStateTransition(previousState, mergedState, beforeSnapshot, afterSnapshot);
+  } else if (mergedState.phase === 'playing' && mergedState.round && mergedState.round.stage === 'deal') {
+    animateInitialDeal(mergedState, captureAnimationSnapshot('game'));
   } else if (waitingTransition) {
     animateWaitingPlayerListChanges(previousState, mergedState, beforeSnapshot, afterSnapshot);
   }
@@ -555,6 +558,8 @@ function renderStatus(state) {
     });
   } else if (temporaryEvent) {
     text = temporaryEvent;
+  } else if (r.stage === 'deal') {
+    text = t('Dealing cards…');
   } else if (r.stage === 'peek') {
     text = t('Start peek: each player must look at exactly two own cards.');
   } else if (r.stage === 'opening') {
