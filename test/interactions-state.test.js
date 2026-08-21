@@ -152,13 +152,17 @@ test('optional initial peek controls stay visible and enable during the peek sta
   assert.equal((html.match(/special-action-placeholder" disabled/g) || []).length, 12);
 });
 
-test('settings drawer exposes the live theme, language, sound, and highlight controls', () => {
+test('settings drawer reuses all real-game controls', () => {
   const state = stateModel.createInitialState({ random: () => 0 });
   const html = render.renderPage(state);
-  assert.match(html, /data-detail-key="settings" class="drawer side-drawer" open/);
-  for (const id of ['gameThemeSelect', 'gameLanguageSelect', 'gameSoundSelect', 'highlightChangedCardsSelect']) {
+  assert.match(html, /data-detail-key="settings"[^>]+class="drawer side-drawer" open/);
+  for (const id of ['inGameTargetSelect', 'gameInactivityTimeoutSelect', 'gameBotTimingSelect', 'highlightChangedCardsSelect', 'gameThemeSelect', 'gameSoundSelect', 'gameLanguageSelect']) {
     assert.match(html, new RegExp('id="' + id + '"'));
   }
+  assert.match(html, /popovertarget="gameBotTimingSelectHelp"[^>]*>Bot speed<\/button>/);
+  assert.match(html, /<option value="0"[^>]*>Instant<\/option>/);
+  assert.match(html, /<option value="50"[^>]*selected[^>]*>Medium<\/option>/);
+  assert.match(html, /<option value="100"[^>]*>Human-like<\/option>/);
 
   state.preferences.language = 'de';
   assert.match(render.renderPage(state), /<summary>Einstellungen<\/summary>/);

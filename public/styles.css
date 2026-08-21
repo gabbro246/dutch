@@ -1288,7 +1288,7 @@ button.help-disclosure-button[aria-expanded="true"] {
 }
 
 .moving-card {
-  position: fixed;
+  position: absolute;
   z-index: 9999;
   pointer-events: none;
 }

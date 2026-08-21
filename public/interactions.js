@@ -51,6 +51,25 @@
     cardAnimations.cancelAllReshuffles();
   }
 
+  function wireHelpDisclosures() {
+    app.querySelectorAll('.help-disclosure-button[popovertarget]').forEach((button) => {
+      const popover = document.getElementById(button.getAttribute('popovertarget'));
+      if (!popover) return;
+      popover.addEventListener('toggle', (event) => {
+        if (event.newState !== 'open') return;
+        const triggerRect = button.getBoundingClientRect();
+        const popoverRect = popover.getBoundingClientRect();
+        const edge = 10;
+        const gap = 6;
+        const maxLeft = Math.max(edge, window.innerWidth - popoverRect.width - edge);
+        popover.style.left = Math.min(Math.max(edge, triggerRect.left), maxLeft) + 'px';
+        const below = triggerRect.bottom + gap;
+        popover.style.top = (below + popoverRect.height <= window.innerHeight - edge
+          ? below : Math.max(edge, triggerRect.top - popoverRect.height - gap)) + 'px';
+      });
+    });
+  }
+
   function render(fullPage = false) {
     const settingsDrawer = app.querySelector('details[data-detail-key="settings"]');
     if (settingsDrawer) state.preferences.settingsOpen = settingsDrawer.open;
@@ -65,6 +84,7 @@
     uiAnimations.wireAnimatedDrawers(document, (details, open) => {
       if (details.dataset.detailKey === 'settings') state.preferences.settingsOpen = open;
     });
+    wireHelpDisclosures();
   }
 
   function preservePreferences(next) {
@@ -426,26 +446,37 @@
     stopSequences();
     const gameStartedAt = state.gameStartedAt + 1;
     const empty = model.createInitialState({ gameStartedAt, cardCount: 0 });
-    empty.round.stage = 'opening';
+    empty.round.stage = 'deal';
     empty.round.discardCount = 0;
     empty.round.discardTop = null;
     replaceState(empty);
     nextFrame(() => {
       const dealt = model.createInitialState({ gameStartedAt });
-      dealt.round.stage = 'opening';
-      dealt.round.discardTop.back = true;
-      transition(dealt);
+      dealt.round.stage = 'deal';
+      dealt.round.discardCount = 0;
+      dealt.round.discardTop = null;
+      replaceState(dealt);
+
+      const dealSnapshot = cardAnimations.captureAnimationSnapshot('game');
+      const dealDuration = cardAnimations.animateInitialDeal(dealt, dealSnapshot);
       schedule(() => {
-        const revealed = model.clone(state);
-        revealed.round.discardTop.back = false;
-        transition(revealed);
-      }, 500);
-      schedule(() => {
-        const ready = model.clone(state);
-        ready.round.stage = 'peek';
-        ready.round.turnComplete = false;
-        transition(ready);
-      }, 850);
+        const opening = model.clone(state);
+        opening.round.stage = 'opening';
+        opening.round.discardTop = model.nextCard(opening, { back: true });
+        opening.round.discardCount = 1;
+        transition(opening);
+        schedule(() => {
+          const revealed = model.clone(state);
+          revealed.round.discardTop.back = false;
+          transition(revealed);
+        }, 500);
+        schedule(() => {
+          const ready = model.clone(state);
+          ready.round.stage = 'peek';
+          ready.round.turnComplete = false;
+          transition(ready);
+        }, 850);
+      }, dealDuration);
     });
   }
 
@@ -532,6 +563,23 @@
     if (select.id === 'gameSoundSelect') {
       state.preferences.sounds = sounds.setEnabled(select.value !== 'off');
       if (state.preferences.sounds) sounds.unlock();
+      return;
+    }
+    if (select.id === 'inGameTargetSelect') {
+      state.singleRound = select.value === 'single';
+      if (!state.singleRound) state.gameTarget = Number(select.value);
+      return;
+    }
+    if (select.id === 'gameInactivityTimeoutSelect') {
+      const value = Number(select.value);
+      if ([15, 30, 60, 90].includes(value)) state.inactivityTimeoutMinutes = value;
+      return;
+    }
+    if (select.id === 'gameBotTimingSelect') {
+      const value = Number(select.value);
+      if (window.DutchShared.BOT_SPEED_OPTIONS.some((option) => option.value === value)) {
+        state.botTimingPercent = value;
+      }
       return;
     }
     if (select.id === 'highlightChangedCardsSelect') {

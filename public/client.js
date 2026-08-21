@@ -24,6 +24,7 @@ const SPECTATOR_TRIGGER_NAME = 'spectator';
 const {
   PLAYER_NAME_MAX_LENGTH,
   GAME_DESCRIPTION,
+  BOT_SPEED_OPTIONS,
   BOT_LABELS,
   BOT_PERSONALITIES,
   normalizedShortPlayerName,
@@ -76,6 +77,12 @@ function t(key, values) {
 function translatedGameText(value) {
   return i18n.translateGameText(language, value);
 }
+const gameSettings = window.DutchClientSettings.create({
+  translate: t,
+  escapeHtml,
+  botSpeedOptions: BOT_SPEED_OPTIONS
+});
+
 const clientActions = window.DutchClientActions.create({
   emit,
   render,
@@ -934,14 +941,14 @@ function wireInactivityTimeoutSelect(id) {
 }
 
 function botTimingSettingHtml(state, id) {
-  const percent = [0, 25, 50, 75, 100].includes(Number(state.botTimingPercent))
+  const percent = BOT_SPEED_OPTIONS.some((option) => option.value === Number(state.botTimingPercent))
     ? Number(state.botTimingPercent)
     : 50;
   return `
     <div class="setting-row">
-      ${helpDisclosureHtml(id + 'Help', 'Bot timing', 'Choose how much of the original bot waiting time is used. 0% is immediate and 100% is the original pace. This setting is shared by everyone.')}
-      <select id="${id}" aria-label="${escapeHtml(t('Bot timing'))}">
-        ${[0, 25, 50, 75, 100].map((value) => `<option value="${value}" ${percent === value ? 'selected' : ''}>${value}%</option>`).join('')}
+      ${helpDisclosureHtml(id + 'Help', 'Bot speed', 'Choose how quickly bots take their turns. The throw-in window always lasts 1.6 seconds and is not affected by bot speed. This setting is shared by everyone.')}
+      <select id="${id}" aria-label="${escapeHtml(t('Bot speed'))}">
+        ${BOT_SPEED_OPTIONS.map((option) => `<option value="${option.value}" ${percent === option.value ? 'selected' : ''}>${escapeHtml(t(option.label))}</option>`).join('')}
       </select>
     </div>
   `;
@@ -959,9 +966,6 @@ function wireBotTimingSelect(id) {
 function renderSideArea(state) {
   const r = state.round;
   const selectedTheme = window.DutchTheme.getStoredTheme(window);
-  const selectableGameTargets = new Set(
-    Array.isArray(state.selectableGameTargets) ? state.selectableGameTargets.map(Number) : [50, 100, 200]
-  );
   const completedRounds = (state.scoreHistory || []).length;
   const detailsMode = 'game';
   const gameKey = String(state.gameStartedAt || 'current-game');
@@ -985,37 +989,12 @@ function renderSideArea(state) {
           ${renderDetails('log', t('Game log'), () => renderLog(state), false)}
           ${renderDetails('guide', t('Quick guide'), () => shortInstructions(), false)}
           ${renderDetails('rules', t('Complete rules'), () => fullRules(state), false, 'rules-body')}
-          ${renderDetails('settings', t('Settings'), () => `
-            <div class="drawer-content waiting-selectors">
-              <div class="setting-row">
-                ${helpDisclosureHtml('inGameLengthHelp', 'Game length', 'Choose how long the game lasts: a double game ends when a player passes 200 points, a full game uses 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.')}
-                <select id="inGameTargetSelect" aria-label="${escapeHtml(t('Game length'))}" ${state.canChangeGameTarget ? '' : 'disabled'}>
-                  <option value="single" ${state.singleRound ? 'selected' : ''} ${state.canSelectSingleRound ? '' : 'disabled'}>${escapeHtml(t('Single round'))}</option>
-                  <option value="50" ${!state.singleRound && state.gameTarget === 50 ? 'selected' : ''} ${selectableGameTargets.has(50) ? '' : 'disabled'}>${escapeHtml(t('Short game, 50 points'))}</option>
-                  <option value="100" ${!state.singleRound && state.gameTarget === 100 ? 'selected' : ''} ${selectableGameTargets.has(100) ? '' : 'disabled'}>${escapeHtml(t('Full game, 100 points'))}</option>
-                  <option value="200" ${!state.singleRound && state.gameTarget === 200 ? 'selected' : ''} ${selectableGameTargets.has(200) ? '' : 'disabled'}>${escapeHtml(t('Double game, 200 points'))}</option>
-                </select>
-              </div>
-              ${inactivityTimeoutSettingHtml(state, 'gameInactivityTimeoutSelect')}
-              ${botTimingSettingHtml(state, 'gameBotTimingSelect')}
-              <div class="setting-row">
-                ${helpDisclosureHtml('changedCardsHelp', 'Changed cards', 'Highlight cards that were changed recently for all players, making swaps and other changes easier to follow.')}
-                <select id="highlightChangedCardsSelect" aria-label="${escapeHtml(t('Changed cards'))}">
-                  <option value="true" ${state.highlightChangedCards !== false ? 'selected' : ''}>${escapeHtml(t('Highlight'))}</option>
-                  <option value="false" ${state.highlightChangedCards === false ? 'selected' : ''}>${escapeHtml(t("Don't highlight"))}</option>
-                </select>
-              </div>
-              <div class="setting-row">
-                ${helpDisclosureHtml('gameAppearanceHelp', 'Appearance', 'Choose the light or dark color theme.')}
-                <select id="gameThemeSelect" aria-label="${escapeHtml(t('Appearance'))}">
-                  <option value="light" ${selectedTheme === 'light' ? 'selected' : ''}>${escapeHtml(t('Light mode'))}</option>
-                  <option value="dark" ${selectedTheme === 'dark' ? 'selected' : ''}>${escapeHtml(t('Dark mode'))}</option>
-                </select>
-              </div>
-              ${soundSettingHtml('gameSoundSelect')}
-              ${languageSettingHtml('gameLanguageSelect')}
-            </div>
-          `, false)}
+          ${gameSettings.renderGameSettingsDrawer(state, {
+            open: detailPreferencesByMode[detailsMode].settings === true,
+            selectedTheme,
+            selectedLanguage: language,
+            soundsEnabled: soundEffects.isEnabled()
+          })}
         </div>
       </div>
       ${repoLink(state.version, 'data-game-region="repository"')}

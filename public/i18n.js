@@ -32,8 +32,8 @@
     'Play game sound effects on this device.': 'Spiele auf diesem Gerät Soundeffekte für das Spiel ab.',
     'Inactive after': 'Inaktiv nach', '{count} minutes': '{count} Minuten',
     'If nobody plays for this long, the game ends and the room is freed for new players. Choose a longer time if everyone plans to return.': 'Wenn so lange niemand spielt, endet das Spiel und der Raum wird für neue Spieler freigegeben. Wähle mehr Zeit, falls alle zurückkehren möchten.',
-    'Bot timing': 'Bot-Wartezeit',
-    'Choose how much of the original bot waiting time is used. 0% is immediate and 100% is the original pace. This setting is shared by everyone.': 'Wähle, wie viel der ursprünglichen Bot-Wartezeit verwendet wird. 0 % ist sofort und 100 % das ursprüngliche Tempo. Diese Einstellung gilt für alle.',
+    'Bot speed': 'Bot-Geschwindigkeit', Instant: 'Sofort', Fast: 'Schnell', Medium: 'Mittel', Slow: 'Langsam', 'Human-like': 'Menschenähnlich',
+    'Choose how quickly bots take their turns. The throw-in window always lasts 1.6 seconds and is not affected by bot speed. This setting is shared by everyone.': 'Wähle, wie schnell Bots ihre Züge machen. Das Zeitfenster zum Einwerfen beträgt immer 1,6 Sekunden und wird von der Bot-Geschwindigkeit nicht beeinflusst. Diese Einstellung gilt für alle.',
     'Changed cards': 'Geänderte Karten', Highlight: 'Hervorheben', "Don't highlight": 'Nicht hervorheben',
     'Highlight cards that were changed recently for all players, making swaps and other changes easier to follow.': 'Hebt kürzlich geänderte Karten für alle hervor, damit Änderungen leichter zu verfolgen sind.',
     'Confirm leave': 'Verlassen bestätigen', 'Confirm remove': 'Entfernen bestätigen', 'Confirm end game': 'Spielende bestätigen',
@@ -95,8 +95,8 @@
     'Play game sound effects on this device.': 'Воспроизводить звуковые эффекты игры на этом устройстве.',
     'Inactive after': 'Завершить через', '{count} minutes': '{count} мин.',
     'If nobody plays for this long, the game ends and the room is freed for new players. Choose a longer time if everyone plans to return.': 'Если столько времени никто не делает ход, игра завершается и комната освобождается для новых игроков. Выберите больше времени, если все планируют вернуться.',
-    'Bot timing': 'Время ожидания ботов',
-    'Choose how much of the original bot waiting time is used. 0% is immediate and 100% is the original pace. This setting is shared by everyone.': 'Выберите долю исходного времени ожидания ботов. 0 % — без ожидания, а 100 % — исходный темп. Настройка общая для всех.',
+    'Bot speed': 'Скорость ботов', Instant: 'Мгновенно', Fast: 'Быстро', Medium: 'Средне', Slow: 'Медленно', 'Human-like': 'Как человек',
+    'Choose how quickly bots take their turns. The throw-in window always lasts 1.6 seconds and is not affected by bot speed. This setting is shared by everyone.': 'Выберите, как быстро боты делают ходы. Окно для сброса всегда длится 1,6 секунды и не зависит от скорости ботов. Настройка общая для всех.',
     'Changed cards': 'Изменённые карты', Highlight: 'Подсвечивать', "Don't highlight": 'Не подсвечивать',
     'Highlight cards that were changed recently for all players, making swaps and other changes easier to follow.': 'Подсвечивает недавно изменённые карты у всех игроков, чтобы было легче следить за обменами и другими изменениями.',
     'Confirm leave': 'Подтвердить выход', 'Confirm remove': 'Подтвердить удаление', 'Confirm end game': 'Подтвердить завершение игры',
@@ -234,6 +234,8 @@
     if (inactivityChange) return inactivityChange[1] + ' меняет время до завершения при бездействии: ' + inactivityChange[2] + ' → ' + inactivityChange[3] + ' мин.';
     const botTimingChange = value.match(/^(.+) changed bot timing from (\d+)% to (\d+)%$/i);
     if (botTimingChange) return botTimingChange[1] + ' меняет время ожидания ботов: ' + botTimingChange[2] + '% → ' + botTimingChange[3] + '%';
+    const botSpeedChange = value.match(/^(.+) changed bot speed from (Instant|Fast|Medium|Slow|Human-like) to (Instant|Fast|Medium|Slow|Human-like)$/i);
+    if (botSpeedChange) return botSpeedChange[1] + ' меняет скорость ботов: ' + translate('ru', botSpeedChange[2]) + ' → ' + translate('ru', botSpeedChange[3]);
     const highlightingChange = value.match(/^(.+) turned changed-card highlighting (on|off)$/i);
     if (highlightingChange) return highlightingChange[1] + (highlightingChange[2].toLowerCase() === 'on' ? ' включает' : ' выключает') + ' подсветку изменённых карт';
     const rules = [
@@ -294,6 +296,10 @@
     const botTimingChange = value.match(/^(.+) changed bot timing from (\d+)% to (\d+)%$/i);
     if (botTimingChange) {
       return botTimingChange[1] + ' hat die Bot-Wartezeit von ' + botTimingChange[2] + '% auf ' + botTimingChange[3] + '% geändert';
+    }
+    const botSpeedChange = value.match(/^(.+) changed bot speed from (Instant|Fast|Medium|Slow|Human-like) to (Instant|Fast|Medium|Slow|Human-like)$/i);
+    if (botSpeedChange) {
+      return botSpeedChange[1] + ' hat die Bot-Geschwindigkeit von ' + translate('de', botSpeedChange[2]) + ' auf ' + translate('de', botSpeedChange[3]) + ' geändert';
     }
     const highlightingChange = value.match(/^(.+) turned changed-card highlighting (on|off)$/i);
     if (highlightingChange) {

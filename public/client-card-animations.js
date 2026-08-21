@@ -4,9 +4,9 @@
   else root.DutchClientCardAnimations = api;
 })(typeof window !== 'undefined' ? window : globalThis, function createClientCardAnimations(root) {
   function create(deps) {
-    const window = root;
-    const document = root.document;
-    const Element = root.Element;
+    const window = deps.window || root;
+    const document = window.document;
+    const Element = window.Element;
     const emit = deps.emit;
     const cardHtml = deps.cardHtml;
     const activeCardMoves = new Map();
@@ -17,19 +17,29 @@
     function emptyAnimationSnapshot() {
       return { cards: new Map(), roles: new Map(), locations: new Map(), panels: new Map(), waitingPlayers: new Map() };
     }
+
+    function documentRect(el) {
+      const rect = el.getBoundingClientRect();
+      return {
+        left: rect.left + window.scrollX,
+        top: rect.top + window.scrollY,
+        width: rect.width,
+        height: rect.height
+      };
+    }
     
     function captureAnimationSnapshot(mode = 'all') {
       const snapshot = emptyAnimationSnapshot();
       if (mode !== 'game') document.querySelectorAll('[data-waiting-player-id]').forEach((el) => {
-        const rect = el.getBoundingClientRect();
+        const rect = documentRect(el);
         if (rect.height) snapshot.waitingPlayers.set(el.dataset.waitingPlayerId, { left: rect.left, top: rect.top, width: rect.width, height: rect.height, html: el.outerHTML });
       });
       if (mode !== 'waiting') document.querySelectorAll("[data-player-panel-id]").forEach((el) => {
-        const rect = el.getBoundingClientRect();
+        const rect = documentRect(el);
         if (rect.height) snapshot.panels.set(el.dataset.playerPanelId, { left: rect.left, top: rect.top, width: rect.width, height: rect.height });
       });
       if (mode !== 'waiting') document.querySelectorAll('.card').forEach((el) => {
-        const rect = el.getBoundingClientRect();
+        const rect = documentRect(el);
         if (!rect.width || !rect.height) return;
         const data = {
           rect: {
@@ -91,6 +101,7 @@
         return;
       }
       animatePlayerPanelResizes(previousState, state, before, after);
+      animateJackSwapSelections(previousState, state);
       animateReshuffle(previousState, state, before, after);
       const previousCards = stateCardLocations(previousState);
       const currentCards = stateCardLocations(state);
@@ -245,12 +256,39 @@
     }
     
 
+    function animateJackSwapSelections(previousState, state) {
+      const previousSpecial = previousState.round && previousState.round.special;
+      const currentSpecial = state.round && state.round.special;
+      if (!currentSpecial || currentSpecial.type !== 'J') return;
+
+      const previousSelected = new Set(
+        previousSpecial && previousSpecial.type === 'J' && previousSpecial.actorId === currentSpecial.actorId
+          ? (previousSpecial.selected || [])
+          : []
+      );
+      (currentSpecial.selected || []).forEach((cardId) => {
+        if (previousSelected.has(cardId)) return;
+        const card = document.querySelector(`.card[data-card-id="${cssEscape(cardId)}"]`);
+        if (!card || !card.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const selectedTransform = card.classList.contains('small') ? 'translateY(-20px)' : 'translateY(-24px)';
+        const animation = card.animate([
+          { transform: 'translateY(0)' },
+          { transform: selectedTransform }
+        ], {
+          duration: 180,
+          easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+          fill: 'both'
+        });
+        animation.onfinish = () => animation.cancel();
+      });
+    }
+
     function animateInitialDeal(state, snapshot) {
       const round = state && state.round;
-      if (!round || round.stage !== 'deal') return;
-      if (!Element.prototype.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      if (!round || round.stage !== 'deal') return 0;
+      if (!Element.prototype.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;
       const sourceData = snapshot.roles.get('deck-top');
-      if (!sourceData) return;
+      if (!sourceData) return 0;
       const interval = Number(round.initialDealIntervalMs) || 120;
       const travel = Number(round.initialDealTravelMs) || 240;
       const players = (round.players || []).filter((player) => !player.isSpectator);
@@ -262,10 +300,16 @@
           const targetData = card && snapshot.cards.get(card.id);
           if (!targetData) continue;
           const move = animateCardMove(card.id, sourceData, targetData, travel, '', dealIndex * interval);
-          if (move) move.clone.classList.add('initial-deal-card');
+          if (move) {
+            move.clone.classList.add('initial-deal-card');
+            // All delayed clones wait at the same deck position. Keep the next
+            // card to be dealt above the later cards so it leaves from the top.
+            move.clone.style.zIndex = String(10000 - dealIndex);
+          }
           dealIndex += 1;
         }
       }
+      return dealIndex ? ((dealIndex - 1) * interval) + travel : 0;
     }
 
     function finishReshuffle(reshuffle) {
@@ -381,7 +425,7 @@
     
       const existingMove = activeCardMoves.get(cardId);
       if (existingMove) {
-        const movingRect = existingMove.clone.getBoundingClientRect();
+        const movingRect = documentRect(existingMove.clone);
         if (movingRect.width && movingRect.height) {
           source = {
             left: movingRect.left,
@@ -454,7 +498,7 @@
     function startWrongThrowPenaltyMove(cardId, sourceData, targetData) {
       const target = cardElement(cardId, targetData.locationKey);
       if (!target) return null;
-      const rect = target.getBoundingClientRect();
+      const rect = documentRect(target);
       const latestTargetData = {
         ...targetData,
         rect: {
@@ -620,7 +664,7 @@
         releaseWrongThrowPenaltyMoves(move);
     
         const latestTarget = cardElement(event.cardId, targetData.locationKey);
-        const returnRect = latestTarget ? latestTarget.getBoundingClientRect() : targetData.rect;
+        const returnRect = latestTarget ? documentRect(latestTarget) : targetData.rect;
         if (!await playWrongThrowRectPhase(move, frontFace, pileData.rect, returnRect, 320)) return;
     
         if (!await playWrongThrowPhase(move, frontFace, [
@@ -718,7 +762,7 @@
       }
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
-      const el = document.elementFromPoint(centerX, centerY);
+      const el = document.elementFromPoint(centerX - window.scrollX, centerY - window.scrollY);
       return el ? el.closest('.card') : null;
     }
     
@@ -729,7 +773,7 @@
         return;
       }
     
-      const rect = el.getBoundingClientRect();
+      const rect = documentRect(el);
       const previousFace = movingFaceFromHtml(previousData && previousData.html, rect);
       if (!previousFace || !rect.width || !rect.height) {
         if (previousFace) previousFace.remove();
@@ -767,7 +811,7 @@
           return;
         }
         target.classList.add('anim-target-hidden');
-        const latestRect = target.getBoundingClientRect();
+        const latestRect = documentRect(target);
         const nextFace = movingFaceFromHtml(target.outerHTML, latestRect);
         if (!nextFace) {
           finishFaceTurn(turn);
@@ -806,6 +850,7 @@
       emptyAnimationSnapshot,
       captureAnimationSnapshot,
       animateStateTransition,
+      animateJackSwapSelections,
       animateInitialDeal,
       hideActiveCardMoveTargets,
       cancelAllCardMoves,

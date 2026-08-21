@@ -1,11 +1,13 @@
 (function initInteractionRender(root, factory) {
   const commonJs = typeof module === 'object' && module.exports;
   const api = factory(
-    commonJs ? require('./i18n.js') : root.DutchI18n
+    commonJs ? require('./i18n.js') : root.DutchI18n,
+    commonJs ? require('./shared.js') : root.DutchShared,
+    commonJs ? require('./client-settings.js') : root.DutchClientSettings
   );
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.DutchInteractionRender = api;
-})(typeof window !== 'undefined' ? window : globalThis, function createInteractionRender(i18n) {
+})(typeof window !== 'undefined' ? window : globalThis, function createInteractionRender(i18n, shared, clientSettings) {
   function escapeHtml(value) {
     return String(value ?? '')
       .replace(/&/g, '&amp;')
@@ -234,31 +236,18 @@
 
   function renderSettings(state) {
     const preferences = state.preferences || {};
-    const selectedTheme = preferences.theme || 'light';
-    const selectedLanguage = language(state);
-    const soundsEnabled = preferences.sounds !== false;
+    const settings = clientSettings.create({
+      translate: (key, values) => t(state, key, values),
+      escapeHtml,
+      botSpeedOptions: shared.BOT_SPEED_OPTIONS
+    });
     return '<div class="panel side-panel"><div class="side-drawers">' +
-      '<details data-detail-key="settings" class="drawer side-drawer" ' + (preferences.settingsOpen ? 'open' : '') + '>' +
-      '<summary>' + escapeHtml(t(state, 'Settings')) + '</summary><div class="drawer-animation-content">' +
-      '<div class="drawer-content waiting-selectors">' +
-      '<div class="setting-row"><label for="gameThemeSelect">' + escapeHtml(t(state, 'Appearance')) + '</label>' +
-      '<select id="gameThemeSelect" aria-label="' + escapeHtml(t(state, 'Appearance')) + '">' +
-      '<option value="light" ' + (selectedTheme === 'light' ? 'selected' : '') + '>' + escapeHtml(t(state, 'Light mode')) + '</option>' +
-      '<option value="dark" ' + (selectedTheme === 'dark' ? 'selected' : '') + '>' + escapeHtml(t(state, 'Dark mode')) + '</option></select></div>' +
-      '<div class="setting-row"><label for="gameLanguageSelect">' + escapeHtml(t(state, 'Language')) + '</label>' +
-      '<select id="gameLanguageSelect" aria-label="' + escapeHtml(t(state, 'Language')) + '">' +
-      '<option value="en" ' + (selectedLanguage === 'en' ? 'selected' : '') + '>' + escapeHtml(t(state, 'English')) + '</option>' +
-      '<option value="de" ' + (selectedLanguage === 'de' ? 'selected' : '') + '>' + escapeHtml(t(state, 'German')) + '</option>' +
-      '<option value="ru" ' + (selectedLanguage === 'ru' ? 'selected' : '') + '>' + escapeHtml(t(state, 'Russian')) + '</option></select></div>' +
-      '<div class="setting-row"><label for="gameSoundSelect">' + escapeHtml(t(state, 'Sound effects')) + '</label>' +
-      '<select id="gameSoundSelect" aria-label="' + escapeHtml(t(state, 'Sound effects')) + '">' +
-      '<option value="on" ' + (soundsEnabled ? 'selected' : '') + '>' + escapeHtml(t(state, 'On')) + '</option>' +
-      '<option value="off" ' + (soundsEnabled ? '' : 'selected') + '>' + escapeHtml(t(state, 'Off')) + '</option></select></div>' +
-      '<div class="setting-row"><label for="highlightChangedCardsSelect">' + escapeHtml(t(state, 'Changed cards')) + '</label>' +
-      '<select id="highlightChangedCardsSelect" aria-label="' + escapeHtml(t(state, 'Changed cards')) + '">' +
-      '<option value="true" ' + (state.highlightChangedCards !== false ? 'selected' : '') + '>' + escapeHtml(t(state, 'Highlight')) + '</option>' +
-      '<option value="false" ' + (state.highlightChangedCards === false ? 'selected' : '') + '>' + escapeHtml(t(state, "Don't highlight")) + '</option></select></div>' +
-      '</div></div></details></div></div>';
+      settings.renderGameSettingsDrawer(state, {
+        open: preferences.settingsOpen,
+        selectedTheme: preferences.theme,
+        selectedLanguage: language(state),
+        soundsEnabled: preferences.sounds
+      }) + '</div></div>';
   }
 
   function renderPage(state) {

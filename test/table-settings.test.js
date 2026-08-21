@@ -198,7 +198,7 @@ test('shared setting changes are logged during a game with the actor and old val
       kind: 'system'
     },
     {
-      text: 'Ada changed bot timing from 50% to 25%',
+      text: 'Ada changed bot speed from Medium to Fast',
       kind: 'system'
     }
   ]);

@@ -9,6 +9,13 @@
   const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
   const SPECIAL_RANKS = ['A', 'Q', 'J'];
   const RED_SUITS = ['hearts', 'diamonds'];
+  const BOT_SPEED_OPTIONS = Object.freeze([
+    Object.freeze({ value: 0, label: 'Instant' }),
+    Object.freeze({ value: 25, label: 'Fast' }),
+    Object.freeze({ value: 50, label: 'Medium' }),
+    Object.freeze({ value: 75, label: 'Slow' }),
+    Object.freeze({ value: 100, label: 'Human-like' })
+  ]);
 
   const BOT_LABELS = {
     athena: '🦉 Athena',
@@ -307,6 +314,7 @@
     RANKS,
     SPECIAL_RANKS,
     RED_SUITS,
+    BOT_SPEED_OPTIONS,
     HALVING_TOTALS,
     BOT_LABELS,
     BOT_PERSONALITIES,

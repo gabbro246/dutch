@@ -233,3 +233,20 @@ test('Dutch call during an available special skips the special first', () => {
   assert.deepEqual(calls.logs, ['ADA skipped Queen', 'ADA said Dutch']);
   assert.equal(calls.advancedTurns, 1);
 });
+
+test('bot Jack selection cannot be started again while it is resolving', () => {
+  const state = {
+    players: [player('ada', [card('a1')]), player('ben', [card('b1')])],
+    round: {
+      stage: 'special',
+      currentPlayerIndex: 0,
+      specialQueue: [{ type: 'J', actorId: 'ada', selected: ['a1'], resolving: true }]
+    }
+  };
+  const { turnState, calls } = turnStateFor(state);
+
+  assert.equal(turnState.beginBotJackSwapSelection('ada', 'a1', 'b1'), false);
+  assert.deepEqual(state.round.specialQueue[0].selected, ['a1']);
+  assert.equal(calls.broadcasts, 0);
+  assert.deepEqual(calls.timeouts, []);
+});

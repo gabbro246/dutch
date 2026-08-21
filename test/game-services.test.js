@@ -190,7 +190,7 @@ test('changed-card highlighting is a shared in-game setting', () => {
       services.getState().log.slice(0, 4).map((entry) => [entry.text, entry.kind]),
       [
         ['Ben turned changed-card highlighting off', 'system'],
-        ['Ada changed bot timing from 50% to 75%', 'system'],
+        ['Ada changed bot speed from Medium to Slow', 'system'],
         ['Ben changed inactivity timeout from 15 to 90 minutes', 'system'],
         ['Ada changed game length from 100 points to 50 points', 'system']
       ]

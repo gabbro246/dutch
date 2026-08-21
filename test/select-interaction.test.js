@@ -79,4 +79,8 @@ test('shared bot timing is rendered and wired before and during games', () => {
   assert.match(clientSource, /emit\('setBotTimingPercent', select\.value\)/);
   assert.match(waitingSource, /botTimingSelect/);
   assert.match(waitingSource, /wireBotTimingSelect\('botTimingSelect'\)/);
+  assert.match(clientSource, /'Bot speed'/);
+  assert.match(clientSource, /BOT_SPEED_OPTIONS/);
+  assert.match(clientSource, /gameSettings\.renderGameSettingsDrawer/);
+  assert.doesNotMatch(clientSource, /helpDisclosureHtml\('changedCardsHelp'/);
 });

@@ -28,7 +28,7 @@ test('German translations interpolate dynamic UI text', () => {
   assert.equal(i18n.translate('de', 'No bots left'), 'Keine Bots übrig');
   assert.equal(i18n.translate('de', 'Double game, 200 points'), 'Doppeltes Spiel, 200 Punkte');
   assert.equal(i18n.translate('de', 'Sound effects'), 'Soundeffekte');
-  assert.equal(i18n.translate('de', 'Bot timing'), 'Bot-Wartezeit');
+  assert.equal(i18n.translate('de', 'Bot speed'), 'Bot-Geschwindigkeit');
   assert.equal(
     i18n.translate('de', 'Round {number}', { number: 3 }),
     'Runde 3'
@@ -65,6 +65,10 @@ test('German rules and server-originated game text are localized', () => {
     'Ada hat die Bot-Wartezeit von 50% auf 25% geändert'
   );
   assert.equal(
+    i18n.translateGameText('de', 'Ada changed bot speed from Medium to Fast'),
+    'Ada hat die Bot-Geschwindigkeit von Mittel auf Schnell geändert'
+  );
+  assert.equal(
     i18n.translateGameText('de', 'Ben turned changed-card highlighting off'),
     'Ben hat das Hervorheben geänderter Karten ausgeschaltet'
   );
@@ -79,7 +83,7 @@ test('language preference persists Russian and normalizes regional locale tags',
 });
 
 test('Russian translations cover dynamic UI text and compact card controls', () => {
-  assert.equal(i18n.translate('ru', 'Bot timing'), 'Время ожидания ботов');
+  assert.equal(i18n.translate('ru', 'Bot speed'), 'Скорость ботов');
   assert.equal(i18n.translate('ru', 'Join'), 'Войти');
   assert.equal(i18n.translate('ru', 'Russian'), 'Русский');
   assert.equal(i18n.translate('de', 'Russian'), 'Russisch');
@@ -114,6 +118,10 @@ test('Russian rules, bot descriptions, and game text are localized', () => {
   assert.equal(
     i18n.translateGameText('ru', 'Ada changed bot timing from 50% to 25%'),
     'Ada меняет время ожидания ботов: 50% → 25%'
+  );
+  assert.equal(
+    i18n.translateGameText('ru', 'Ada changed bot speed from Medium to Fast'),
+    'Ada меняет скорость ботов: Средне → Быстро'
   );
   assert.equal(
     i18n.translateGameText('ru', 'Ben changed inactivity timeout from 15 to 90 minutes'),

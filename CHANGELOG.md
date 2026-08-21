@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.62
+- fixed moving-card animations sticking to the viewport when scrolling
+- prevented a queued bot J swap resolver from lifting its second selected card twice
+- animated both bot J swap target cards as they are selected
+- renamed Bot timing to Bot speed and replaced percentage choices with Instant, Fast, Medium, Slow, and Human-like
+- clarified that the 1.6-second human throw-in window is not affected by Bot speed
+- updated Bot speed labels and game-log messages in German and Russian
+- reused the real in-game settings drawer on the /interactions page instead of maintaining separate markup
+- documented shared settings and Bot speed behavior in the README
+
 ## 1.3.61
 - added a round-robin initial deal animation and kept peeking locked until the final card lands
 - bots now wait for other animations to finish before they do J swap

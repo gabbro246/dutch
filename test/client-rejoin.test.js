@@ -74,6 +74,7 @@ function loadClient({ token, tabId, storedName = '' }) {
     DutchShared: {
       PLAYER_NAME_MAX_LENGTH: 24,
       GAME_DESCRIPTION: 'Description',
+      BOT_SPEED_OPTIONS: [],
       BOT_LABELS: {},
       BOT_PERSONALITIES: {},
       normalizedShortPlayerName: (name) => String(name || '').trim().toLowerCase(),
@@ -103,6 +104,7 @@ function loadClient({ token, tabId, storedName = '' }) {
       })
     },
     DutchClientActions: { create: () => ({}) },
+    DutchClientSettings: require('../public/client-settings.js'),
     DutchClientWaiting: { create: () => ({ renderWaiting: noop }) },
     DutchClientSounds: {
       create: () => ({

@@ -84,6 +84,13 @@
       you: 'you',
       gameStartedAt: Number(options.gameStartedAt) || 1,
       roundNumber: Number(options.roundNumber) || 1,
+      botTimingPercent: 50,
+      gameTarget: 100,
+      singleRound: false,
+      selectableGameTargets: [50, 100, 200],
+      canChangeGameTarget: true,
+      canSelectSingleRound: true,
+      inactivityTimeoutMinutes: 15,
       highlightChangedCards: true,
       preferences: {
         theme: 'light',

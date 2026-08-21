@@ -544,3 +544,42 @@ test('bots wait for a human to shuffle when a human remains in the game', () => 
   assert.equal(calls.timers.length, 0);
   assert.equal(calls.shuffled, 0);
 });
+
+test('a queued bot Jack resolver cannot restart an active target selection', () => {
+  let selectionAttempts = 0;
+  const { runner, state, calls } = createHarness({
+    state: {
+      round: {
+        stage: 'special',
+        botTick: 2,
+        specialQueue: [{ type: 'J', actorId: 'bot', selected: [] }],
+        drawn: null,
+        turnComplete: true,
+        throwIn: null
+      }
+    },
+    deps: {
+      isJackSwapSelectionActive: (special) => !!(special.resolving || special.selected.length),
+      botJackCandidates: () => [{
+        utility: 1,
+        a: { player: { cards: [card('a1')] }, index: 0 },
+        b: { player: { cards: [card('b1')] }, index: 0 }
+      }],
+      beginBotJackSwapSelection: () => {
+        selectionAttempts += 1;
+        return true;
+      }
+    }
+  });
+
+  // Queue the resolver while the Jack is idle, then model another resolver
+  // starting the selection before this timer gets its turn.
+  runner.scheduleBotAutomation();
+  assert.equal(calls.timers.length, 1);
+  state.round.specialQueue[0].selected = ['a1'];
+  state.round.specialQueue[0].resolving = true;
+  calls.timers[0].fn();
+
+  assert.equal(selectionAttempts, 0);
+  assert.equal(calls.broadcasts, 0);
+});
