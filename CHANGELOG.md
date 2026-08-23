@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.64
+- prevented game sound effects from repeatedly lowering the volume of music, podcasts, and other media on supported platforms
+
 ## 1.3.62
 - fixed moving-card animations sticking to the viewport when scrolling
 - prevented a queued bot J swap resolver from lifting its second selected card twice

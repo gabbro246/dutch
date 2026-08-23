@@ -196,40 +196,32 @@ test('browser smoke covers drawers, reconnect, persistent regions, and card anim
   assert.equal(sameRepositoryNode, false, 'Reload should create a new document before region persistence is tested.');
   await repositoryRegion.evaluate((element) => { window.__dutchRepositoryRegion = element; });
   await page.evaluate(() => {
-    const originalPlay = HTMLMediaElement.prototype.play;
-    window.__dutchAudioPlays = [];
-    HTMLMediaElement.prototype.play = function recordAudioPlay() {
-      window.__dutchAudioPlays.push({
-        source: String(this.currentSrc || this.src || ''),
-        muted: !!this.muted,
-        volume: this.volume
-      });
-      return originalPlay.call(this);
+    const originalStart = AudioBufferSourceNode.prototype.start;
+    window.__dutchAudioStarts = 0;
+    AudioBufferSourceNode.prototype.start = function recordAudioStart(...args) {
+      window.__dutchAudioStarts += 1;
+      return originalStart.apply(this, args);
     };
   });
   await occupiedPage.evaluate(() => {
-    const originalPlay = HTMLMediaElement.prototype.play;
-    window.__dutchAudioPlays = [];
-    HTMLMediaElement.prototype.play = function recordAudioPlay() {
-      window.__dutchAudioPlays.push({
-        source: String(this.currentSrc || this.src || ''),
-        muted: !!this.muted,
-        volume: this.volume
-      });
-      return originalPlay.call(this);
+    const originalStart = AudioBufferSourceNode.prototype.start;
+    window.__dutchAudioStarts = 0;
+    AudioBufferSourceNode.prototype.start = function recordAudioStart(...args) {
+      window.__dutchAudioStarts += 1;
+      return originalStart.apply(this, args);
     };
   });
   await page.locator('[data-action="discardDrawn"]:not([disabled])').click();
   await new Promise((resolve) => setTimeout(resolve, 800));
-  const discardPlays = await page.evaluate(() => window.__dutchAudioPlays.filter((item) => (
-    !item.muted && item.source.includes('/sounds/card-discard.mp3')
-  )));
-  assert.equal(discardPlays.length, 1, 'One discard state event should invoke audio playback exactly once.');
-  assert.match(discardPlays[0].source, /card-discard\.mp3\?v=/, 'Sound assets should use the app cache-buster.');
-  const occupiedDiscardPlays = await occupiedPage.evaluate(() => window.__dutchAudioPlays.filter((item) => (
-    !item.muted && item.source.includes('/sounds/card-discard.mp3')
-  )));
-  assert.equal(occupiedDiscardPlays.length, 0, 'The occupied non-game page must not play game sounds.');
+  const discardStarts = await page.evaluate(() => window.__dutchAudioStarts);
+  assert.equal(discardStarts, 1, 'One discard state event should invoke audio playback exactly once.');
+  const discardResources = await page.evaluate(() => performance.getEntriesByType('resource')
+    .map((entry) => entry.name)
+    .filter((name) => name.includes('/sounds/card-discard.mp3')));
+  assert.ok(discardResources.length > 0, 'The discard sound should be fetched for Web Audio playback.');
+  assert.match(discardResources[0], /card-discard\.mp3\?v=/, 'Sound assets should use the app cache-buster.');
+  const occupiedDiscardStarts = await occupiedPage.evaluate(() => window.__dutchAudioStarts);
+  assert.equal(occupiedDiscardStarts, 0, 'The occupied non-game page must not play game sounds.');
   await assertEventually(
     () => repositoryRegion.evaluate((element) => element === window.__dutchRepositoryRegion),
     'Unchanged repository region was replaced during a game update.'

@@ -4,6 +4,7 @@ const {
   REMOTE_VOLUME,
   DEFAULT_DISCARD_DELAY_MS,
   WRONG_THROW_PILE_DELAY_MS,
+  configureAmbientAudioSession,
   getStoredEnabled,
   soundEventsForTransition,
   create
@@ -43,6 +44,60 @@ test('sound effects default on and a disabled preference persists', () => {
   sounds.setEnabled(false);
   assert.equal(sounds.isEnabled(), false);
   assert.equal(getStoredEnabled(target), false);
+});
+
+test('an ambient audio session is requested when the browser supports it', () => {
+  const audioSession = { type: 'auto' };
+
+  assert.equal(configureAmbientAudioSession({ navigator: { audioSession } }), true);
+  assert.equal(audioSession.type, 'ambient');
+  assert.equal(configureAmbientAudioSession({}), false);
+});
+
+test('Web Audio is preferred so game effects do not take Android media focus', async () => {
+  const started = [];
+  const fetched = [];
+  let htmlAudioCreated = 0;
+  class FakeAudio {
+    constructor() { htmlAudioCreated += 1; }
+  }
+  class FakeAudioContext {
+    constructor() {
+      this.state = 'running';
+      this.destination = {};
+    }
+    decodeAudioData(data) { return Promise.resolve({ data }); }
+    createBufferSource() {
+      return {
+        connect() {},
+        start() { started.push(this.buffer); },
+        stop() {}
+      };
+    }
+    createGain() {
+      return { gain: { value: 0 }, connect() {} };
+    }
+  }
+  const target = {
+    localStorage: storage(),
+    navigator: { audioSession: { type: 'auto' } },
+    Audio: FakeAudio,
+    AudioContext: FakeAudioContext,
+    fetch(path) {
+      fetched.push(path);
+      return Promise.resolve({ ok: true, arrayBuffer: () => Promise.resolve(path) });
+    }
+  };
+  const sounds = create({ target });
+
+  assert.equal(sounds.play('draw', 1), true);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(target.navigator.audioSession.type, 'ambient');
+  assert.equal(htmlAudioCreated, 0);
+  assert.ok(fetched.includes('sounds/card-draw.mp3'));
+  assert.equal(started.length, 1);
+  assert.equal(started[0].data, 'sounds/card-draw.mp3');
 });
 
 test('game sounds do not play outside a joined game page', () => {

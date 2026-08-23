@@ -8,6 +8,17 @@
   const DEFAULT_DISCARD_DELAY_MS = 360;
   const WRONG_THROW_PILE_DELAY_MS = 580;
 
+  function configureAmbientAudioSession(target = root) {
+    try {
+      const audioSession = target.navigator && target.navigator.audioSession;
+      if (!audioSession) return false;
+      audioSession.type = 'ambient';
+      return audioSession.type === 'ambient';
+    } catch (error) {
+      return false;
+    }
+  }
+
   function audioAssetQuery(target = root) {
     try {
       const script = target.document && target.document.currentScript;
@@ -135,16 +146,54 @@
 
   function create(options = {}) {
     const target = options.target || root;
+    const AudioContextConstructor = options.AudioContext
+      || target.AudioContext
+      || target.webkitAudioContext;
+    const fetchAudio = options.fetch
+      || (target && typeof target.fetch === 'function' ? target.fetch.bind(target) : null);
     const AudioConstructor = options.Audio || target.Audio;
     const paths = { ...SOUND_PATHS, ...(options.paths || {}) };
     const schedule = options.setTimeoutFn
       || (target && typeof target.setTimeout === 'function' ? target.setTimeout.bind(target) : setTimeout);
     const audioByName = new Map();
+    const bufferByName = new Map();
     const activeAudio = new Set();
+    const activeSources = new Set();
     const handledEventIds = new Set();
     const blockedPlays = [];
+    let audioContext = null;
+    let webAudioUnavailable = !AudioContextConstructor || !fetchAudio;
     let unlockPromise = null;
     let enabled = getStoredEnabled(target);
+
+    configureAmbientAudioSession(target);
+
+    function webAudioContext() {
+      if (webAudioUnavailable) return null;
+      if (audioContext) return audioContext;
+      try {
+        audioContext = new AudioContextConstructor();
+        return audioContext;
+      } catch (error) {
+        webAudioUnavailable = true;
+        return null;
+      }
+    }
+
+    function bufferFor(name) {
+      const context = webAudioContext();
+      if (!context || !paths[name]) return Promise.resolve(null);
+      if (!bufferByName.has(name)) {
+        const loading = Promise.resolve(fetchAudio(paths[name]))
+          .then((response) => {
+            if (!response || response.ok === false) throw new Error('Unable to load sound: ' + paths[name]);
+            return response.arrayBuffer();
+          })
+          .then((data) => context.decodeAudioData(data));
+        bufferByName.set(name, loading);
+      }
+      return bufferByName.get(name);
+    }
 
     function baseAudioFor(name) {
       if (!AudioConstructor || !paths[name]) return null;
@@ -168,8 +217,38 @@
       if (unlockPromise) unlockPromise.then(flushBlockedPlays);
     }
 
+    function playWebAudio(name, volume, allowBlockedRetry) {
+      const context = webAudioContext();
+      if (!context) return false;
+      const ready = context.state === 'suspended' && typeof context.resume === 'function'
+        ? context.resume()
+        : Promise.resolve();
+      Promise.resolve(ready)
+        .then(() => bufferFor(name))
+        .then((buffer) => {
+          if (!enabled || !buffer) return;
+          const source = context.createBufferSource();
+          const gain = context.createGain();
+          source.buffer = buffer;
+          gain.gain.value = Math.max(0, Math.min(1, Number(volume) || 0));
+          source.connect(gain);
+          gain.connect(context.destination);
+          activeSources.add(source);
+          source.onended = () => activeSources.delete(source);
+          source.start();
+        })
+        .catch((error) => {
+          if (allowBlockedRetry && error && error.name === 'NotAllowedError') {
+            queueBlockedPlay(name, volume);
+          }
+        });
+      return true;
+    }
+
     function play(name, volume = 1, allowBlockedRetry = true) {
       if (!enabled) return false;
+      if (!paths[name]) return false;
+      if (webAudioContext()) return playWebAudio(name, volume, allowBlockedRetry);
       const audio = audioFor(name);
       if (!audio) return false;
       audio.volume = Math.max(0, Math.min(1, Number(volume) || 0));
@@ -203,7 +282,24 @@
     }
 
     function unlock() {
-      if (!enabled || !AudioConstructor) return Promise.resolve(false);
+      if (!enabled) return Promise.resolve(false);
+      const context = webAudioContext();
+      if (context) {
+        if (unlockPromise) return unlockPromise;
+        configureAmbientAudioSession(target);
+        const resume = context.state === 'suspended' && typeof context.resume === 'function'
+          ? context.resume()
+          : Promise.resolve();
+        unlockPromise = Promise.resolve(resume)
+          .then(() => {
+            flushBlockedPlays();
+            return true;
+          })
+          .catch(() => false)
+          .finally(() => { unlockPromise = null; });
+        return unlockPromise;
+      }
+      if (!AudioConstructor) return Promise.resolve(false);
       if (unlockPromise) return unlockPromise.then(() => {
         flushBlockedPlays();
         return true;
@@ -234,7 +330,11 @@
 
     function preload() {
       if (!enabled) return;
-      Object.keys(paths).forEach(baseAudioFor);
+      if (webAudioContext()) {
+        Object.keys(paths).forEach((name) => bufferFor(name).catch(() => {}));
+      } else {
+        Object.keys(paths).forEach(baseAudioFor);
+      }
     }
 
     function setEnabled(value) {
@@ -246,6 +346,10 @@
           if (typeof audio.pause === 'function') audio.pause();
         });
         activeAudio.clear();
+        activeSources.forEach((source) => {
+          try { source.stop(); } catch (error) {}
+        });
+        activeSources.clear();
       }
       return enabled;
     }
@@ -277,6 +381,7 @@
     REMOTE_VOLUME,
     DEFAULT_DISCARD_DELAY_MS,
     WRONG_THROW_PILE_DELAY_MS,
+    configureAmbientAudioSession,
     audioAssetQuery,
     SOUND_PATHS,
     getStoredEnabled,
