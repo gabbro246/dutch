@@ -46,6 +46,12 @@
             if (state) deps.render(state);
             return;
           }
+          if (action === 'toggleSettingsMore') {
+            deps.setSettingsExpanded(!deps.getSettingsExpanded());
+            const state = deps.getLastState();
+            if (state) deps.render(state);
+            return;
+          }
           if (action === 'downloadLog') {
             deps.downloadLogFile(deps.getLastState());
             return;

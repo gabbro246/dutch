@@ -293,23 +293,43 @@
       const travel = Number(round.initialDealTravelMs) || 240;
       const players = (round.players || []).filter((player) => !player.isSpectator);
       const cardCount = players.reduce((max, player) => Math.max(max, (player.cards || []).length), 0);
-      let dealIndex = 0;
+      const dealSequence = [];
       for (let cardIndex = 0; cardIndex < cardCount; cardIndex += 1) {
         for (const player of players) {
           const card = player.cards && player.cards[cardIndex];
           const targetData = card && snapshot.cards.get(card.id);
           if (!targetData) continue;
-          const move = animateCardMove(card.id, sourceData, targetData, travel, '', dealIndex * interval);
-          if (move) {
-            move.clone.classList.add('initial-deal-card');
-            // All delayed clones wait at the same deck position. Keep the next
-            // card to be dealt above the later cards so it leaves from the top.
-            move.clone.style.zIndex = String(10000 - dealIndex);
-          }
-          dealIndex += 1;
+          dealSequence.push({ card, targetData });
         }
       }
-      return dealIndex ? ((dealIndex - 1) * interval) + travel : 0;
+
+      const deckCountElement = document.querySelector('[data-deck-count]');
+      const remainingAfterDeal = Number(round.deckCount);
+      const initialDeckCount = Number.isFinite(remainingAfterDeal)
+        ? remainingAfterDeal + dealSequence.length
+        : null;
+      let completedDeals = 0;
+      if (deckCountElement && initialDeckCount !== null) deckCountElement.textContent = String(initialDeckCount);
+
+      dealSequence.forEach(({ card, targetData }, dealIndex) => {
+        const move = animateCardMove(card.id, sourceData, targetData, travel, '', dealIndex * interval);
+        const updateDeckCount = () => {
+          completedDeals += 1;
+          if (deckCountElement && initialDeckCount !== null) {
+            deckCountElement.textContent = String(initialDeckCount - completedDeals);
+          }
+        };
+        if (move) {
+          move.clone.classList.add('initial-deal-card');
+          // All delayed clones wait at the same deck position. Keep the next
+          // card to be dealt above the later cards so it leaves from the top.
+          move.clone.style.zIndex = String(10000 - dealIndex);
+          move.afterFinish = updateDeckCount;
+        } else {
+          updateDeckCount();
+        }
+      });
+      return dealSequence.length ? ((dealSequence.length - 1) * interval) + travel : 0;
     }
 
     function finishReshuffle(reshuffle) {

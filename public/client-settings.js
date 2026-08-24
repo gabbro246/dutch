@@ -24,6 +24,7 @@
       const open = options.open === true;
       const selectedTheme = options.selectedTheme || 'light';
       const selectedLanguage = options.selectedLanguage || 'en';
+      const expanded = options.expanded === true;
       const soundsEnabled = options.soundsEnabled !== false;
       const selectableTargets = new Set(Array.isArray(state.selectableGameTargets) ? state.selectableGameTargets.map(Number) : [50, 100, 200]);
       const canChangeTarget = state.canChangeGameTarget !== false;
@@ -40,17 +41,17 @@
               option(100, !state.singleRound && state.gameTarget === 100, 'Full game, 100 points', !selectableTargets.has(100)) +
               option(200, !state.singleRound && state.gameTarget === 200, 'Double game, 200 points', !selectableTargets.has(200)) +
             '</select></div>' +
-          '<div class="setting-row">' +
+          '<div class="setting-row advanced-setting" ' + (expanded ? '' : 'hidden') + '>' +
             helpDisclosureHtml('gameInactivityTimeoutSelectHelp', 'Inactive after', 'If nobody plays for this long, the game ends and the room is freed for new players. Choose a longer time if everyone plans to return.') +
             '<select id="gameInactivityTimeoutSelect" aria-label="' + escapeHtml(t('Inactive after')) + '">' +
               [15, 30, 60, 90].map((value) => option(value, inactivityMinutes === value, t('{count} minutes', { count: value }))).join('') +
             '</select></div>' +
-          '<div class="setting-row">' +
+          '<div class="setting-row advanced-setting" ' + (expanded ? '' : 'hidden') + '>' +
             helpDisclosureHtml('gameBotTimingSelectHelp', 'Bot speed', 'Choose how quickly bots take their turns. The throw-in window always lasts 1.6 seconds and is not affected by bot speed. This setting is shared by everyone.') +
             '<select id="gameBotTimingSelect" aria-label="' + escapeHtml(t('Bot speed')) + '">' +
               botSpeedOptions.map((item) => option(item.value, botTimingPercent === item.value, item.label)).join('') +
             '</select></div>' +
-          '<div class="setting-row">' +
+          '<div class="setting-row advanced-setting" ' + (expanded ? '' : 'hidden') + '>' +
             helpDisclosureHtml('changedCardsHelp', 'Changed cards', 'Highlight cards that were changed recently for all players, making swaps and other changes easier to follow.') +
             '<select id="highlightChangedCardsSelect" aria-label="' + escapeHtml(t('Changed cards')) + '">' +
               option('true', state.highlightChangedCards !== false, 'Highlight') +
@@ -73,7 +74,10 @@
               option('en', selectedLanguage === 'en', 'English') +
               option('de', selectedLanguage === 'de', 'German') +
               option('ru', selectedLanguage === 'ru', 'Russian') +
-            '</select></div></div>'
+            '</select></div>' +
+          '<button type="button" class="log-toggle settings-toggle" data-action="toggleSettingsMore" aria-expanded="' + expanded + '">' +
+            escapeHtml(t(expanded ? 'Show less' : 'Show more')) +
+          '</button></div>'
         : '';
       return '<details data-detail-key="settings" data-lazy-content="' + (open ? 'false' : 'true') + '" class="drawer side-drawer" ' + (open ? 'open' : '') + '>' +
         '<summary>' + escapeHtml(t('Settings')) + '</summary><div class="drawer-animation-content">' + content + '</div></details>';

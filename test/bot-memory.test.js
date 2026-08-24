@@ -157,6 +157,31 @@ test('observations record discards, pile takes, and Ace attackers', () => {
   assert.equal(bot.botMemory.aceAttackers.bot, undefined);
 });
 
+test('Dutch call observations persist player-specific timing, uncertainty, and outcomes', () => {
+  const bot = player('bot', [card('b1')], { isBot: true, botType: 'roswell' });
+  const ada = player('ada', [card('a1', '2'), card('a2', '3')]);
+  const state = {
+    roundNumber: 2,
+    round: { strategyTick: 6 },
+    players: [bot, ada]
+  };
+  const memory = memoryFor(state);
+  memory.syncBotMemories();
+
+  memory.observeDecisionForAllBots('ada', 'call-dutch');
+  memory.observeDutchOutcomeForAllBots('ada', true);
+
+  const behavior = bot.opponentDutchBehavior.ada;
+  assert.equal(behavior.roundsObserved, 1);
+  assert.equal(behavior.calls, 1);
+  assert.equal(behavior.successes, 1);
+  assert.equal(behavior.failures, 0);
+  assert.ok(behavior.earlyCallAverage > 0.7);
+  assert.equal(behavior.cardCountAverage, 2);
+  assert.equal(behavior.unresolvedRatioAverage, 1);
+  assert.equal(behavior.uncertaintyCallAverage, 1);
+});
+
 test('botMemoryEntry and effectiveMemory use the current bot tick', () => {
   const bot = player('bot', [card('b1')], { isBot: true, botType: 'dory' });
   const state = {

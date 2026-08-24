@@ -14,6 +14,7 @@ function harness(options) {
     name: 'Roswell',
     isBot: true,
     botType: options.botType || 'roswell',
+    opponentDutchBehavior: options.opponentDutchBehavior || undefined,
     cards: options.own,
     total: options.total || 0,
     left: false,
@@ -41,8 +42,9 @@ function harness(options) {
       throwIn: options.throwIn || null
     }
   };
+  const ownUnknownIndices = new Set(options.ownUnknownIndices || []);
   const slots = {
-    bot: bot.cards.map((item) => options.ownUnknown
+    bot: bot.cards.map((item, index) => options.ownUnknown || ownUnknownIndices.has(index)
       ? unknownMemory('own unknown', 4)
       : cardMemory(item, 'own peek', 1, 'known', 4))
   };
@@ -76,7 +78,8 @@ function harness(options) {
     ),
     findActiveIndexFrom: (start) => start % state.players.length,
     randomBetween: (min, max) => (min + max) / 2,
-    random: () => 0.5
+    random: () => 0.5,
+    strategyRelease: options.strategyRelease
   });
   return { bot, opponents, state, memory, decisions };
 }
@@ -137,6 +140,8 @@ test('Dutch evaluator rejects lower opponent, uncertain, and high-card calls but
   const uncertainResult = uncertain.decisions.evaluateDutch(uncertain.bot);
   assert.equal(uncertain.decisions.botShouldCallDutch(uncertain.bot, uncertainResult), false);
   assert.ok(uncertainResult.call.dutchSuccessProbability < 0.5);
+  assert.ok(uncertainResult.call.metadata.ordinaryCallReliabilityTarget > 0.72);
+  assert.ok(uncertainResult.call.metadata.dutchReliabilityPenalty > 0);
 
   const safe = harness({
     own: [card('A'), card('2'), card('K', 'hearts')],
@@ -247,7 +252,7 @@ test('Dutch calls expose explicit final-turn and post-halving outcome arithmetic
   )));
 });
 
-test('Dutch above five is rejected without a guaranteed throw-in or beneficial exact total', () => {
+test('Dutch above five is considered by utility even without a guaranteed throw-in or exact-total benefit', () => {
   const setup = harness({
     own: [card('6')],
     opponents: [[card('A')]],
@@ -256,8 +261,26 @@ test('Dutch above five is rejected without a guaranteed throw-in or beneficial e
   const result = setup.decisions.evaluateDutch(setup.bot);
 
   assert.equal(result.call.metadata.callEligibility.startsAboveFive, true);
-  assert.equal(result.call.eligible, false);
+  assert.equal(result.call.eligible, true);
+  assert.ok(result.call.metadata.callEligibility.meaningfulCallProbability >= 0.03);
   assert.equal(setup.decisions.botShouldCallDutch(setup.bot, result), false);
+});
+
+test('versioned previous Roswell retains the old hard Dutch eligibility gate', () => {
+  const options = {
+    own: [card('6')],
+    opponents: [[card('A')]],
+    total: 0
+  };
+  const current = harness({ ...options, strategyRelease: '1.3.65' });
+  const previous = harness({ ...options, strategyRelease: '1.3.64' });
+
+  const currentResult = current.decisions.evaluateDutch(current.bot);
+  const previousResult = previous.decisions.evaluateDutch(previous.bot);
+
+  assert.equal(currentResult.call.eligible, true);
+  assert.equal(previousResult.call.eligible, false);
+  assert.equal(previousResult.call.metadata.callEligibility.startsAboveFive, true);
 });
 
 test('a guaranteed final throw-in can make an above-five Dutch call eligible', () => {
@@ -299,7 +322,7 @@ test('a deliberate failed Dutch call requires exact arithmetic that lowers the t
   });
   const nonExactResult = nonExact.decisions.evaluateDutch(nonExact.bot);
   assert.equal(nonExactResult.call.metadata.callEligibility.beneficialExactFailure, false);
-  assert.equal(nonExactResult.call.eligible, false);
+  assert.equal(nonExactResult.call.eligible, true);
   assert.equal(nonExact.decisions.botShouldCallDutch(nonExact.bot, nonExactResult), false);
 });
 
@@ -314,6 +337,38 @@ test('a high-probability Dutch win penalizes needless continuation variance', ()
   assert.equal(result.call.metadata.continuingImprovesGameTotal, false);
   assert.ok(result.continue.metadata.winningPositionVariancePenalty >= 0);
   assert.equal(setup.decisions.botShouldCallDutch(setup.bot, result), true);
+});
+
+test('learned aggressive successful callers raise immediate tempo threat', () => {
+  const options = {
+    own: [card('10'), card('9')],
+    opponents: [[card('6'), card('7'), card('8'), card('9')]],
+    opponentsUnknown: true
+  };
+  const baseline = harness(options);
+  const learned = harness({
+    ...options,
+    opponentDutchBehavior: {
+      'opp-0': {
+        roundsObserved: 4,
+        calls: 4,
+        successes: 4,
+        failures: 0,
+        earlyCallAverage: 0.9,
+        cardCountAverage: 3,
+        estimatedScoreAverage: 5.5,
+        unresolvedRatioAverage: 0.7,
+        uncertaintyCallAverage: 0.9
+      }
+    }
+  });
+
+  const baselineProfile = baseline.decisions.opponentThreatState(baseline.bot).primary;
+  const learnedProfile = learned.decisions.opponentThreatState(learned.bot).primary;
+
+  assert.ok(learnedProfile.learnedDutchBehavior.callRate > 0.6);
+  assert.ok(learnedProfile.learnedDutchBehavior.successRate > 0.7);
+  assert.ok(learnedProfile.callBeforeNextProbability > baselineProfile.callBeforeNextProbability + 0.2);
 });
 
 test('opponent threat mode combines score, recent actions, and remembered self-knowledge', () => {
@@ -428,6 +483,36 @@ test('threat mode strengthens discard denial and targets specials at the threat'
   assert.ok(jack.metadata.jackThreatBonus > 0);
 });
 
+test('Queen resolves the final unknown own card even under opponent threat', () => {
+  const setup = harness({
+    own: [card('2'), card('2', 'spades'), card('9')],
+    opponents: [[card('2'), card('3')]],
+    inference: {
+      'opp-0': {
+        lowCardBelief: 0.8,
+        dutchReadiness: 0.9,
+        rankConfidence: {},
+        targetInterest: {},
+        recentActions: [
+          { type: 'take-pile', low: true, points: 2, valid: true, updatedTick: 4 },
+          { type: 'throw-in', low: true, points: null, valid: true, updatedTick: 4 }
+        ]
+      }
+    }
+  });
+  setup.memory.slots.bot[2] = unknownMemory('final own unknown', 4);
+
+  const target = setup.decisions.botQueenTarget(setup.bot);
+
+  assert.equal(target.player.id, setup.bot.id);
+  assert.equal(target.index, 2);
+  assert.ok(target.queenDecisionImpact.completionMilestone > 0);
+  assert.ok(target.queenDecisionImpact.ownDecisionChange > 0);
+  assert.ok(target.queenDecisionImpact.futureThrowInKnowledge > 0);
+  assert.equal(target.metadata.opponentThreatMode.selfInformation, true);
+  assert.ok(target.metadata.opponentThreatMode.informationMultiplier > 1);
+});
+
 test('threat mode values uncertainty reduction about the threatening human', () => {
   const knownTwo = cardMemory({ rank: '2', suit: 'clubs' }, 'start peek', 1, 'known', 4);
   const knownThree = cardMemory({ rank: '3', suit: 'clubs' }, 'start peek', 1, 'known', 4);
@@ -473,7 +558,7 @@ test('threat mode values uncertainty reduction about the threatening human', () 
   assert.ok(queen.metadata.opponentThreatMode.informationMultiplier > 1);
 });
 
-test('threat mode adds value to calling Dutch before an opponent can call', () => {
+test('Dutch tempo uses the simulated opponent-call branch without double counting it', () => {
   const setup = harness({
     own: [card('2'), card('3')],
     opponents: [[card('5')]],
@@ -491,7 +576,9 @@ test('threat mode adds value to calling Dutch before an opponent can call', () =
   });
   const result = setup.decisions.evaluateDutch(setup.bot);
 
-  assert.ok(result.call.metadata.callFirstBonus > 0);
+  assert.equal(result.call.metadata.residualTempoThreat, 0);
+  assert.equal(result.call.metadata.callFirstBonus, 0);
+  assert.ok(result.continue.metadata.tempoThreatProbability > 0.5);
   assert.equal(result.call.metadata.opponentThreatMode.active, true);
   assert.equal(setup.decisions.botShouldCallDutch(setup.bot, result), true);
 });
@@ -747,19 +834,20 @@ test('Queen inspects the threatening human position that best clarifies Dutch re
   );
 });
 
-test('Queen uses information value and Ace includes cumulative game position in target selection', () => {
+test('Queen defaults to useful self-information and Ace includes cumulative game position in target selection', () => {
   const queen = harness({
     own: [card('2'), card('3'), card('8')],
     ownUnknown: true,
-    opponents: [[card('2')]],
+    opponents: [[card('2'), card('8'), card('9'), card('10')]],
     opponentsUnknown: true
   });
   const queenTarget = queen.decisions.botQueenTarget(queen.bot);
-  assert.equal(queenTarget.player.id, queen.opponents[0].id);
+  assert.equal(queenTarget.player.id, queen.bot.id);
   assert.ok(queenTarget.informationValue > 0);
+  assert.ok(queenTarget.queenDecisionImpact.selfKnowledgeUrgency > 0);
 
   const ace = harness({
-    own: [card('2'), card('3')],
+    own: [card('2'), card('8')],
     opponents: [
       [card('10'), card('9'), card('8'), card('7')],
       [card('2')]
@@ -772,11 +860,11 @@ test('Queen uses information value and Ace includes cumulative game position in 
   const aceActions = ace.opponents.map((player) => (
     ace.decisions.evaluateAceTarget(ace.bot, player)
   )).filter((action) => action && action.eligible);
-  assert.equal(aceTarget.player.id, ace.opponents[0].id);
-  assert.equal(
-    aceTarget.estimatedGameWinProbability,
-    Math.max(...aceActions.map((action) => action.estimatedGameWinProbability))
-  );
+  assert.equal(aceTarget.player.id, ace.opponents[1].id);
+  assert.ok(aceActions.length > 1);
+  assert.ok(aceTarget.opponentTotalEstimates.some((estimate) => (
+    estimate.playerId === ace.opponents[1].id
+  )));
 });
 
 test('throw-in is selected only when expected value is positive', () => {
@@ -810,6 +898,83 @@ test('discarding a drawn matching rank evaluates the immediate throw-in continua
   assert.equal(result.metadata.throwInFollowUp.rank, '9');
   assert.equal(result.metadata.throwInFollowUp.confidence, 1);
   assert.equal(result.expectedRawHandScore, 2);
+});
+
+test('replacement into an unresolved own position gains completion and throw-in knowledge value', () => {
+  const setup = harness({
+    own: [card('2'), card('9')],
+    opponents: [[card('8'), card('7')]]
+  });
+  setup.memory.slots.bot[1] = unknownMemory('own unknown', 4);
+
+  const result = setup.decisions.evaluateReplacement(setup.bot, card('2', 'hearts'), 1);
+
+  assert.equal(result.metadata.selfInformation, true);
+  assert.ok(result.metadata.replacementKnowledgeValue > 0);
+  assert.ok(result.informationValue > 0);
+  assert.equal(result.metadata.opponentThreatMode.selfInformation, true);
+});
+
+test('a known high deck card can replace one of two unknown own cards instead of preserving ignorance', () => {
+  const setup = harness({
+    own: [card('A'), card('2'), card('4'), card('5')],
+    ownUnknownIndices: [2, 3],
+    opponents: [[card('8'), card('7'), card('6'), card('5')]]
+  });
+
+  const result = setup.decisions.botDeckCardDecision(setup.bot, card('8', 'spades'));
+
+  assert.ok(result.swapTarget);
+  assert.ok([2, 3].includes(result.swapTarget.index));
+  assert.ok(result.swapTarget.metadata.knownCardControl.futureKnownThrowInValue > 0);
+  assert.ok(result.swapTarget.metadata.knownCardControl.safeReplacementTargetValue > 0);
+  assert.ok(result.discard.metadata.knowledgeStagnationCost > 0);
+});
+
+test('round-ending risk discounts long-term knowledge while preserving decision-changing information', () => {
+  const safe = harness({
+    own: [card('A'), card('2'), card('8'), card('9')],
+    ownUnknownIndices: [2, 3],
+    opponents: [[card('10'), card('9'), card('8'), card('7')]]
+  });
+  const threatened = harness({
+    own: [card('A'), card('2'), card('8'), card('9')],
+    ownUnknownIndices: [2, 3],
+    opponents: [[card('2'), card('3')]],
+    inference: {
+      'opp-0': {
+        lowCardBelief: 0.9,
+        dutchReadiness: 0.9,
+        rankConfidence: {},
+        targetInterest: {},
+        recentActions: [
+          { type: 'take-pile', low: true, points: 2, valid: true, updatedTick: 4 }
+        ]
+      }
+    }
+  });
+  const safeReadiness = safe.decisions.selfKnowledgeReadiness(safe.bot);
+  const threatenedReadiness = threatened.decisions.selfKnowledgeReadiness(threatened.bot);
+
+  assert.ok(threatenedReadiness.roundEndRisk > safeReadiness.roundEndRisk);
+  assert.ok(threatenedReadiness.longHorizonMultiplier < safeReadiness.longHorizonMultiplier);
+  assert.ok(threatenedReadiness.immediateDecisionKnowledgeValue > 0);
+});
+
+test('rank retention uses likely opponent discards and is charged when replacing that card', () => {
+  const setup = harness({
+    own: [card('9'), card('8')],
+    opponents: [[card('9', 'spades'), card('2')]]
+  });
+  const ctx = setup.decisions.contextFor(setup.bot);
+  const nineArrival = setup.decisions.rankPileArrivalState(setup.bot, '9', ctx, 5);
+  const eightArrival = setup.decisions.rankPileArrivalState(setup.bot, '8', ctx, 5);
+  const discardNine = setup.decisions.evaluateReplacement(setup.bot, card('5'), 0);
+
+  assert.ok(nineArrival.heldDiscardPressure > eightArrival.heldDiscardPressure);
+  assert.ok(nineArrival.arrivalProbability > eightArrival.arrivalProbability);
+  assert.ok(discardNine.metadata.discardedRankRetentionValue > 0);
+  assert.ok(discardNine.opponentBenefit >= discardNine.metadata.discardedRankRetentionValue);
 });
 
 test('replacement values a retained rank match as a future throw-in path', () => {
@@ -1097,7 +1262,7 @@ test('contested immediate throw-ins cannot justify degrading a confirmed card', 
   assert.equal(result.eligible, false);
 });
 
-test('a confirmed red King is protected from replacement and ordinary throw-in', () => {
+test('a confirmed red King is protected from replacement and ordinary throw-in gifts', () => {
   const setup = harness({
     own: [card('K', 'hearts'), card('2')],
     opponents: [[card('8'), card('7')]],
@@ -1108,10 +1273,11 @@ test('a confirmed red King is protected from replacement and ordinary throw-in',
   const replacement = setup.decisions.evaluateReplacement(setup.bot, card('4'), 0);
   assert.equal(replacement.eligible, false);
   assert.equal(replacement.rejectionReason, 'protected-red-king');
-  assert.equal(setup.decisions.botThrowInCandidate(setup.bot), null);
+  const throwIn = setup.decisions.botThrowInCandidate(setup.bot);
+  assert.equal(throwIn, null);
 });
 
-test('a red King throw-in is allowed only when the next action recovers it for a better card', () => {
+test('a red King throw-in keeps the guaranteed recovery plan when one exists', () => {
   const redKing = card('K', 'hearts');
   const setup = harness({
     own: [redKing, card('9')],

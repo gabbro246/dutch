@@ -94,6 +94,11 @@ const clientActions = window.DutchClientActions.create({
   getLastState: () => lastState,
   getLogExpanded: () => logExpanded,
   setLogExpanded: (value) => { logExpanded = value; },
+  getSettingsExpanded: () => !!(detailPreferencesByMode[currentDetailsMode] && detailPreferencesByMode[currentDetailsMode].settingsExpanded),
+  setSettingsExpanded: (value) => {
+    if (!detailPreferencesByMode[currentDetailsMode]) detailPreferencesByMode[currentDetailsMode] = {};
+    detailPreferencesByMode[currentDetailsMode].settingsExpanded = value;
+  },
   translate: t
 });
 const { renderWaiting } = window.DutchClientWaiting.create({
@@ -701,6 +706,9 @@ function playerBadges(state, player) {
 
 function renderDeckPile(state) {
   const r = state.round;
+  const deckCountToken = '__DECK_COUNT__';
+  const deckCountLabel = escapeHtml(t('Deck ({count})', { count: deckCountToken }))
+    .replace(deckCountToken, `<span data-deck-count>${escapeHtml(r.deckCount)}</span>`);
   const drawnCard = r.drawn
     ? cardHtml(r.drawn.card, false, { 'data-anim-role': 'drawn', 'data-location-key': 'drawn' })
     : '<div class="card empty-card drawn-placeholder">' + escapeHtml(t('empty')) + '</div>';
@@ -715,7 +723,7 @@ function renderDeckPile(state) {
   return `
     <section class="deck-pile-area" data-game-region="deck">
       <div class="stack-area">
-        <div class="deck-pile-label">${escapeHtml(t('Deck ({count})', { count: r.deckCount }))}</div>
+        <div class="deck-pile-label">${deckCountLabel}</div>
         <div class="stack" data-stack="deck">
           ${stackBacks(r.deckCount, r.deckBack)}
         </div>
@@ -991,6 +999,7 @@ function renderSideArea(state) {
           ${renderDetails('rules', t('Complete rules'), () => fullRules(state), false, 'rules-body')}
           ${gameSettings.renderGameSettingsDrawer(state, {
             open: detailPreferencesByMode[detailsMode].settings === true,
+            expanded: detailPreferencesByMode[detailsMode].settingsExpanded === true,
             selectedTheme,
             selectedLanguage: language,
             soundsEnabled: soundEffects.isEnabled()

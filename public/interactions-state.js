@@ -96,7 +96,8 @@
         theme: 'light',
         language: 'en',
         sounds: true,
-        settingsOpen: true
+        settingsOpen: true,
+        settingsExpanded: false
       },
       sequence: counter,
       round: {

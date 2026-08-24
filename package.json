@@ -1,6 +1,6 @@
 {
   "name": "dutch-card-game",
-  "version": "1.3.64",
+  "version": "1.3.66",
   "description": "Simple local multiplayer Dutch card game",
   "main": "server.js",
   "scripts": {
@@ -8,6 +8,7 @@
     "test": "node --test",
     "test:browser": "node --test e2e/browser-smoke.js",
     "benchmark:bots": "node scripts/bot-benchmark.js",
+    "benchmark:roswell-versions": "node scripts/bot-benchmark.js --versions",
     "replay:bots": "node scripts/bot-replay.js"
   },
   "dependencies": {

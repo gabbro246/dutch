@@ -1,6 +1,29 @@
 # Changelog
 
-## 1.3.64
+## 1.3.66
+- made the deck count decrease along with the opening deal animation
+- added a choice of which two Roswell strategy releases to compare in tournaments
+- made releases without bot changes reuse the most recent Roswell strategy snapshot
+- added the Dutch version to saved game logs and their log viewer
+- hid some settings below a show more button
+
+## 1.3.65
+- made Roswell learn unknown cards in its own hand earlier
+- made Queen peeks favor own cards that can change an important decision
+- made Roswell favor a lower expected hand over long-term knowledge when another player may end the round soon
+- made Roswell count unseen cards when estimating unknown cards and possible replacements
+- made Roswell sometimes accept a known higher card when controlling that position is worth more than leaving it unknown
+- made Roswell retain known ranks that are more likely to appear on the discard pile
+- made Roswell learn ranks deliberately so it can recognize more valid throw-ins
+- made Roswell value reducing its hand size when throwing Kings and special cards
+- made Roswell avoid discards that give opponents valuable cards or easy throw-ins
+- made uncertain Dutch calls compete by expected value instead of a hard cutoff
+- made Roswell account for the risk of another player calling Dutch first
+- made Roswell stop changing an already strong Dutch-ready hand unnecessarily
+- made Roswell learn how aggressively each human player calls Dutch
+- made Roswell apply a stronger safety margin to Dutch calls with unresolved cards
+- made Roswell simulate shared unknown cards without assigning the same unseen card twice
+- added randomized tournaments that compare Roswell strategy releases across both seat orders
 - prevented game sound effects from repeatedly lowering the volume of music, podcasts, and other media on supported platforms
 
 ## 1.3.62

@@ -10,7 +10,8 @@
     theme: window.DutchTheme.getStoredTheme(window),
     language: i18n.setLanguage(i18n.getStoredLanguage(window), window),
     sounds: sounds.isEnabled(),
-    settingsOpen: true
+    settingsOpen: true,
+    settingsExpanded: false
   };
   let runToken = 0;
   const timers = new Set();
@@ -541,6 +542,11 @@
     sounds.unlock();
     if (button.dataset.systemAction) {
       runSystemAction(button.dataset.systemAction);
+      return;
+    }
+    if (button.dataset.action === 'toggleSettingsMore') {
+      state.preferences.settingsExpanded = !state.preferences.settingsExpanded;
+      render(false);
       return;
     }
     if (button.dataset.action && button.dataset.playerId) {

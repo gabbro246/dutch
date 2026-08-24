@@ -51,3 +51,9 @@ If a player’s total reaches exactly **50**, **100**, or **200** points, that t
 
 **Game Length** A game may last one round, use the short 50-point target, the full 100-point target, or the double 200-point target. Single-round mode may only be selected before the first round ends.
 In a points game, the player who scored the most points in the previous round starts the next round. The game ends when a player exceeds the selected target after all scoring and score-halving rules have been applied. The player with the lowest total score wins.
+
+## Compare Roswell Versions
+
+Run `npm run benchmark:roswell-versions -- 100` to compare the two most recent releases in which Roswell's strategy changed. The number is the amount of randomized complete games per seat order, so this example runs 200 games in total. Both strategies play each seat, and the command reports their average results and saves the replay logs under `game-logs`.
+
+Choose two releases explicitly with a command such as `npm run benchmark:roswell-versions -- 100 1.3.65 1.3.64`. Roswell snapshots use the Dutch release where the strategy changed. A release without Roswell changes reuses the latest earlier snapshot, so Dutch 1.3.66 uses Roswell 1.3.65. Two releases that resolve to the same Roswell snapshot cannot be compared with each other.

@@ -55,6 +55,7 @@ function lifecycleFor(initialState) {
     savedGameStates: [],
     clearedTimers: 0,
     discardObservations: [],
+    dutchOutcomes: [],
     synced: 0,
     timeouts: [],
     broadcasts: 0,
@@ -67,14 +68,16 @@ function lifecycleFor(initialState) {
     },
     freshState,
     gameLogDir: '/tmp/dutch-game-logs-test',
+    gameVersion: 'test-version',
     startingPlayerIndexForNextRound,
     applyRoundScoring,
-    writeFinishedGameLog: (gameLogDir, gameState, winnerName) => {
+    writeFinishedGameLog: (gameLogDir, gameState, winnerName, gameVersion) => {
       calls.savedLogs += 1;
       calls.savedGameStates.push({
         gameLogDir,
         gameState,
         winnerName,
+        gameVersion,
         latestLog: calls.logs.at(-1)
       });
     },
@@ -91,6 +94,7 @@ function lifecycleFor(initialState) {
     addLog: (text, kind = 'game') => calls.logs.push({ text, kind }),
     clampDeckSetting: () => {},
     observeDiscardForAllBots: (discardedCard, source) => calls.discardObservations.push({ card: discardedCard, source }),
+    observeDutchOutcomeForAllBots: (callerId, success) => calls.dutchOutcomes.push({ callerId, success }),
     rankValue,
     nextThrowInToken: () => nextToken++,
     hasPlayableHumanGame: () => state.players.filter((item) => !item.left && !item.isBot && !item.isSpectator).length >= 1 && state.players.filter((item) => !item.left && !item.isSpectator).length >= 2,
@@ -270,6 +274,7 @@ test('advance turn completes Dutch queue and ends the round', () => {
   assert.equal(getState().players[0].roundPoints, 0);
   assert.equal(getState().players[1].roundPoints, 9);
   assert.equal(getState().scoreHistory.length, 1);
+  assert.deepEqual(calls.dutchOutcomes, [{ callerId: 'ada', success: true }]);
 });
 
 test('single-round game ends when its first round is scored', () => {
@@ -373,6 +378,7 @@ test('reset to waiting replaces state and keeps connected players', () => {
   assert.equal(calls.savedLogs, 1);
   assert.equal(calls.savedGameStates[0].gameState, state);
   assert.equal(calls.savedGameStates[0].winnerName, '');
+  assert.equal(calls.savedGameStates[0].gameVersion, 'test-version');
   assert.deepEqual(calls.savedGameStates[0].latestLog, { text: 'table reset', kind: 'system' });
 });
 

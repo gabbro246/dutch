@@ -832,6 +832,20 @@ button.help-disclosure-button[aria-expanded="true"] {
   text-decoration: underline;
 }
 
+.advanced-setting {
+  order: 1;
+}
+
+.advanced-setting[hidden] {
+  display: none;
+}
+
+.settings-toggle {
+  align-self: flex-start;
+  order: 2;
+  margin-top: 2px;
+}
+
 /* Game layout */
 .main-layout {
   display: grid;

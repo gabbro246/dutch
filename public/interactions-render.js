@@ -162,6 +162,9 @@
 
   function renderDeckPile(state) {
     const round = state.round;
+    const deckCountToken = '__DECK_COUNT__';
+    const deckCountLabel = escapeHtml(t(state, 'Deck ({count})', { count: deckCountToken }))
+      .replace(deckCountToken, '<span data-deck-count>' + escapeHtml(round.deckCount) + '</span>');
     const drawn = round.drawn
       ? cardHtml(round.drawn.card, false, { 'data-anim-role': 'drawn', 'data-location-key': 'drawn' })
       : '<div class="card empty-card drawn-placeholder">empty</div>';
@@ -169,7 +172,7 @@
     const canDiscard = !!(round.drawn && round.drawn.source === 'deck');
     const drawnOwnerId = round.drawn ? round.drawn.playerId : state.you;
     return '<section class="deck-pile-area" data-game-region="deck">' +
-      '<div class="stack-area"><div class="deck-pile-label">' + escapeHtml(t(state, 'Deck ({count})', { count: round.deckCount })) + '</div>' +
+      '<div class="stack-area"><div class="deck-pile-label">' + deckCountLabel + '</div>' +
         '<div class="stack" data-stack="deck">' + stackBacks(round.deckCount, round.deckBack) + '</div>' +
         actionButton('draw-deck', round.currentPlayerId, t(state, 'Take'), { disabled: hasDrawn ? 'disabled' : '' }) + '</div>' +
       '<div class="drawn-area"><div class="deck-pile-label">' + escapeHtml(t(state, 'Drawn')) + '</div><div class="drawn-card-slot">' + drawn + '</div>' +
@@ -244,6 +247,7 @@
     return '<div class="panel side-panel"><div class="side-drawers">' +
       settings.renderGameSettingsDrawer(state, {
         open: preferences.settingsOpen,
+        expanded: preferences.settingsExpanded,
         selectedTheme: preferences.theme,
         selectedLanguage: language(state),
         soundsEnabled: preferences.sounds

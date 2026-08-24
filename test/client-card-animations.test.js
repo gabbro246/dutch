@@ -38,6 +38,8 @@ test('first and second Jack targets each animate upward exactly once', () => {
 test('initial deal stacks earlier cards above later cards at the deck', () => {
   const appended = [];
   const targets = new Map();
+  const moveAnimations = [];
+  const deckCount = { textContent: '49' };
 
   function cardElement(id) {
     return {
@@ -52,7 +54,9 @@ test('initial deal stacks earlier cards above later cards at the deck', () => {
           style: {},
           animate(keyframes, options) {
             this.animationOptions = options;
-            return { cancel() {} };
+            const animation = { cancel() {} };
+            moveAnimations.push(animation);
+            return animation;
           }
         };
       }
@@ -64,6 +68,7 @@ test('initial deal stacks earlier cards above later cards at the deck', () => {
     document: {
       body: { appendChild: (element) => appended.push(element) },
       querySelector(selector) {
+        if (selector === '[data-deck-count]') return deckCount;
         const match = selector.match(/data-card-id="([^"]+)"/);
         return match ? targets.get(match[1]) : null;
       },
@@ -88,6 +93,7 @@ test('initial deal stacks earlier cards above later cards at the deck', () => {
       stage: 'deal',
       initialDealIntervalMs: 120,
       initialDealTravelMs: 240,
+      deckCount: 49,
       players: [{ id: 'p', cards: [{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }] }]
     }
   }, snapshot);
@@ -95,4 +101,10 @@ test('initial deal stacks earlier cards above later cards at the deck', () => {
   assert.deepEqual(appended.map((card) => Number(card.style.zIndex)), [10000, 9999, 9998]);
   assert.deepEqual(appended.map((card) => card.animationOptions.delay), [0, 120, 240]);
   assert.equal(duration, 480);
+  assert.equal(deckCount.textContent, '52');
+  moveAnimations[0].onfinish();
+  assert.equal(deckCount.textContent, '51');
+  moveAnimations[1].onfinish();
+  moveAnimations[2].onfinish();
+  assert.equal(deckCount.textContent, '49');
 });

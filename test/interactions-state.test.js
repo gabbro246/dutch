@@ -154,11 +154,19 @@ test('optional initial peek controls stay visible and enable during the peek sta
 
 test('settings drawer reuses all real-game controls', () => {
   const state = stateModel.createInitialState({ random: () => 0 });
-  const html = render.renderPage(state);
+  let html = render.renderPage(state);
   assert.match(html, /data-detail-key="settings"[^>]+class="drawer side-drawer" open/);
   for (const id of ['inGameTargetSelect', 'gameInactivityTimeoutSelect', 'gameBotTimingSelect', 'highlightChangedCardsSelect', 'gameThemeSelect', 'gameSoundSelect', 'gameLanguageSelect']) {
     assert.match(html, new RegExp('id="' + id + '"'));
   }
+  assert.equal((html.match(/class="setting-row advanced-setting" hidden/g) || []).length, 3);
+  assert.match(html, /data-action="toggleSettingsMore"[^>]+aria-expanded="false"[^>]*>Show more<\/button>/);
+
+  state.preferences.settingsExpanded = true;
+  html = render.renderPage(state);
+  assert.doesNotMatch(html, /class="setting-row advanced-setting" hidden/);
+  assert.match(html, /data-action="toggleSettingsMore"[^>]+aria-expanded="true"[^>]*>Show less<\/button>/);
+
   assert.match(html, /popovertarget="gameBotTimingSelectHelp"[^>]*>Bot speed<\/button>/);
   assert.match(html, /<option value="0"[^>]*>Instant<\/option>/);
   assert.match(html, /<option value="50"[^>]*selected[^>]*>Medium<\/option>/);
