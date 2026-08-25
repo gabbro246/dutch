@@ -78,7 +78,7 @@
       const drawnId = round.drawn && round.drawn.card && round.drawn.card.id;
       if (drawnId && drawnId !== previousDrawnId) {
         const actorId = round.drawn.playerId || round.currentPlayerId || '';
-        events.push({ name: 'draw', volume: actorId === state.you ? 1 : REMOTE_VOLUME });
+        events.push({ name: 'draw', volume: actorId === state.user ? 1 : REMOTE_VOLUME });
       }
 
       const previousDiscardId = previousRound.pendingPileReveal && previousRound.pendingPileReveal.cardId;
@@ -86,11 +86,11 @@
       if (discardId && discardId !== previousDiscardId) {
         const actorId = round.pendingPileReveal.actorId || round.currentPlayerId || '';
         const moveMs = Number(round.pendingPileReveal.moveMs);
-        const ownThrowIn = round.pendingPileReveal.kind === 'throw-in' && actorId === state.you;
+        const userThrowIn = round.pendingPileReveal.kind === 'throw-in' && actorId === state.user;
         events.push({
-          name: ownThrowIn ? 'remove' : 'discard',
-          volume: actorId === state.you ? 1 : REMOTE_VOLUME,
-          delayMs: ownThrowIn ? 0 : (Number.isFinite(moveMs) ? Math.max(0, moveMs) : DEFAULT_DISCARD_DELAY_MS),
+          name: userThrowIn ? 'remove' : 'discard',
+          volume: actorId === state.user ? 1 : REMOTE_VOLUME,
+          delayMs: userThrowIn ? 0 : (Number.isFinite(moveMs) ? Math.max(0, moveMs) : DEFAULT_DISCARD_DELAY_MS),
           eventId: [state.gameStartedAt, state.roundNumber, 'pile', discardId].join(':')
         });
       }
@@ -100,7 +100,7 @@
       if (wrongThrow && wrongThrow.id !== previousWrongThrowId) {
         events.push({
           name: 'discard',
-          volume: wrongThrow.playerId === state.you ? 1 : REMOTE_VOLUME,
+          volume: wrongThrow.playerId === state.user ? 1 : REMOTE_VOLUME,
           delayMs: WRONG_THROW_PILE_DELAY_MS,
           eventId: [state.gameStartedAt, state.roundNumber, 'wrong-throw', wrongThrow.id].join(':')
         });
@@ -111,7 +111,7 @@
       if (
         addEvent
         && addEvent.id !== previousAddId
-        && addEvent.playerId === state.you
+        && addEvent.playerId === state.user
       ) {
         events.push({
           name: 'add',
@@ -133,7 +133,7 @@
     }
 
     const localTurnStarted = round.stage === 'turn'
-      && round.currentPlayerId === state.you
+      && round.currentPlayerId === state.user
       && (
         !sameRound
         || previousRound.currentPlayerId !== round.currentPlayerId
@@ -337,6 +337,16 @@
       }
     }
 
+    function schedulePreload() {
+      const requestIdle = options.requestIdleCallbackFn
+        || (target && typeof target.requestIdleCallback === 'function' ? target.requestIdleCallback.bind(target) : null);
+      if (requestIdle) {
+        requestIdle(preload, { timeout: 1000 });
+        return;
+      }
+      preload();
+    }
+
     function setEnabled(value) {
       enabled = storeEnabled(value, target);
       if (enabled) preload();
@@ -365,7 +375,7 @@
       return events;
     }
 
-    preload();
+    schedulePreload();
 
     return {
       isEnabled: () => enabled,

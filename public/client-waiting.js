@@ -26,9 +26,9 @@
     const repoLink = deps.repoLink;
     const canJoinWithName = deps.canJoinWithName;
     const clientActions = deps.clientActions;
-    const rememberPlayerName = deps.rememberPlayerName;
-    const rememberPlayerTokenBackup = deps.rememberPlayerTokenBackup;
-    const playerToken = deps.playerToken;
+    const rememberUserName = deps.rememberUserName;
+    const rememberUserTokenBackup = deps.rememberUserTokenBackup;
+    const userToken = deps.userToken;
     const emit = deps.emit;
     const wireHelpDisclosures = deps.wireHelpDisclosures;
     const wireAnimatedDrawers = deps.wireAnimatedDrawers;
@@ -90,23 +90,23 @@
         <option value="${escapeHtml(type)}" ${usedBotTypes.has(type) ? 'disabled' : ''} ${type === selectedBotType ? 'selected' : ''}>${escapeHtml(botTypeLabel(type))}</option>
       `).join('');
       const players = state.players.map((p, index) => {
-        const isMe = p.id === state.you;
+        const isUser = p.id === state.user;
         const moveControls = `
           <div class="player-line-actions">
-            ${isMe ? '<button data-action="leaveWaitingPlayer">' + escapeHtml(t('Leave')) + '</button>' : `<button data-action="removeWaitingPlayer" data-player-id="${escapeHtml(p.id)}">${escapeHtml(t('Remove'))}</button>`}
+            ${isUser ? '<button data-action="leaveWaitingPlayer">' + escapeHtml(t('Leave')) + '</button>' : `<button data-action="removeWaitingPlayer" data-player-id="${escapeHtml(p.id)}">${escapeHtml(t('Remove'))}</button>`}
             <button class="icon-button" title="${escapeHtml(t('Move up'))}" aria-label="${escapeHtml(t('Move {name} up', { name: p.name }))}" data-action="moveWaitingPlayer" data-player-id="${escapeHtml(p.id)}" data-direction="up" ${index === 0 ? 'disabled' : ''}>↑</button>
             <button class="icon-button" title="${escapeHtml(t('Move down'))}" aria-label="${escapeHtml(t('Move {name} down', { name: p.name }))}" data-action="moveWaitingPlayer" data-player-id="${escapeHtml(p.id)}" data-direction="down" ${index === state.players.length - 1 ? 'disabled' : ''}>↓</button>
           </div>
         `;
         return `
           <div class="player-line" data-waiting-player-id="${escapeHtml(p.id)}">
-            <span>${index + 1}. ${playerNameHtml(state, p)}${p.isBot ? ' <span class="bot-badge">' + escapeHtml(t('bot')) + '</span>' : ''}${p.isSpectator ? ' <span class="spectator-badge">' + escapeHtml(t('spectator')) + '</span>' : ''}${isMe ? ' <span class="you-badge">' + escapeHtml(t('you')) + '</span>' : ''} ${p.connected ? '' : '(' + escapeHtml(t('missing')) + ')'}</span>
+            <span>${index + 1}. ${playerNameHtml(state, p)}${p.isBot ? ' <span class="bot-badge">' + escapeHtml(t('bot')) + '</span>' : ''}${p.isSpectator ? ' <span class="spectator-badge">' + escapeHtml(t('spectator')) + '</span>' : ''}${isUser ? ' <span class="user-badge">' + escapeHtml(t('user')) + '</span>' : ''} ${p.connected ? '' : '(' + escapeHtml(t('missing')) + ')'}</span>
             ${moveControls}
           </div>
         `;
       }).join('');
       const joined = state.joined;
-      const me = state.players.find((p) => p.id === state.you);
+      const user = state.players.find((p) => p.id === state.user);
       const humanCount = state.players.filter((p) => !p.isBot && !p.isSpectator).length;
       const playerHintText = humanCount === 0 ? t('Waiting for a human player.') : t('Waiting for another human or a bot.');
       const playerHint = state.players.length > 0 && !state.canStart ? `<p class="hint">${playerHintText}</p>` : '';
@@ -117,7 +117,7 @@
             <p class="waiting-description">${escapeHtml(t(GAME_DESCRIPTION))}</p>
             <div class="waiting-controls">
               <div class="row join-row">
-                <input id="nameInput" placeholder="${escapeHtml(t('Name'))}" maxlength="${PLAYER_NAME_MAX_LENGTH}" value="${joined && me ? escapeHtml(me.name) : ''}" ${joined ? 'disabled' : ''}>
+                <input id="nameInput" placeholder="${escapeHtml(t('Name'))}" maxlength="${PLAYER_NAME_MAX_LENGTH}" value="${joined && user ? escapeHtml(user.name) : ''}" ${joined ? 'disabled' : ''}>
                 <button id="joinBtn" disabled>${escapeHtml(t('Join'))}</button>
                 <button id="leaveBtn" ${joined ? '' : 'disabled'}>${escapeHtml(t('Leave'))}</button>
               </div>
@@ -199,17 +199,17 @@
         joinBtn.addEventListener('click', () => {
           const name = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
           clientActions.clearPendingConfirm();
-          rememberPlayerName(name);
-          rememberPlayerTokenBackup(playerToken);
-          emit('join', { name, token: playerToken });
+          rememberUserName(name);
+          rememberUserTokenBackup(userToken);
+          emit('join', { name, token: userToken });
         });
         nameInput.addEventListener('keydown', (event) => {
           if (event.key === 'Enter' && !joinBtn.disabled) {
             const name = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
             clientActions.clearPendingConfirm();
-            rememberPlayerName(name);
-            rememberPlayerTokenBackup(playerToken);
-            emit('join', { name, token: playerToken });
+            rememberUserName(name);
+            rememberUserTokenBackup(userToken);
+            emit('join', { name, token: userToken });
           }
         });
       }

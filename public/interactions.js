@@ -151,7 +151,7 @@
       if (state.round.drawn) return;
       mutate((next) => {
         setActor(next, playerId);
-        next.round.drawn = { playerId, source: 'deck', card: model.nextCard(next, { back: playerId !== next.you }) };
+        next.round.drawn = { playerId, source: 'deck', card: model.nextCard(next, { back: playerId !== next.user }) };
         next.round.deckCount = Math.max(0, next.round.deckCount - 1);
       });
       return;
@@ -180,7 +180,7 @@
       const location = model.cardLocation(next, cardId);
       if (!location) return;
       location.card.highlight = 'peek';
-      if (playerId === next.you) {
+      if (playerId === next.user) {
         location.card.back = false;
         next.round.peekEvent = { id: model.nextEventId(next, 'initial-peek'), cardId };
       }
@@ -369,8 +369,8 @@
       mutate((next) => {
         const location = model.cardLocation(next, targetCardId);
         location.player.cards[location.index].highlight = 'peek';
-        if (playerId === next.you) location.player.cards[location.index].back = false;
-        if (playerId === next.you) next.round.peekEvent = { id: model.nextEventId(next, 'peek'), cardId: targetCardId };
+        if (playerId === next.user) location.player.cards[location.index].back = false;
+        if (playerId === next.user) next.round.peekEvent = { id: model.nextEventId(next, 'peek'), cardId: targetCardId };
         next.round.infoEvent = { text: player.name + ' used Queen peek' };
         next.round.turnComplete = true;
       });
@@ -511,7 +511,7 @@
       replaceState(prepared);
       nextFrame(() => mutate((next) => {
         next.round.stage = 'roundEnd';
-        next.round.roundWinnerIds = ['you'];
+        next.round.roundWinnerIds = ['user'];
         next.round.players.forEach((player) => player.cards.forEach((card) => { card.back = false; }));
       }));
       return;
@@ -527,12 +527,6 @@
         next.round.turnComplete = false;
       });
       return;
-    }
-    if (action === 'next-round') {
-      stopSequences();
-      const next = model.createInitialState({ gameStartedAt: state.gameStartedAt, roundNumber: state.roundNumber + 1 });
-      next.round.stage = 'peek';
-      replaceState(next);
     }
   }
 

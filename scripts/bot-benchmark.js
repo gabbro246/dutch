@@ -9,7 +9,7 @@ const versionedRoswell = args.includes('--versions');
 const count = args.find((argument) => /^\d+$/.test(argument));
 const requestedVersions = args.filter((argument) => /^\d+\.\d+\.\d+$/.test(argument));
 if (versionedRoswell && requestedVersions.length !== 0 && requestedVersions.length !== 2) {
-  throw new Error('Provide either no Dutch versions or exactly two, for example: 100 1.3.65 1.3.64');
+  throw new Error('Provide either no Dutch versions or exactly two, for example: 100 1.3.67 1.3.65');
 }
 const gamesPerLineup = Math.max(1, Number(count) || (versionedRoswell ? 10 : 2));
 const seeds = Array.from({ length: gamesPerLineup }, (_, index) => 1001 + index);

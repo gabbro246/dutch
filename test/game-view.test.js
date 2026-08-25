@@ -81,6 +81,7 @@ test('live views bound log payloads while initial views include complete history
   const initial = gameView.buildView(null);
   const live = gameView.buildView(null, { liveUpdate: true });
 
+  assert.equal(initial.user, null);
   assert.equal(initial.log.length, log.length);
   assert.equal(initial.logComplete, true);
   assert.equal(live.log.length, LIVE_LOG_WINDOW);

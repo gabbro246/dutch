@@ -95,9 +95,9 @@
 
   function playerActions(player, state) {
     const nextPlayer = systemButton('next-player', t(state, 'Next player'), {
-      disabled: ['roundEnd', 'gameEnd', 'revealing', 'opening'].includes(state.round.stage) ? 'disabled' : ''
+      disabled: state.round.currentPlayerId === player.id && !['roundEnd', 'gameEnd', 'revealing', 'opening'].includes(state.round.stage) ? '' : 'disabled'
     });
-    return '<div class="row own-actions">' +
+    return '<div class="row player-actions">' +
       actionButton('call-dutch', player.id, 'Dutch', {
         disabled: state.round.turnComplete && state.round.currentPlayerId === player.id ? '' : 'disabled'
       }) +
@@ -108,15 +108,15 @@
 
   function playerBadges(player, state) {
     return [
-      player.id === state.you ? '<span class="you-badge">' + escapeHtml(t(state, 'your cards')) + '</span>' : '',
+      player.id === state.user ? '<span class="user-badge">' + escapeHtml(t(state, 'your cards')) + '</span>' : '',
       state.round.dutchCallerId === player.id ? '<span class="player-badge dutch-badge">' + escapeHtml(t(state, 'said Dutch')) + '</span>' : '',
       (state.round.roundWinnerIds || []).includes(player.id) ? '<span class="player-badge round-winner-badge">' + escapeHtml(t(state, 'won this round')) + '</span>' : '',
       state.round.winnerId === player.id ? '<span class="player-badge game-winner-badge">' + escapeHtml(t(state, 'won the game')) + '</span>' : ''
     ].join('');
   }
 
-  function playerClasses(player, state, own) {
-    const classes = [own ? 'own-area' : 'player-field'];
+  function playerClasses(player, state, isUser) {
+    const classes = [isUser ? 'user-area' : 'player-field'];
     if (state.round.currentPlayerId === player.id) classes.push('current');
     if (state.round.dutchCallerId === player.id) classes.push('dutch-caller');
     if ((state.round.roundWinnerIds || []).includes(player.id)) classes.push('round-winner');
@@ -124,14 +124,14 @@
     return classes.join(' ');
   }
 
-  function renderPlayer(player, state, own) {
-    const title = own
+  function renderPlayer(player, state, isUser) {
+    const title = isUser
       ? '<h2>' + escapeHtml(player.name) + ' ' + playerBadges(player, state) + '</h2>'
       : '<strong>' + escapeHtml(player.name) + '</strong>' + playerBadges(player, state);
-    return '<section class="' + playerClasses(player, state, own) + '" data-player-panel-id="' + escapeHtml(player.id) + '"' +
-      (own ? ' data-game-region="own"' : '') + '>' +
+    return '<section class="' + playerClasses(player, state, isUser) + '" data-player-panel-id="' + escapeHtml(player.id) + '"' +
+      (isUser ? ' data-game-region="user"' : '') + '>' +
       '<div class="player-title">' + title + '<div class="player-meta">' + escapeHtml(t(state, 'Total: {total}', { total: 0 })) + '</div></div>' +
-      '<div class="cards-row">' + player.cards.map((card, index) => renderCardCell(card, player, index, state, !own)).join('') + '</div>' +
+      '<div class="cards-row">' + player.cards.map((card, index) => renderCardCell(card, player, index, state, !isUser)).join('') + '</div>' +
       playerActions(player, state) +
     '</section>';
   }
@@ -170,13 +170,13 @@
       : '<div class="card empty-card drawn-placeholder">empty</div>';
     const hasDrawn = !!round.drawn;
     const canDiscard = !!(round.drawn && round.drawn.source === 'deck');
-    const drawnOwnerId = round.drawn ? round.drawn.playerId : state.you;
+    const drawnUserId = round.drawn ? round.drawn.playerId : state.user;
     return '<section class="deck-pile-area" data-game-region="deck">' +
       '<div class="stack-area"><div class="deck-pile-label">' + deckCountLabel + '</div>' +
         '<div class="stack" data-stack="deck">' + stackBacks(round.deckCount, round.deckBack) + '</div>' +
         actionButton('draw-deck', round.currentPlayerId, t(state, 'Take'), { disabled: hasDrawn ? 'disabled' : '' }) + '</div>' +
       '<div class="drawn-area"><div class="deck-pile-label">' + escapeHtml(t(state, 'Drawn')) + '</div><div class="drawn-card-slot">' + drawn + '</div>' +
-        actionButton('discard', drawnOwnerId, t(state, 'Discard'), { disabled: canDiscard ? '' : 'disabled' }) + '</div>' +
+        actionButton('discard', drawnUserId, t(state, 'Discard'), { disabled: canDiscard ? '' : 'disabled' }) + '</div>' +
       '<div class="stack-area"><div class="deck-pile-label">' + escapeHtml(t(state, 'Pile ({count})', { count: round.discardCount })) + '</div>' +
         '<div class="stack" data-stack="pile">' + pileHtml(round) + '</div>' +
         actionButton('draw-discard', round.currentPlayerId, t(state, 'Take'), { disabled: hasDrawn || !round.discardTop ? 'disabled' : '' }) + '</div>' +
@@ -184,7 +184,7 @@
   }
 
   function renderUtilityActions() {
-    return '<div class="row own-actions" data-interaction-controls="setup">' +
+    return '<div class="row player-actions" data-interaction-controls="setup">' +
       systemButton('reshuffle', 'Reshuffle') +
     '</div>';
   }
@@ -216,7 +216,7 @@
         name: playerName(state, round.special.actorId),
         special: i18n.specialLabel(language(state), round.special.type)
       });
-    } else if (round.turnComplete && round.currentPlayerId === state.you) {
+    } else if (round.turnComplete && round.currentPlayerId === state.user) {
       message = t(state, 'Your turn is complete. Say Dutch or click Next player.');
     } else if (round.turnComplete) {
       message = t(state, "{name}'s turn is complete. Waiting for Next player.", { name: currentName });
@@ -232,7 +232,6 @@
     return '<div class="side-status-card" data-game-region="status"><div class="' + statusClass + '"><div class="status-main"><div class="status-info">' +
       (message ? '<div>' + escapeHtml(message) + '</div>' : '') + dutch + '</div><div class="status-actions">' +
       systemButton('round-reveal', 'Round reveal', { disabled: ['roundEnd', 'gameEnd'].includes(round.stage) ? 'disabled' : '' }) +
-      systemButton('next-round', t(state, 'Next round'), { disabled: round.stage === 'roundEnd' ? '' : 'disabled' }) +
       systemButton('reset', 'Reset') +
       '</div></div></div></div>';
   }
@@ -255,11 +254,11 @@
   }
 
   function renderPage(state) {
-    const own = state.round.players.find((player) => player.id === state.you);
-    const others = state.round.players.filter((player) => player.id !== state.you);
+    const user = state.round.players.find((player) => player.id === state.user);
+    const otherPlayers = state.round.players.filter((player) => player.id !== state.user);
     return '<div class="main-layout"><main class="game-area">' +
-      '<section class="other-players" data-game-region="players">' + others.map((player) => renderPlayer(player, state, false)).join('') + '</section>' +
-      renderDeckPile(state) + renderUtilityActions() + (own ? renderPlayer(own, state, true) : '') +
+      '<section class="other-players" data-game-region="players">' + otherPlayers.map((player) => renderPlayer(player, state, false)).join('') + '</section>' +
+      renderDeckPile(state) + renderUtilityActions() + (user ? renderPlayer(user, state, true) : '') +
       '</main><aside class="side-area">' + renderStatus(state) + renderSettings(state) + '</aside></div>';
   }
 

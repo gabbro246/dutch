@@ -94,8 +94,7 @@ test('rejects a lower pile card when it cannot create a viable Dutch state and d
   });
   const result = setup.decisions.evaluateDrawSources(setup.bot);
   assert.equal(result.selected.actionType, 'draw-deck');
-  assert.ok(result.deck.actionValue > result.pile.actionValue);
-  assert.equal(result.pile.expectedRoundScore > 5, true);
+  assert.equal(result.pile, null);
 });
 
 test('takes a safe pile card while ahead when it creates a callable winning hand', () => {
@@ -122,7 +121,8 @@ test('accepts deck variance when an opponent is likely to end the round first', 
   });
   const result = setup.decisions.evaluateDrawSources(setup.bot);
   assert.equal(result.selected.actionType, 'draw-deck');
-  assert.ok(result.deck.actionVariance > result.pile.actionVariance);
+  assert.equal(result.pile, null);
+  assert.ok(result.deck.actionVariance > 0);
 });
 
 test('Dutch evaluator rejects lower opponent, uncertain, and high-card calls but accepts a safe call', () => {
@@ -252,7 +252,7 @@ test('Dutch calls expose explicit final-turn and post-halving outcome arithmetic
   )));
 });
 
-test('Dutch above five is considered by utility even without a guaranteed throw-in or exact-total benefit', () => {
+test('Roswell never calls Dutch above five without a guaranteed or exact-total plan', () => {
   const setup = harness({
     own: [card('6')],
     opponents: [[card('A')]],
@@ -261,26 +261,30 @@ test('Dutch above five is considered by utility even without a guaranteed throw-
   const result = setup.decisions.evaluateDutch(setup.bot);
 
   assert.equal(result.call.metadata.callEligibility.startsAboveFive, true);
-  assert.equal(result.call.eligible, true);
+  assert.equal(result.call.eligible, false);
   assert.ok(result.call.metadata.callEligibility.meaningfulCallProbability >= 0.03);
+  assert.equal(result.call.metadata.callEligibility.currentHandReady, false);
   assert.equal(setup.decisions.botShouldCallDutch(setup.bot, result), false);
 });
 
-test('versioned previous Roswell retains the old hard Dutch eligibility gate', () => {
+test('Roswell 1.3.67 restores the hard above-five Dutch gate with exact-total exceptions', () => {
   const options = {
     own: [card('6')],
     opponents: [[card('A')]],
     total: 0
   };
-  const current = harness({ ...options, strategyRelease: '1.3.65' });
-  const previous = harness({ ...options, strategyRelease: '1.3.64' });
+  const current = harness({ ...options, strategyRelease: '1.3.67' });
+  const utilityBased = harness({ ...options, strategyRelease: '1.3.65' });
+  const original = harness({ ...options, strategyRelease: '1.3.64' });
 
   const currentResult = current.decisions.evaluateDutch(current.bot);
-  const previousResult = previous.decisions.evaluateDutch(previous.bot);
+  const utilityResult = utilityBased.decisions.evaluateDutch(utilityBased.bot);
+  const originalResult = original.decisions.evaluateDutch(original.bot);
 
-  assert.equal(currentResult.call.eligible, true);
-  assert.equal(previousResult.call.eligible, false);
-  assert.equal(previousResult.call.metadata.callEligibility.startsAboveFive, true);
+  assert.equal(currentResult.call.eligible, false);
+  assert.equal(utilityResult.call.eligible, true);
+  assert.equal(originalResult.call.eligible, false);
+  assert.equal(originalResult.call.metadata.callEligibility.startsAboveFive, true);
 });
 
 test('a guaranteed final throw-in can make an above-five Dutch call eligible', () => {
@@ -322,7 +326,7 @@ test('a deliberate failed Dutch call requires exact arithmetic that lowers the t
   });
   const nonExactResult = nonExact.decisions.evaluateDutch(nonExact.bot);
   assert.equal(nonExactResult.call.metadata.callEligibility.beneficialExactFailure, false);
-  assert.equal(nonExactResult.call.eligible, true);
+  assert.equal(nonExactResult.call.eligible, false);
   assert.equal(nonExact.decisions.botShouldCallDutch(nonExact.bot, nonExactResult), false);
 });
 
@@ -931,6 +935,34 @@ test('a known high deck card can replace one of two unknown own cards instead of
   assert.ok(result.discard.metadata.knowledgeStagnationCost > 0);
 });
 
+test('Roswell puts an ordinary drawn ten into its last unknown slot', () => {
+  const setup = harness({
+    own: [card('A'), card('2'), card('4'), card('5')],
+    ownUnknownIndices: [3],
+    opponents: [[card('8'), card('7'), card('6'), card('5')]]
+  });
+
+  const result = setup.decisions.botDeckCardDecision(setup.bot, card('10', 'spades'));
+
+  assert.ok(result.swapTarget);
+  assert.equal(result.swapTarget.index, 3);
+  assert.equal(result.selected.metadata.knowledgePriority.strict, true);
+});
+
+test('Roswell replaces an unknown slot before a known slot when taking a useful pile card', () => {
+  const setup = harness({
+    own: [card('A'), card('2'), card('9')],
+    ownUnknownIndices: [2],
+    opponents: [[card('8'), card('7')]],
+    pile: card('2', 'hearts')
+  });
+
+  const result = setup.decisions.evaluateDrawSources(setup.bot);
+
+  assert.ok(result.pile);
+  assert.equal(result.pile.index, 2);
+});
+
 test('round-ending risk discounts long-term knowledge while preserving decision-changing information', () => {
   const safe = harness({
     own: [card('A'), card('2'), card('8'), card('9')],
@@ -1315,6 +1347,98 @@ test('pile cards require a concrete benefit and cannot merely worsen known cards
 
   assert.equal(result.pile, null);
   assert.equal(result.selected.actionType, 'draw-deck');
+});
+
+test('Roswell rejects a high pile card without a known duplicate throw-in plan', () => {
+  const setup = harness({
+    own: [card('K', 'clubs'), card('4')],
+    opponents: [[card('8'), card('7')]],
+    pile: card('10')
+  });
+  const result = setup.decisions.evaluateDrawSources(setup.bot);
+
+  assert.equal(result.pile, null);
+  assert.equal(result.selected.actionType, 'draw-deck');
+});
+
+test('Roswell takes a five from the pile only when the rest of its hand can reach Dutch', () => {
+  const blocked = harness({
+    own: [card('2'), card('9')],
+    opponents: [[card('8'), card('7')]],
+    pile: card('5')
+  });
+  assert.equal(blocked.decisions.evaluateDrawSources(blocked.bot).pile, null);
+
+  const ready = harness({
+    own: [card('K', 'hearts'), card('9')],
+    opponents: [[card('8'), card('7')]],
+    pile: card('5')
+  });
+  assert.ok(ready.decisions.evaluateDrawSources(ready.bot).pile);
+});
+
+test('Roswell uses Queen to finish learning its own hand before scouting opponents', () => {
+  const setup = harness({
+    own: [card('2'), card('3'), card('8'), card('9')],
+    ownUnknownIndices: [2, 3],
+    opponents: [[card('2'), card('3')]],
+    opponentsUnknown: true
+  });
+
+  const target = setup.decisions.botQueenTarget(setup.bot);
+
+  assert.equal(target.player.id, setup.bot.id);
+  assert.equal(target.metadata.knowledgePriorityBonus > 0, true);
+});
+
+test('weaker bots use the same priorities with progressively wider tolerances', () => {
+  const options = {
+    own: [card('2'), card('9')],
+    ownUnknownIndices: [1],
+    opponents: [[card('8'), card('7')]]
+  };
+  const roswell = harness({ ...options, botType: 'roswell' });
+  const norman = harness({ ...options, botType: 'norman' });
+  const dory = harness({ ...options, botType: 'dory' });
+
+  const roswellReplacement = roswell.decisions.evaluateReplacement(roswell.bot, card('5'), 1);
+  const normanReplacement = norman.decisions.evaluateReplacement(norman.bot, card('5'), 1);
+  const doryReplacement = dory.decisions.evaluateReplacement(dory.bot, card('5'), 1);
+
+  assert.ok(
+    roswellReplacement.metadata.knowledgePriorityBonus >
+    normanReplacement.metadata.knowledgePriorityBonus
+  );
+  assert.ok(
+    normanReplacement.metadata.knowledgePriorityBonus >
+    doryReplacement.metadata.knowledgePriorityBonus
+  );
+  assert.ok(
+    roswellReplacement.metadata.pilePlan.pileCallProbabilityTarget >
+    doryReplacement.metadata.pilePlan.pileCallProbabilityTarget
+  );
+  assert.ok(
+    roswellReplacement.metadata.pilePlan.pileProgressCeiling <
+    doryReplacement.metadata.pilePlan.pileProgressCeiling
+  );
+
+  const roswellDutch = harness({
+    own: [card('2'), card('3')],
+    opponents: [[card('8'), card('7')]],
+    botType: 'roswell'
+  });
+  const dorySetup = harness({
+    own: [card('2'), card('3')],
+    opponents: [[card('8'), card('7')]],
+    botType: 'dory'
+  });
+  const roswellCall = roswellDutch.decisions.evaluateDutch(roswellDutch.bot);
+  const doryCall = dorySetup.decisions.evaluateDutch(dorySetup.bot);
+
+  assert.ok(
+    roswellCall.call.metadata.callEligibility.currentCallProbabilityTarget >
+    doryCall.call.metadata.callEligibility.currentCallProbabilityTarget
+  );
 });
 
 test('guaranteed throw-ins, valuable specials, and exact thresholds can justify a worse known card', () => {

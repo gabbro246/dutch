@@ -28,17 +28,73 @@
       };
     }
     
-    function captureAnimationSnapshot(mode = 'all') {
+    function animationSnapshotTargets(previousState, state) {
+      const cardIds = new Set();
+      const panelIds = new Set();
+      const previousCards = stateCardLocations(previousState);
+      const currentCards = stateCardLocations(state);
+      const previousRound = previousState && previousState.round;
+      const round = state && state.round;
+      if (!previousRound || !round) return { cardIds, panelIds };
+
+      const newRound = previousState.roundNumber !== state.roundNumber;
+      currentCards.forEach((current, cardId) => {
+        const previous = previousCards.get(cardId);
+        if (
+          newRound
+          || !previous
+          || previous.locationKey !== current.locationKey
+          || previous.faceKind !== current.faceKind
+          || previous.highlight !== current.highlight
+        ) cardIds.add(cardId);
+      });
+
+      const previousCounts = new Map((previousRound.players || []).map((player) => [player.id, (player.cards || []).length]));
+      (round.players || []).forEach((player) => {
+        if (newRound || previousCounts.get(player.id) !== (player.cards || []).length) panelIds.add(player.id);
+      });
+
+      const previousWrongThrow = previousRound.wrongThrowIn;
+      const currentWrongThrow = round.wrongThrowIn;
+      if (currentWrongThrow && (!previousWrongThrow || previousWrongThrow.id !== currentWrongThrow.id)) {
+        if (currentWrongThrow.cardId) cardIds.add(currentWrongThrow.cardId);
+      }
+      return { cardIds, panelIds };
+    }
+
+    function captureAnimationSnapshot(mode = 'all', targets = null) {
       const snapshot = emptyAnimationSnapshot();
       if (mode !== 'game') document.querySelectorAll('[data-waiting-player-id]').forEach((el) => {
         const rect = documentRect(el);
         if (rect.height) snapshot.waitingPlayers.set(el.dataset.waitingPlayerId, { left: rect.left, top: rect.top, width: rect.width, height: rect.height, html: el.outerHTML });
       });
-      if (mode !== 'waiting') document.querySelectorAll("[data-player-panel-id]").forEach((el) => {
+      const panels = mode === 'waiting'
+        ? []
+        : (targets
+            ? Array.from(targets.panelIds || [], (playerId) => document.querySelector(`[data-player-panel-id="${cssEscape(playerId)}"]`)).filter(Boolean)
+            : Array.from(document.querySelectorAll("[data-player-panel-id]")));
+      panels.forEach((el) => {
         const rect = documentRect(el);
         if (rect.height) snapshot.panels.set(el.dataset.playerPanelId, { left: rect.left, top: rect.top, width: rect.width, height: rect.height });
       });
-      if (mode !== 'waiting') document.querySelectorAll('.card').forEach((el) => {
+      let cards = [];
+      if (mode !== 'waiting') {
+        if (targets) {
+          const elements = new Set();
+          Array.from(targets.cardIds || []).forEach((cardId) => {
+            const card = document.querySelector(`.card[data-card-id="${cssEscape(cardId)}"]`);
+            if (card) elements.add(card);
+          });
+          ['deck-top', 'pile-top'].forEach((role) => {
+            const card = document.querySelector(`.card[data-anim-role="${role}"]`);
+            if (card) elements.add(card);
+          });
+          cards = Array.from(elements);
+        } else {
+          cards = Array.from(document.querySelectorAll('.card'));
+        }
+      }
+      cards.forEach((el) => {
         const rect = documentRect(el);
         if (!rect.width || !rect.height) return;
         const data = {
@@ -63,8 +119,8 @@
       const result = new Map();
       const round = state && state.round;
       if (!round) return result;
-      round.players.forEach((player) => {
-        player.cards.forEach((card, index) => {
+      (round.players || []).forEach((player) => {
+        (player.cards || []).forEach((card, index) => {
           if (!card || !card.id) return;
           result.set(card.id, {
             id: card.id,
@@ -868,6 +924,7 @@
 
     return {
       emptyAnimationSnapshot,
+      animationSnapshotTargets,
       captureAnimationSnapshot,
       animateStateTransition,
       animateJackSwapSelections,

@@ -939,7 +939,7 @@ button.help-disclosure-button[aria-expanded="true"] {
 
 /* Player surfaces and status */
 .player-field,
-.own-area,
+.user-area,
 .status {
   --surface-border: var(--panel-border);
   --surface-bg: var(--panel-bg);
@@ -956,7 +956,7 @@ button.help-disclosure-button[aria-expanded="true"] {
   text-align: center;
 }
 
-.own-area {
+.user-area {
   margin-top: 16px;
   padding: 12px 8px;
   text-align: center;
@@ -989,57 +989,57 @@ button.help-disclosure-button[aria-expanded="true"] {
   margin-left: auto;
 }
 
-:is(.player-field, .own-area).current {
+:is(.player-field, .user-area).current {
   --surface-border: var(--current-border);
   --surface-bg: var(--current-bg);
   --surface-shadow: 0 0 0 2px var(--current-ring), var(--panel-shadow);
 }
 
-:is(.player-field, .own-area).dutch-caller {
+:is(.player-field, .user-area).dutch-caller {
   --surface-border: var(--dutch-border);
   --surface-bg: var(--dutch-bg);
   --surface-shadow: 0 0 0 2px var(--dutch-ring), var(--panel-shadow);
 }
 
-:is(.player-field, .own-area).current.dutch-caller {
+:is(.player-field, .user-area).current.dutch-caller {
   --surface-bg: linear-gradient(180deg, var(--dutch-bg) 0%, var(--current-bg) 100%);
 }
 
-:is(.player-field, .own-area).wrong-dutch-call {
+:is(.player-field, .user-area).wrong-dutch-call {
   --surface-border: var(--wrong-dutch-border);
   --surface-bg: var(--wrong-dutch-bg);
   --surface-shadow: 0 0 0 2px var(--wrong-dutch-ring), var(--panel-shadow);
 }
 
-:is(.player-field, .own-area).final-turn-done {
+:is(.player-field, .user-area).final-turn-done {
   --surface-border: var(--control-border);
   --surface-bg: var(--done-bg);
   --surface-shadow: 0 0 0 2px var(--done-ring), var(--panel-shadow);
   color: var(--muted-color);
 }
 
-:is(.player-field, .own-area).current.final-turn-done {
+:is(.player-field, .user-area).current.final-turn-done {
   --surface-bg: linear-gradient(180deg, var(--done-bg) 0%, var(--current-bg) 100%);
 }
 
-:is(.player-field, .own-area).round-winner {
+:is(.player-field, .user-area).round-winner {
   --surface-border: var(--winner-border);
   --surface-bg: var(--winner-bg);
   --surface-shadow: 0 0 0 2px var(--winner-ring), var(--panel-shadow);
 }
 
-:is(.player-field, .own-area).current.round-winner {
+:is(.player-field, .user-area).current.round-winner {
   --surface-bg: linear-gradient(180deg, var(--winner-bg) 0%, var(--current-bg) 100%);
 }
 
-:is(.player-field, .own-area).game-winner,
+:is(.player-field, .user-area).game-winner,
 .status.game-ended-status {
   --surface-border: var(--game-winner-border);
   --surface-bg: var(--game-winner-bg);
   --surface-shadow: 0 0 0 2px var(--game-winner-ring), var(--panel-shadow);
 }
 
-:is(.player-field, .own-area).current.game-winner {
+:is(.player-field, .user-area).current.game-winner {
   --surface-bg: linear-gradient(180deg, var(--game-winner-bg) 0%, var(--current-bg) 100%);
 }
 
@@ -1052,20 +1052,20 @@ button.help-disclosure-button[aria-expanded="true"] {
   font-weight: 400;
 }
 
-.own-area h2 {
+.user-area h2 {
   margin: 0 0 4px;
   font-size: 18px;
 }
 
-.own-area > .row,
-.own-actions {
+.user-area > .row,
+.user-actions,
+.player-actions {
   justify-content: center;
 }
 
-.own-actions { margin-top: 4px; }
-
+.user-actions,
 .player-actions {
-  margin-top: 8px;
+  margin-top: 4px;
   text-align: center;
 }
 
@@ -1080,7 +1080,7 @@ button.help-disclosure-button[aria-expanded="true"] {
 /* Badges */
 .bot-badge,
 .spectator-badge,
-.you-badge,
+.user-badge,
 .player-badge {
   display: inline-flex;
   align-items: center;
@@ -1105,7 +1105,7 @@ button.help-disclosure-button[aria-expanded="true"] {
   color: var(--spectator-text);
 }
 
-.you-badge {
+.user-badge {
   margin-left: 4px;
   border: 1px solid var(--accent-color);
   color: var(--link-color);

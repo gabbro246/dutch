@@ -7,13 +7,13 @@ function actionButtons(html, action) {
   return html.match(new RegExp('<button[^>]*data-action="' + action + '"[^>]*>', 'g')) || [];
 }
 
-test('interaction lab starts with You plus two other players and four hidden cards each', () => {
+test('interaction lab starts with User plus two other players and four hidden cards each', () => {
   const state = stateModel.createInitialState({ random: () => 0 });
 
-  assert.deepEqual(state.round.players.map((player) => player.name), ['You', 'Player 2', 'Player 3']);
+  assert.deepEqual(state.round.players.map((player) => player.name), ['User', 'Player 2', 'Player 3']);
   assert.deepEqual(state.round.players.map((player) => player.cards.length), [4, 4, 4]);
   assert.ok(state.round.players.every((player) => player.cards.every((card) => card.back)));
-  assert.equal(state.you, 'you');
+  assert.equal(state.user, 'user');
 });
 
 test('differentRank always produces a rank that cannot match the discard', () => {
@@ -35,8 +35,8 @@ test('interaction layout matches the live top-opponents, piles, bottom-player or
 
   const opponents = html.indexOf('class="other-players"');
   const piles = html.indexOf('class="deck-pile-area"');
-  const ownArea = html.indexOf('class="own-area');
-  assert.ok(opponents >= 0 && opponents < piles && piles < ownArea);
+  const userArea = html.indexOf('class="user-area');
+  assert.ok(opponents >= 0 && opponents < piles && piles < userArea);
   assert.doesNotMatch(html, /<h1|Interaction lab/);
   assert.match(html, /data-detail-key="settings"/);
 });
@@ -60,16 +60,17 @@ test('player actions stay below players while card-targeted actions stay below e
     assert.ok(index > previousIndex, label + ' should follow the requested card-button order');
     previousIndex = index;
   }
-  assert.equal((html.match(/class="row own-actions"/g) || []).length, 4, 'players and setup controls should use short rows');
+  assert.equal((html.match(/class="row player-actions"/g) || []).length, 4, 'players and setup controls should use short rows');
   assert.match(html, /data-action="replace-special"[^>]+data-card-id="lab-card-1"[^>]+data-special-type="Q"/);
-  const ownArea = html.slice(html.indexOf('data-game-region="own"'), html.indexOf('</main>'));
+  const userArea = html.slice(html.indexOf('data-game-region="user"'), html.indexOf('</main>'));
   const opponentsArea = html.slice(html.indexOf('class="other-players"'), html.indexOf('class="deck-pile-area"'));
   const statusArea = html.slice(html.indexOf('data-game-region="status"'), html.indexOf('data-detail-key="settings"'));
   assert.equal((html.match(/data-system-action="next-player"/g) || []).length, 3);
-  assert.equal((ownArea.match(/data-system-action="next-player"/g) || []).length, 1);
+  assert.equal((userArea.match(/data-system-action="next-player"/g) || []).length, 1);
   assert.equal((opponentsArea.match(/data-system-action="next-player"/g) || []).length, 2);
+  assert.equal((html.match(/data-system-action="next-player"[^>]*disabled="disabled"/g) || []).length, 2);
   assert.equal((statusArea.match(/data-system-action="next-player"/g) || []).length, 0);
-  assert.match(ownArea, /data-system-action="next-player" >Next player<\/button>/);
+  assert.match(userArea, /data-system-action="next-player" >Next player<\/button>/);
 });
 
 test('special action slots stay visible and become active only after that rank is discarded', () => {
@@ -96,7 +97,7 @@ test('setup interactions use a normal utility row instead of card-attached contr
   const html = render.renderPage(stateModel.createInitialState({ random: () => 0 }));
   const deckStart = html.indexOf('class="deck-pile-area"');
   const deckArea = html.slice(deckStart, html.indexOf('</section>', deckStart));
-  const utilityArea = html.slice(html.indexOf('data-interaction-controls="setup"'), html.indexOf('data-game-region="own"'));
+  const utilityArea = html.slice(html.indexOf('data-interaction-controls="setup"'), html.indexOf('data-game-region="user"'));
   const statusArea = html.slice(html.indexOf('data-game-region="status"'));
   for (const label of ['Reshuffle']) {
     assert.equal(utilityArea.split('>' + label + '<').length - 1, 1);
@@ -105,10 +106,11 @@ test('setup interactions use a normal utility row instead of card-attached contr
   assert.doesNotMatch(html, /Initial deal|Opening discard|Randomize cards/);
   assert.equal(deckArea.split('>Take<').length - 1, 2);
   assert.equal(deckArea.split('>Discard<').length - 1, 1);
-  for (const label of ['Round reveal', 'Next round', 'Reset']) {
+  for (const label of ['Round reveal', 'Reset']) {
     assert.equal(statusArea.split('>' + label + '<').length - 1, 1);
     assert.equal(deckArea.split('>' + label + '<').length - 1, 0);
   }
+  assert.doesNotMatch(statusArea, />Next round</);
 });
 
 test('take controls target the active player and replacement controls enable only after their draw', () => {
@@ -188,7 +190,7 @@ test('status panel contains only messages used by the real game', () => {
   let html = render.renderPage(state);
   let statusInfo = html.slice(html.indexOf('class="status-info"'), html.indexOf('class="status-actions"'));
   const statusActions = html.slice(html.indexOf('class="status-actions"'), html.indexOf('</div></div></div></div>', html.indexOf('class="status-actions"')));
-  assert.match(statusInfo, /You&#039;s move\./);
+  assert.match(statusInfo, /User&#039;s move\./);
   assert.doesNotMatch(statusInfo, /interaction|Ready|randomized/i);
   assert.doesNotMatch(statusActions, /data-system-action="next-player"/);
   assert.match(html, /data-system-action="next-player" >Next player<\/button>/);

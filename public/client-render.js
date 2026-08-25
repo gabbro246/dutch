@@ -60,7 +60,7 @@
     ) return { patched: false, changedRegions: [] };
 
     const changedRegions = [];
-    for (const key of ['players', 'deck', 'own', 'status', 'repository']) {
+    for (const key of ['players', 'deck', 'user', 'status', 'repository']) {
       const current = region(currentLayout, key);
       const fresh = region(freshLayout, key);
       if (!!current !== !!fresh) return { patched: false, changedRegions: [] };

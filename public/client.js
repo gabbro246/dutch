@@ -1,15 +1,15 @@
 const socket = io({ autoConnect: false });
 const app = document.getElementById('app');
-const PLAYER_TOKEN_KEY = 'dutchPlayerSessionToken';
-const PLAYER_TAB_KEY = 'dutchPlayerTabId';
-const PLAYER_TOKEN_BACKUP_PREFIX = 'dutchPlayerSessionToken:';
-const PLAYER_TAB_WINDOW_PREFIX = 'dutch-tab:';
-const PLAYER_NAME_KEY = 'dutchPlayerName';
+const USER_TOKEN_KEY = 'dutchPlayerSessionToken';
+const USER_TAB_KEY = 'dutchPlayerTabId';
+const USER_TOKEN_BACKUP_PREFIX = 'dutchPlayerSessionToken:';
+const USER_TAB_WINDOW_PREFIX = 'dutch-tab:';
+const USER_NAME_KEY = 'dutchPlayerName';
 const i18n = window.DutchI18n;
 let language = i18n.getStoredLanguage(window);
 i18n.setLanguage(language, window);
 const soundEffects = window.DutchClientSounds.create();
-const playerToken = getPlayerToken();
+const userToken = getUserToken();
 let lastState = null;
 let pendingManualRejoin = null;
 let hasRenderedGame = false;
@@ -47,6 +47,7 @@ const BOT_NAMES = Object.values(BOT_LABELS);
 const cardAnimations = window.DutchClientCardAnimations.create({ emit, cardHtml });
 const {
   emptyAnimationSnapshot,
+  animationSnapshotTargets,
   captureAnimationSnapshot,
   animateStateTransition,
   animateInitialDeal,
@@ -122,9 +123,9 @@ const { renderWaiting } = window.DutchClientWaiting.create({
   repoLink,
   canJoinWithName,
   clientActions,
-  rememberPlayerName,
-  rememberPlayerTokenBackup,
-  playerToken,
+  rememberUserName,
+  rememberUserTokenBackup,
+  userToken,
   emit,
   wireHelpDisclosures,
   wireAnimatedDrawers,
@@ -147,7 +148,7 @@ document.addEventListener('keydown', () => {
 }, true);
 
 
-function generatePlayerToken() {
+function generateUserToken() {
   return window.crypto && window.crypto.randomUUID
     ? window.crypto.randomUUID()
     : 'player-' + Date.now() + '-' + Math.random().toString(36).slice(2);
@@ -185,41 +186,41 @@ function rememberLocalValue(key, value) {
   }
 }
 
-function getPlayerTabId() {
-  const existing = readSessionValue(PLAYER_TAB_KEY);
+function getUserTabId() {
+  const existing = readSessionValue(USER_TAB_KEY);
   if (existing) return existing;
-  const fromWindowName = String(window.name || '').startsWith(PLAYER_TAB_WINDOW_PREFIX)
-    ? String(window.name).slice(PLAYER_TAB_WINDOW_PREFIX.length)
+  const fromWindowName = String(window.name || '').startsWith(USER_TAB_WINDOW_PREFIX)
+    ? String(window.name).slice(USER_TAB_WINDOW_PREFIX.length)
     : '';
-  const tabId = fromWindowName || generatePlayerToken();
-  rememberSessionValue(PLAYER_TAB_KEY, tabId);
+  const tabId = fromWindowName || generateUserToken();
+  rememberSessionValue(USER_TAB_KEY, tabId);
   try {
-    window.name = PLAYER_TAB_WINDOW_PREFIX + tabId;
+    window.name = USER_TAB_WINDOW_PREFIX + tabId;
   } catch (error) {
     // The session value is enough for ordinary reloads.
   }
   return tabId;
 }
 
-function rememberPlayerTokenBackup(token) {
-  rememberLocalValue(PLAYER_TOKEN_BACKUP_PREFIX + getPlayerTabId(), token);
+function rememberUserTokenBackup(token) {
+  rememberLocalValue(USER_TOKEN_BACKUP_PREFIX + getUserTabId(), token);
 }
 
-function getPlayerToken() {
-  const tabId = getPlayerTabId();
-  const existing = readSessionValue(PLAYER_TOKEN_KEY);
+function getUserToken() {
+  const tabId = getUserTabId();
+  const existing = readSessionValue(USER_TOKEN_KEY);
   if (existing) {
-    rememberLocalValue(PLAYER_TOKEN_BACKUP_PREFIX + tabId, existing);
+    rememberLocalValue(USER_TOKEN_BACKUP_PREFIX + tabId, existing);
     return existing;
   }
-  const backedUp = readLocalValue(PLAYER_TOKEN_BACKUP_PREFIX + tabId);
+  const backedUp = readLocalValue(USER_TOKEN_BACKUP_PREFIX + tabId);
   if (backedUp) {
-    rememberSessionValue(PLAYER_TOKEN_KEY, backedUp);
+    rememberSessionValue(USER_TOKEN_KEY, backedUp);
     return backedUp;
   }
-  const token = generatePlayerToken();
-  rememberSessionValue(PLAYER_TOKEN_KEY, token);
-  rememberLocalValue(PLAYER_TOKEN_BACKUP_PREFIX + tabId, token);
+  const token = generateUserToken();
+  rememberSessionValue(USER_TOKEN_KEY, token);
+  rememberLocalValue(USER_TOKEN_BACKUP_PREFIX + tabId, token);
   return token;
 }
 
@@ -247,17 +248,17 @@ function rememberStoredValue(key, value) {
   }
 }
 
-function getStoredPlayerName() {
-  return readStoredValue(PLAYER_NAME_KEY);
+function getStoredUserName() {
+  return readStoredValue(USER_NAME_KEY);
 }
 
-function rememberPlayerName(name) {
+function rememberUserName(name) {
   const trimmedName = String(name || '').trim().slice(0, PLAYER_NAME_MAX_LENGTH);
-  if (trimmedName) rememberStoredValue(PLAYER_NAME_KEY, trimmedName);
+  if (trimmedName) rememberStoredValue(USER_NAME_KEY, trimmedName);
 }
 
 socket.on('connect', () => {
-  socket.emit('identify', playerToken);
+  socket.emit('identify', userToken);
   if (pendingManualRejoin) {
     socket.emit('join', pendingManualRejoin);
     pendingManualRejoin = null;
@@ -271,7 +272,7 @@ socket.on('disconnect', () => {
     ...lastState,
     joined: false,
     players: (lastState.players || []).map((player) => (
-      player.id === lastState.you ? { ...player, connected: false } : player
+      player.id === lastState.user ? { ...player, connected: false } : player
     ))
   });
 });
@@ -282,8 +283,9 @@ function applyIncomingState(state) {
   const gameTransition = !!(previousState && hasRenderedGame && mergedState.phase === 'playing');
   const waitingTransition = !!(previousState && mergedState.phase === 'waiting');
   const captureGameLayout = gameTransition && cardAnimationSignature(previousState) !== cardAnimationSignature(mergedState);
+  const snapshotTargets = captureGameLayout ? animationSnapshotTargets(previousState, mergedState) : null;
   const beforeSnapshot = captureGameLayout
-    ? captureAnimationSnapshot('game')
+    ? captureAnimationSnapshot('game', snapshotTargets)
     : (waitingTransition ? captureAnimationSnapshot('waiting') : emptyAnimationSnapshot());
   render(mergedState);
   if (mergedState.phase === 'playing' && mergedState.round) {
@@ -295,7 +297,7 @@ function applyIncomingState(state) {
     cancelAllReshuffles();
   }
   const afterSnapshot = captureGameLayout
-    ? captureAnimationSnapshot('game')
+    ? captureAnimationSnapshot('game', snapshotTargets)
     : (waitingTransition ? captureAnimationSnapshot('waiting') : emptyAnimationSnapshot());
   if (gameTransition) {
     animateStateTransition(previousState, mergedState, beforeSnapshot, afterSnapshot);
@@ -369,7 +371,7 @@ function playerNameTaken(state, name) {
   const normalized = normalizedShortPlayerName(name);
   if (!normalized) return false;
   if (BOT_NAMES.some((botName) => normalizedShortPlayerName(botName) === normalized)) return true;
-  return state.players.some((player) => normalizedShortPlayerName(player.name) === normalized && player.id !== state.you);
+  return state.players.some((player) => normalizedShortPlayerName(player.name) === normalized && player.id !== state.user);
 }
 
 function isSpectatorName(name) {
@@ -404,9 +406,9 @@ function bindActiveGameRejoin(missingPlayers = []) {
   const rejoin = () => {
     const name = nameInput.value.slice(0, PLAYER_NAME_MAX_LENGTH);
     if (!canRejoinMissingPlayer(missingPlayers, name)) return;
-    rememberPlayerName(name);
-    rememberPlayerTokenBackup(playerToken);
-    const payload = { name, token: playerToken };
+    rememberUserName(name);
+    rememberUserTokenBackup(userToken);
+    const payload = { name, token: userToken };
     if (socket.connected) emit('join', payload);
     else {
       pendingManualRejoin = payload;
@@ -428,7 +430,7 @@ function render(state) {
     const gameSummary = activeGameSummary(state);
     const rejoinPlayers = (state.players || []).filter((player) => !player.isBot && !player.connected);
     const rejoinAvailable = rejoinPlayers.length > 0;
-    const knownRejoinPlayer = rejoinPlayers.find((player) => player.id === state.you);
+    const knownRejoinPlayer = rejoinPlayers.find((player) => player.id === state.user);
     const rejoinName = knownRejoinPlayer ? knownRejoinPlayer.name : '';
     const activeGameMessage = rejoinAvailable
       ? t('A game is already active. If you were disconnected, enter your name to rejoin.')
@@ -496,18 +498,18 @@ function render(state) {
 
 function renderGame(state) {
   const round = state.round;
-  const me = round.players.find((p) => p.id === state.you);
-  const others = round.players.filter((p) => p.id !== state.you && !p.isSpectator);
+  const user = round.players.find((p) => p.id === state.user);
+  const otherPlayers = round.players.filter((p) => p.id !== state.user && !p.isSpectator);
   const rightPanelScroll = captureRightPanelScroll();
   const drawerTransitions = captureDrawerTransitions();
   const gameMarkup = `
     <div class="main-layout">
       <main class="game-area">
         <section class="other-players" data-game-region="players">
-          ${others.map((player) => renderPlayerField(player, state, true)).join('')}
+          ${otherPlayers.map((player) => renderPlayerField(player, state, true)).join('')}
         </section>
         ${renderDeckPile(state)}
-        ${me && !me.isSpectator ? renderOwnArea(me, state) : ''}
+        ${user && !user.isSpectator ? renderUserArea(user, state) : ''}
       </main>
       ${renderSideArea(state)}
     </div>
@@ -580,7 +582,7 @@ function renderStatus(state) {
     text = t('{name} may use {special} or click Next player.', { name: r.special.actorName, special: i18n.specialLabel(language, r.special.type) });
   } else if (r.roundEndPending) {
     text = t('Last chance to throw in…');
-  } else if (r.turnComplete && r.currentPlayerId === state.you) {
+  } else if (r.turnComplete && r.currentPlayerId === state.user) {
     text = t('Your turn is complete. Say Dutch or click Next player.');
   } else if (r.turnComplete) {
     text = t("{name}'s turn is complete. Waiting for Next player.", { name: r.currentPlayerName });
@@ -655,26 +657,26 @@ function renderPlayerField(player, state, compact) {
   `;
 }
 
-function renderOwnArea(player, state) {
+function renderUserArea(user, state) {
   const r = state.round;
-  const dutchCaller = r.dutchCallerId === player.id
-    ? (isWrongDutchCall(r, player) ? ' wrong-dutch-call' : ' dutch-caller')
+  const dutchCaller = r.dutchCallerId === user.id
+    ? (isWrongDutchCall(r, user) ? ' wrong-dutch-call' : ' dutch-caller')
     : '';
-  const finalTurnDone = player.finalTurnDone ? ' final-turn-done' : '';
-  const roundWinner = (r.roundWinnerIds || []).includes(player.id);
-  const gameWinner = r.winnerId === player.id;
+  const finalTurnDone = user.finalTurnDone ? ' final-turn-done' : '';
+  const roundWinner = (r.roundWinnerIds || []).includes(user.id);
+  const gameWinner = r.winnerId === user.id;
   const winner = gameWinner ? ' game-winner' : (roundWinner ? ' round-winner' : '');
-  const areaLabel = player.isSpectator ? t('spectating') : t('your cards');
+  const areaLabel = user.isSpectator ? t('spectating') : t('your cards');
   return `
-    <section class="own-area${player.isCurrent ? ' current' : ''}${dutchCaller}${finalTurnDone}${winner}" data-game-region="own" data-player-panel-id="${escapeHtml(player.id)}">
+    <section class="user-area${user.isCurrent ? ' current' : ''}${dutchCaller}${finalTurnDone}${winner}" data-game-region="user" data-player-panel-id="${escapeHtml(user.id)}">
       <div class="player-title">
-        <h2>${playerNameHtml(state, player)} <span class="you-badge">${areaLabel}</span>${playerBadges(state, player)}</h2>
-        ${renderPlayerMeta(player)}
+        <h2>${playerNameHtml(state, user)} <span class="user-badge">${areaLabel}</span>${playerBadges(state, user)}</h2>
+        ${renderPlayerMeta(user)}
       </div>
       <div class="cards-row">
-        ${player.cards.map((card, index) => renderCardCell(card, player.id, index, state, false, true)).join('')}
+        ${user.cards.map((card, index) => renderCardCell(card, user.id, index, state, false, true)).join('')}
       </div>
-      ${player.isSpectator ? '' : `<div class="row own-actions">
+      ${user.isSpectator ? '' : `<div class="row user-actions">
         <button data-action="sayDutch" class="expected-action" ${r.controls.canDutch ? '' : 'disabled'}>Dutch</button>
         <button data-action="endTurn" class="expected-action" ${r.controls.canEndTurn ? "" : "disabled"}>${endTurnLabel(state)}</button>
         <button data-action="nextRound" class="expected-action" ${r.stage === 'roundEnd' ? '' : 'disabled'}>${escapeHtml(t('Next round'))}</button>
@@ -685,7 +687,7 @@ function renderOwnArea(player, state) {
 
 function endTurnLabel(state) {
   const r = state.round;
-  if (['turn', 'special'].includes(r.stage) && r.dutchCallerId && r.dutchTurnsRemaining === 0 && r.currentPlayerId === state.you) return t('Finish round');
+  if (['turn', 'special'].includes(r.stage) && r.dutchCallerId && r.dutchTurnsRemaining === 0 && r.currentPlayerId === state.user) return t('Finish round');
   return t('Next player');
 }
 
@@ -765,15 +767,15 @@ function stackPile(r) {
   return `${under}${cardHtml(r.discardTop, false, { 'data-anim-role': 'pile-top', 'data-location-key': 'pile-top', 'data-highlight': r.pileHighlight || '' })}`;
 }
 
-function renderCardCell(card, ownerId, index, state, compact, own) {
+function renderCardCell(card, ownerId, index, state, compact, isUser) {
   const r = state.round;
   const buttons = [];
-  const showingStartPeek = own && r.stage === "peek" && r.controls.canPeekStart;
+  const showingStartPeek = isUser && r.stage === "peek" && r.controls.canPeekStart;
   const startPeekDisabled = !r.controls.canPeekStart || !!card.startPeeked;
   if (showingStartPeek) {
     buttons.push(`<button data-action="peekStart" class="expected-action" data-card-id="${card.id}" title="${escapeHtml(t('Peek'))}" ${startPeekDisabled ? "disabled" : ""}>${escapeHtml(t('Peek'))}</button>`);
   }
-  if (own) {
+  if (isUser) {
     buttons.push(`<button data-action="swapDrawn" data-card-id="${card.id}" title="${escapeHtml(t('Swap'))}" ${r.controls.canSwapDrawn ? "" : "disabled"}>${escapeHtml(t('Swap'))}</button>`);
     buttons.push(`<button data-action="throwIn" data-card-id="${card.id}" title="${escapeHtml(t('Throw in'))}" ${r.controls.canThrowIn ? "" : "disabled"}>${escapeHtml(t('Throw in'))}</button>`);
   }

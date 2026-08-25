@@ -2,6 +2,110 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const clientCardAnimations = require('../public/client-card-animations.js');
 
+function animationRoot(document = {}) {
+  const root = {
+    document: {
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      ...document
+    },
+    Element: function Element() {},
+    matchMedia: () => ({ matches: false }),
+    scrollX: 0,
+    scrollY: 0
+  };
+  root.Element.prototype = {};
+  return root;
+}
+
+test('animation snapshots target only cards and panels changed by the transition', () => {
+  const root = animationRoot();
+  const animations = clientCardAnimations.create({ window: root, emit: () => {}, cardHtml: () => '' });
+  const previousState = {
+    roundNumber: 1,
+    round: {
+      players: [
+        { id: 'a', cards: [{ id: 'a1', back: true }, { id: 'a2', back: true }] },
+        { id: 'b', cards: [{ id: 'b1', back: true }] }
+      ],
+      discardTop: { id: 'pile', back: false },
+      drawn: null,
+      wrongThrowIn: null
+    }
+  };
+  const state = {
+    roundNumber: 1,
+    round: {
+      players: [
+        { id: 'a', cards: [{ id: 'a1', back: false }, { id: 'a2', back: true }] },
+        { id: 'b', cards: [{ id: 'b1', back: true }, { id: 'b2', back: true }] }
+      ],
+      discardTop: { id: 'pile', back: false },
+      drawn: null,
+      wrongThrowIn: { id: 'wrong:1', cardId: 'b1' }
+    }
+  };
+
+  const targets = animations.animationSnapshotTargets(previousState, state);
+
+  assert.deepEqual(Array.from(targets.cardIds).sort(), ['a1', 'b1', 'b2']);
+  assert.deepEqual(Array.from(targets.panelIds), ['b']);
+});
+
+test('a new round targets every dealt card and player panel', () => {
+  const root = animationRoot();
+  const animations = clientCardAnimations.create({ window: root, emit: () => {}, cardHtml: () => '' });
+  const previousState = {
+    roundNumber: 1,
+    round: { players: [{ id: 'a', cards: [{ id: 'old', back: true }] }], discardTop: null, drawn: null }
+  };
+  const state = {
+    roundNumber: 2,
+    round: {
+      players: [
+        { id: 'a', cards: [{ id: 'a1', back: true }] },
+        { id: 'b', cards: [{ id: 'b1', back: true }] }
+      ],
+      discardTop: null,
+      drawn: null
+    }
+  };
+
+  const targets = animations.animationSnapshotTargets(previousState, state);
+
+  assert.deepEqual(Array.from(targets.cardIds).sort(), ['a1', 'b1']);
+  assert.deepEqual(Array.from(targets.panelIds).sort(), ['a', 'b']);
+});
+
+test('targeted snapshots measure only requested cards, panels, and pile anchors', () => {
+  const measured = [];
+  const element = (dataset) => ({
+    dataset,
+    outerHTML: '<div></div>',
+    getBoundingClientRect() {
+      measured.push(dataset.cardId || dataset.playerPanelId || dataset.animRole);
+      return { left: 0, top: 0, width: 64, height: 88 };
+    }
+  });
+  const elements = {
+    '[data-player-panel-id="b"]': element({ playerPanelId: 'b' }),
+    '.card[data-card-id="b2"]': element({ cardId: 'b2', locationKey: 'player:b:1', faceKind: 'back' }),
+    '.card[data-anim-role="deck-top"]': element({ animRole: 'deck-top' }),
+    '.card[data-anim-role="pile-top"]': element({ animRole: 'pile-top', locationKey: 'pile-top' })
+  };
+  const root = animationRoot({ querySelector: (selector) => elements[selector] || null });
+  const animations = clientCardAnimations.create({ window: root, emit: () => {}, cardHtml: () => '' });
+
+  const snapshot = animations.captureAnimationSnapshot('game', {
+    cardIds: new Set(['b2']),
+    panelIds: new Set(['b'])
+  });
+
+  assert.deepEqual(measured, ['b', 'b2', 'deck-top', 'pile-top']);
+  assert.deepEqual(Array.from(snapshot.cards.keys()), ['b2']);
+  assert.deepEqual(Array.from(snapshot.panels.keys()), ['b']);
+});
+
 test('first and second Jack targets each animate upward exactly once', () => {
   const calls = [];
   const cards = new Map();

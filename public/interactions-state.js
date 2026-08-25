@@ -8,7 +8,7 @@
   else root.DutchInteractionState = api;
 })(typeof window !== 'undefined' ? window : globalThis, function createInteractionState(shared) {
   const PLAYER_DEFINITIONS = Object.freeze([
-    { id: 'you', name: 'You' },
+    { id: 'user', name: 'User' },
     { id: 'player-2', name: 'Player 2' },
     { id: 'player-3', name: 'Player 3' }
   ]);
@@ -81,7 +81,7 @@
     return {
       phase: 'playing',
       joined: true,
-      you: 'you',
+      user: 'user',
       gameStartedAt: Number(options.gameStartedAt) || 1,
       roundNumber: Number(options.roundNumber) || 1,
       botTimingPercent: 50,
@@ -103,7 +103,7 @@
       round: {
         stage: 'peek',
         players,
-        currentPlayerId: 'you',
+        currentPlayerId: 'user',
         turnComplete: false,
         deckCount: 24,
         discardCount: 1,

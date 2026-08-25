@@ -87,7 +87,7 @@ test('browser smoke covers drawers, reconnect, persistent regions, and card anim
   assert.deepEqual(renderedPlayerIds, clientPlayerIds, 'Added bot was not rendered.');
 
   await page.locator('#startBtn').click();
-  await page.locator('[data-game-region="own"]').waitFor();
+  await page.locator('[data-game-region="user"]').waitFor();
   assert.equal(await page.locator('[data-action="peekStart"]:not([disabled])').count(), 0, 'Peek must stay locked while cards are being dealt.');
   await page.locator('.initial-deal-card').first().waitFor({ state: 'attached' });
   const dealtSequence = await page.locator('.initial-deal-card').evaluateAll((cards) => {
@@ -117,10 +117,46 @@ test('browser smoke covers drawers, reconnect, persistent regions, and card anim
   });
   assert.deepEqual(dealtSequence.map((card) => card.location), expectedDealSequence, 'Cards should be dealt one card per player, then continue with each player’s next card.');
   assert.deepEqual(dealtSequence.map((card) => card.delay), expectedDealSequence.map((_, index) => index * 100));
+  await page.evaluate(() => {
+    const originalAnimate = Element.prototype.animate;
+    window.__dutchOriginalAnimate = originalAnimate;
+    window.__dutchFaceTurnAudit = { closing: 0, opening: 0, visibleOpenings: [] };
+    Element.prototype.animate = function auditFaceTurns(keyframes, options) {
+      const frames = Array.from(keyframes || []);
+      const transforms = frames.map((frame) => String(frame.transform || ''));
+      if (this.matches('.moving-card') && transforms.length === 2) {
+        if (transforms[0] === 'scaleX(1)' && transforms[1] === 'scaleX(0)') {
+          window.__dutchFaceTurnAudit.closing += 1;
+        }
+        if (transforms[0] === 'scaleX(0)' && transforms[1] === 'scaleX(1)') {
+          window.__dutchFaceTurnAudit.opening += 1;
+          if (this.querySelector('.rank')) {
+            const sample = { widths: [] };
+            window.__dutchFaceTurnAudit.visibleOpenings.push(sample);
+            [20, 60, 100].forEach((delay) => setTimeout(() => {
+              sample.widths.push(this.isConnected ? this.getBoundingClientRect().width : 0);
+            }, delay));
+          }
+        }
+      }
+      return originalAnimate.call(this, keyframes, options);
+    };
+  });
   for (let count = 0; count < 2; count += 1) {
     await page.locator('[data-action="peekStart"]:not([disabled])').first().click();
   }
   await page.locator('[data-action="takeDeck"]:not([disabled])').waitFor({ timeout: 5000 });
+  const faceTurnAudit = await page.evaluate(() => {
+    Element.prototype.animate = window.__dutchOriginalAnimate;
+    return window.__dutchFaceTurnAudit;
+  });
+  assert.ok(faceTurnAudit.closing >= 2, 'Private peeks should animate the old card face closed.');
+  assert.ok(faceTurnAudit.opening >= 2, 'Private peeks should animate the visible card face open.');
+  assert.ok(
+    faceTurnAudit.visibleOpenings.length >= 2
+      && faceTurnAudit.visibleOpenings.every((sample) => sample.widths.some((width) => width > 0)),
+    'The visible half of each private peek should grow to a rendered width.'
+  );
   const statusActionLayout = await page.locator('.side-status-card .status').evaluate((status) => {
     const actions = status.querySelector('.status-actions');
     const info = status.querySelector('.status-info');
@@ -174,7 +210,7 @@ test('browser smoke covers drawers, reconnect, persistent regions, and card anim
   await repositoryRegion.evaluate((element) => { window.__dutchRepositoryRegion = element; });
 
   await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('[data-game-region="own"]').waitFor({ timeout: 5000 });
+  await page.locator('[data-game-region="user"]').waitFor({ timeout: 5000 });
   assert.equal(await page.locator('.active-rejoin-row').count(), 0, 'Stored identity should reconnect automatically.');
 
   const guideDrawer = page.locator('details[data-detail-key="guide"]');
@@ -409,6 +445,20 @@ test('wrong-throw penalty waits until the rejected card finishes shaking', { tim
     });
     window.__wrongThrowTimeline = timeline;
   });
+  await ben.evaluate((playerId) => {
+    const originalAnimate = Element.prototype.animate;
+    window.__compactPanelResizeAnimations = 0;
+    Element.prototype.animate = function auditCompactPanelResize(keyframes, options) {
+      const frames = Array.from(keyframes || []);
+      if (
+        this.matches('[data-player-panel-id="' + CSS.escape(playerId) + '"]')
+        && frames.some((frame) => Object.hasOwn(frame, 'height'))
+      ) {
+        window.__compactPanelResizeAnimations += 1;
+      }
+      return originalAnimate.call(this, keyframes, options);
+    };
+  }, adaPlayer.id);
 
   await ada.locator(`[data-action="throwIn"][data-card-id="${wrongCard.id}"]`).click();
   await assertEventually(
@@ -423,6 +473,10 @@ test('wrong-throw penalty waits until the rejected card finishes shaking', { tim
   assert.ok(
     timeline.penaltyStartedAt >= timeline.shakeFinishedAt,
     'Penalty card started moving before the rejected card finished shaking.'
+  );
+  assert.ok(
+    await ben.evaluate(() => window.__compactPanelResizeAnimations > 0),
+    'Receiving the penalty card should animate the resized compact player panel.'
   );
   assert.deepEqual(pageErrors, []);
 });

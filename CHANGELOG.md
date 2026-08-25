@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.67
+- made bots learn their own unknown cards before spending ordinary draws, unless the round is about to end
+- made discard-pile choices focus on reaching Dutch or preserving a concrete throw-in plan
+- prevented disciplined bots from calling Dutch with an unresolved or above-five hand
+- limited the interaction-page Next player control to the current player and removed Next round
+- renamed the interaction-page player “You” to “User” for clearer player references
+- made card animations smoother during busy game updates
+
 ## 1.3.66
 - made the deck count decrease along with the opening deal animation
 - added a choice of which two Roswell strategy releases to compare in tournaments

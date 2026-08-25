@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createPlayerSessions, playerIdForSocket, normalizePlayerToken } = require('../lib/player-sessions.js');
+const { createPlayerSessions, userIdForSocket, normalizeUserToken } = require('../lib/player-sessions.js');
 
 function socket(id = 'socket-1') {
   const emitted = [];
@@ -49,7 +49,7 @@ function sessionsFor(state) {
       norman: { name: 'Norman' }
     },
     gameView: {
-      buildView: (playerId) => ({ you: playerId })
+      buildView: (userId) => ({ user: userId })
     },
     broadcastState: () => {
       calls.broadcasts += 1;
@@ -81,7 +81,7 @@ test('joining and identifying use stable tokens without duplicating players', ()
 
   sessions.join(client, { name: 'Ada', token: ' token-a ' });
 
-  assert.equal(playerIdForSocket(client), 'token-a');
+  assert.equal(userIdForSocket(client), 'token-a');
   assert.equal(state.players.length, 1);
   assert.equal(state.players[0].id, 'token-a');
   assert.equal(state.players[0].name, 'Ada');
@@ -95,7 +95,7 @@ test('joining and identifying use stable tokens without duplicating players', ()
   assert.equal(state.players[0].connected, true);
   assert.equal(state.players[0].socketId, 'socket-1');
   assert.equal(calls.logs.at(-1).text, 'Ada reconnected');
-  assert.deepEqual(client.emitted.at(-1), { event: 'state', payload: { you: 'token-a' } });
+  assert.deepEqual(client.emitted.at(-1), { event: 'state', payload: { user: 'token-a' } });
   assert.ok(calls.broadcasts >= 2);
 });
 
@@ -114,14 +114,14 @@ test('active game join can reattach a disconnected player by name', () => {
   sessions.join(client, { name: 'Ada', token: 'new-token' });
 
   assert.equal(state.players.length, 2);
-  assert.equal(playerIdForSocket(client), 'ada-token');
+  assert.equal(userIdForSocket(client), 'ada-token');
   assert.equal(state.players[0].connected, true);
   assert.equal(state.players[0].disconnectedAt, null);
   assert.equal(state.players[0].socketId, 'socket-new');
   assert.equal(calls.logs.at(-1).text, 'Ada reconnected');
   assert.equal(calls.broadcasts, 1);
   assert.deepEqual(client.emitted, [
-    { event: 'state', payload: { you: 'ada-token' } }
+    { event: 'state', payload: { user: 'ada-token' } }
   ]);
 });
 
@@ -139,7 +139,7 @@ test('active game join rejects wrong rejoin names even with the old token', () =
 
   sessions.join(client, { name: 'Gabrxxxx', token: 'gabriel-token' });
 
-  assert.equal(playerIdForSocket(client), 'gabriel-token');
+  assert.equal(userIdForSocket(client), 'gabriel-token');
   assert.equal(state.players[0].connected, false);
   assert.equal(state.players[0].socketId, null);
   assert.equal(calls.logs.length, 0);
@@ -194,7 +194,7 @@ test('leave and disconnect update session state for active games', () => {
   };
   const { sessions, calls } = sessionsFor(state);
   const client = socket();
-  client.data.playerId = 'ada';
+  client.data.userId = 'ada';
 
   sessions.leave(client);
 
@@ -211,7 +211,7 @@ test('leave and disconnect update session state for active games', () => {
   const state2 = { phase: 'waiting', waitingMessage: '', players: [player('ben', 'Ben', { socketId: 'socket-2' })] };
   const { sessions: sessions2, calls: calls2 } = sessionsFor(state2);
   const client2 = socket('socket-2');
-  client2.data.playerId = 'ben';
+  client2.data.userId = 'ben';
   sessions2.disconnect(client2);
 
   assert.equal(state2.players[0].connected, false);
@@ -221,7 +221,7 @@ test('leave and disconnect update session state for active games', () => {
 
 test('tokens are normalized and capped', () => {
   const longToken = '  ' + 'x'.repeat(100) + '  ';
-  assert.equal(normalizePlayerToken(longToken), 'x'.repeat(80));
+  assert.equal(normalizeUserToken(longToken), 'x'.repeat(80));
 });
 
 test('a game continues when a leaving human leaves two playable bots', () => {
@@ -246,7 +246,7 @@ test('a game continues when a leaving human leaves two playable bots', () => {
   };
   const { sessions, calls } = sessionsFor(state);
   const client = socket();
-  client.data.playerId = 'ada';
+  client.data.userId = 'ada';
 
   sessions.leave(client);
 

@@ -24,7 +24,7 @@ function state(overrides = {}) {
     roundNumber: 1,
     phase: 'playing',
     joined: true,
-    you: 'ada',
+    user: 'ada',
     ...overrides,
     round: {
       stage: 'turn',
@@ -100,6 +100,72 @@ test('Web Audio is preferred so game effects do not take Android media focus', a
   assert.equal(started[0].data, 'sounds/card-draw.mp3');
 });
 
+test('browser audio preload waits for idle time', () => {
+  const idleCalls = [];
+  const fetched = [];
+  let contextCount = 0;
+  class FakeAudioContext {
+    constructor() {
+      contextCount += 1;
+      this.state = 'running';
+      this.destination = {};
+    }
+    decodeAudioData(data) { return Promise.resolve(data); }
+  }
+  const target = {
+    localStorage: storage(),
+    AudioContext: FakeAudioContext,
+    fetch(path) {
+      fetched.push(path);
+      return Promise.resolve({ ok: true, arrayBuffer: () => Promise.resolve(path) });
+    },
+    requestIdleCallback(callback, options) {
+      idleCalls.push({ callback, options });
+    }
+  };
+
+  create({ target });
+
+  assert.equal(contextCount, 0);
+  assert.deepEqual(fetched, []);
+  assert.equal(idleCalls.length, 1);
+  assert.deepEqual(idleCalls[0].options, { timeout: 1000 });
+
+  idleCalls[0].callback();
+
+  assert.equal(contextCount, 1);
+  assert.equal(fetched.length, 6);
+});
+
+test('playing before idle time loads only the requested sound immediately', async () => {
+  const idleCalls = [];
+  const fetched = [];
+  class FakeAudioContext {
+    constructor() {
+      this.state = 'running';
+      this.destination = {};
+    }
+    decodeAudioData(data) { return Promise.resolve(data); }
+    createBufferSource() { return { connect() {}, start() {}, stop() {} }; }
+    createGain() { return { gain: { value: 0 }, connect() {} }; }
+  }
+  const sounds = create({
+    target: { localStorage: storage() },
+    AudioContext: FakeAudioContext,
+    fetch: (path) => {
+      fetched.push(path);
+      return Promise.resolve({ ok: true, arrayBuffer: () => Promise.resolve(path) });
+    },
+    requestIdleCallbackFn: (callback) => idleCalls.push(callback)
+  });
+
+  sounds.play('draw');
+  await Promise.resolve();
+
+  assert.deepEqual(fetched, ['sounds/card-draw.mp3']);
+  assert.equal(idleCalls.length, 1);
+});
+
 test('game sounds do not play outside a joined game page', () => {
   const before = state({ joined: false });
   const occupiedDraw = state({
@@ -139,7 +205,7 @@ test('draw and discard sounds use full local volume and quieter remote volume', 
   }]);
 });
 
-test('throw-ins use remove for self and discard for other players', () => {
+test('throw-ins use remove for the user and discard for other players', () => {
   const before = state();
   const ownThrow = state({ round: {
     pendingPileReveal: { cardId: 'a1', actorId: 'ada', kind: 'throw-in', moveMs: 420 }
@@ -266,7 +332,7 @@ test('the same discard event cannot be scheduled twice', () => {
   assert.equal(scheduled.length, 1);
 });
 
-test('turn sound plays only when the local player becomes current', () => {
+test('turn sound plays only when the user becomes current', () => {
   const otherTurn = state();
   const ownTurn = state({ round: { currentPlayerId: 'ada' } });
   const opening = state({ round: { stage: 'opening', currentPlayerId: 'ada' } });

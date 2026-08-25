@@ -129,11 +129,11 @@ function loadClient({ token, tabId, storedName = '' }) {
   return { render: context.render, elements, app };
 }
 
-function activeGameState(you) {
+function activeGameState(user) {
   return {
     joined: false,
     phase: 'playing',
-    you,
+    user,
     version: 'test',
     gameTarget: 100,
     singleRound: false,
