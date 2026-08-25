@@ -42,7 +42,7 @@ test('headless complete games are reproducible from a fixed seed', () => {
 
 test('versioned Roswell tournament runs randomized games in both seat orders', () => {
   const result = runVersionedRoswellTournament({
-    gameVersion: '1.3.67',
+    gameVersion: '1.3.68',
     seeds: [23],
     gameTarget: 50,
     maxRounds: 5,
@@ -53,23 +53,23 @@ test('versioned Roswell tournament runs randomized games in both seat orders', (
   assert.deepEqual(
     result.games.map((game) => game.players.map((player) => player.policy)),
     [
-      ['roswell-1.3.67', 'roswell-1.3.65'],
-      ['roswell-1.3.65', 'roswell-1.3.67']
+      ['roswell-1.3.68', 'roswell-1.3.67'],
+      ['roswell-1.3.67', 'roswell-1.3.68']
     ]
   );
   assert.equal(result.comparison.gamesPerVersion, 2);
   assert.equal(result.comparison.randomizedHands, true);
   assert.equal(result.comparison.seatsRotated, true);
-  assert.deepEqual(result.comparison.requestedGameVersions, ['1.3.67', '1.3.65']);
-  assert.deepEqual(result.comparison.strategyReleases, ['1.3.67', '1.3.65']);
-  assert.equal(result.comparison.difference.from, 'roswell-1.3.65');
-  assert.equal(result.comparison.difference.to, 'roswell-1.3.67');
+  assert.deepEqual(result.comparison.requestedGameVersions, ['1.3.68', '1.3.67']);
+  assert.deepEqual(result.comparison.strategyReleases, ['1.3.68', '1.3.67']);
+  assert.equal(result.comparison.difference.from, 'roswell-1.3.67');
+  assert.equal(result.comparison.difference.to, 'roswell-1.3.68');
   assert.ok(Number.isFinite(result.comparison.difference.metrics.gameWinRate));
   assert.ok(Number.isFinite(result.comparison.difference.metrics.averageFinalGameScore));
+  assert.equal(result.summary['roswell-1.3.68'].games, 2);
   assert.equal(result.summary['roswell-1.3.67'].games, 2);
-  assert.equal(result.summary['roswell-1.3.65'].games, 2);
+  assert.equal(result.comparison.versions['roswell-1.3.68'].games, 2);
   assert.equal(result.comparison.versions['roswell-1.3.67'].games, 2);
-  assert.equal(result.comparison.versions['roswell-1.3.65'].games, 2);
 });
 
 test('Roswell comparisons select either release order and resolve unchanged game versions', () => {
@@ -77,6 +77,7 @@ test('Roswell comparisons select either release order and resolve unchanged game
   assert.equal(resolveRoswellStrategyRelease('1.3.65'), '1.3.65');
   assert.equal(resolveRoswellStrategyRelease('1.3.66'), '1.3.65');
   assert.equal(resolveRoswellStrategyRelease('1.3.67'), '1.3.67');
+  assert.equal(resolveRoswellStrategyRelease('1.3.68'), '1.3.68');
 
   const reversed = runVersionedRoswellTournament({
     versions: ['1.3.64', '1.3.65'],

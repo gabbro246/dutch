@@ -188,6 +188,25 @@ test('Dutch at five uses beliefs and does not wait for secret proof that nobody 
   assert.equal(setup.decisions.botShouldCallDutch(setup.bot, result), true);
 });
 
+test('Roswell 1.3.68 favors calling first once its hand is fully known and Dutch-ready', () => {
+  const options = {
+    own: [card('2'), card('3')],
+    opponents: [[card('A'), card('A', 'spades')]],
+    opponentsUnknown: true
+  };
+  const improved = harness({ ...options, strategyRelease: '1.3.68' });
+  const previous = harness({ ...options, strategyRelease: '1.3.67' });
+
+  const improvedResult = improved.decisions.evaluateDutch(improved.bot);
+  const previousResult = previous.decisions.evaluateDutch(previous.bot);
+  const improvedMargin = improvedResult.call.actionValue - improvedResult.continue.actionValue;
+  const previousMargin = previousResult.call.actionValue - previousResult.continue.actionValue;
+
+  assert.equal(improvedResult.call.eligible, true);
+  assert.ok(improvedMargin > previousMargin);
+  assert.equal(improved.decisions.botShouldCallDutch(improved.bot, improvedResult), true);
+});
+
 test('Dutch evaluation preserves a safe exact-50 halving opportunity', () => {
   const setup = harness({
     own: [card('2'), card('2')],
@@ -961,6 +980,94 @@ test('Roswell replaces an unknown slot before a known slot when taking a useful 
 
   assert.ok(result.pile);
   assert.equal(result.pile.index, 2);
+});
+
+test('Roswell 1.3.68 takes a visible red King into an unknown slot before Dutch is immediately ready', () => {
+  const options = {
+    own: [card('2'), card('3'), card('9'), card('10')],
+    ownUnknownIndices: [2, 3],
+    opponents: [[card('8'), card('7')]],
+    pile: card('K', 'hearts')
+  };
+  const improved = harness({ ...options, strategyRelease: '1.3.68' });
+  const previous = harness({ ...options, strategyRelease: '1.3.67' });
+
+  const improvedDraw = improved.decisions.evaluateDrawSources(improved.bot);
+  const previousDraw = previous.decisions.evaluateDrawSources(previous.bot);
+
+  assert.ok(improvedDraw.pile);
+  assert.equal(improvedDraw.selected.actionType, 'take-pile');
+  assert.equal(improvedDraw.pile.metadata.pilePlan.redKingDutchProgress, true);
+  assert.equal(previousDraw.pile, null);
+});
+
+test('Roswell 1.3.68 takes an improving Ace or two from the pile', () => {
+  for (const rank of ['A', '2']) {
+    const setup = harness({
+      own: [card('4'), card('5'), card('9'), card('10')],
+      ownUnknownIndices: [2, 3],
+      opponents: [[card('8'), card('7')]],
+      pile: card(rank, 'hearts'),
+      strategyRelease: '1.3.68'
+    });
+
+    const result = setup.decisions.evaluateDrawSources(setup.bot);
+
+    assert.ok(result.pile, rank);
+    assert.equal(result.selected.actionType, 'take-pile', rank);
+    assert.equal(result.pile.metadata.pilePlan.visibleLowCardDutchProgress, true, rank);
+    assert.equal(result.pile.metadata.visibleLowCardUpgrade, true, rank);
+  }
+});
+
+test('Roswell 1.3.68 hard-prioritizes a three or four only when it creates a Dutch-ready hand', () => {
+  const readyCases = [
+    { rank: '3', own: [card('A'), card('A', 'spades'), card('9')] },
+    { rank: '4', own: [card('A'), card('K', 'hearts'), card('9')] }
+  ];
+  for (const scenario of readyCases) {
+    const setup = harness({
+      own: scenario.own,
+      opponents: [[card('8'), card('7')]],
+      pile: card(scenario.rank, 'diamonds'),
+      strategyRelease: '1.3.68'
+    });
+
+    const result = setup.decisions.evaluateDrawSources(setup.bot);
+
+    assert.ok(result.pile, scenario.rank);
+    assert.equal(result.selected.actionType, 'take-pile', scenario.rank);
+    assert.equal(result.pile.metadata.pilePlan.visibleLowCardDutchProgress, true, scenario.rank);
+  }
+
+  for (const rank of ['3', '4']) {
+    const setup = harness({
+      own: [card('5'), card('9')],
+      opponents: [[card('8'), card('7')]],
+      pile: card(rank, 'diamonds'),
+      strategyRelease: '1.3.68'
+    });
+
+    const result = setup.decisions.evaluateDrawSources(setup.bot);
+
+    assert.equal(result.pile, null, rank);
+  }
+});
+
+test('Roswell 1.3.68 may remove a known matching card instead of learning another unknown', () => {
+  const setup = harness({
+    own: [card('9'), card('2'), card('4'), card('7')],
+    ownUnknownIndices: [3],
+    opponents: [[card('8'), card('6')]],
+    strategyRelease: '1.3.68'
+  });
+
+  const result = setup.decisions.botDeckCardDecision(setup.bot, card('9', 'spades'));
+
+  assert.equal(result.selected.actionType, 'discard-drawn');
+  assert.equal(result.swapTarget, null);
+  assert.equal(result.discard.metadata.throwInFollowUp.reliability, 'guaranteed-current-action');
+  assert.ok(result.discard.metadata.throwInDutchRaceBonus > 0);
 });
 
 test('round-ending risk discounts long-term knowledge while preserving decision-changing information', () => {

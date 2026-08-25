@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.68
+- made Roswell prioritize improving red Kings, Aces and low Dutch-ready cards from the pile
+- made guaranteed throw-ins compete with learning another unknown card
+- made Roswell call Dutch sooner when waiting would let another player call first
+
 ## 1.3.67
 - made bots learn their own unknown cards before spending ordinary draws, unless the round is about to end
 - made discard-pile choices focus on reaching Dutch or preserving a concrete throw-in plan
