@@ -306,6 +306,8 @@ test('fixed-seed games stay deterministic without retaining bot thoughts', () =>
   try {
     const firstState = one.services.getState();
     const secondState = two.services.getState();
+    assert.equal(firstState.gameSeed, 424242);
+    assert.equal(secondState.gameSeed, 424242);
     assert.deepEqual(firstState.round.deck, secondState.round.deck);
     assert.deepEqual(
       firstState.players.map((player) => player.cards),
@@ -319,6 +321,7 @@ test('fixed-seed games stay deterministic without retaining bot thoughts', () =>
     assert.ok(liveStatePayloads.length > 0);
     assert.ok(liveStatePayloads.every((view) => !Object.hasOwn(view, 'replayArchive')));
     assert.ok(liveStatePayloads.every((view) => !Object.hasOwn(view, 'botDiagnostics')));
+    assert.ok(liveStatePayloads.every((view) => !Object.hasOwn(view, 'gameSeed')));
   } finally {
     one.services.close();
     two.services.close();

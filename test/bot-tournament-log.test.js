@@ -46,6 +46,7 @@ test('tournaments stream every captured game into one timestamped log subfolder'
   const logText = zlib.gunzipSync(compressed).toString('utf8');
   assert.match(logText, /Game log:/);
   assert.match(logText, /Game version: 1\.3\.66/);
+  assert.match(logText, /Game seed: 41/);
   assert.doesNotMatch(logText, /Bot strategy diagnostics:/);
   assert.doesNotMatch(logText, /Deterministic replay archive/);
 

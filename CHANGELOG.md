@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.69
+- showed the game seed in saved logs and the log viewer
+
 ## 1.3.68
 - made Roswell prioritize improving red Kings, Aces and low Dutch-ready cards from the pile
 - made guaranteed throw-ins compete with learning another unknown card

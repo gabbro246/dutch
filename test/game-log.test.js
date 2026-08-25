@@ -35,6 +35,7 @@ test('finished game log includes winner, score table, and relative log lines', (
     savedAt: new Date(2026, 0, 2, 3, 4, 5),
     gameStartedAt: new Date(2026, 0, 1, 1, 2, 3),
     gameVersion: '1.3.66',
+    gameSeed: 424242,
     winnerName: 'Ada',
     gameTarget: 100,
     roundNumber: 2,
@@ -50,7 +51,7 @@ test('finished game log includes winner, score table, and relative log lines', (
 
   assert.match(text, /^Dutch game log 2026-01-01_01-02-03\n/);
   assert.match(text, /Exported: 2026-01-02_03-04-05\n/);
-  assert.match(text, /Game version: 1\.3\.66\nWinner: Ada\nTarget: 100\nRounds: 2\n/);
+  assert.match(text, /Game version: 1\.3\.66\nGame seed: 424242\nWinner: Ada\nTarget: 100\nRounds: 2\n/);
   assert.match(text, /Round \| Ada \| Ben\n--- \| --- \| ---\nRound 1 \| 4 \| 7\nRound 2 \| 9 \| 8/);
   assert.match(text, /Game log:\n\+00:00\.000 1\. \[system\] game started\n\+00:01\.500 2\. Ada swapped cards\n$/);
 });
@@ -117,6 +118,7 @@ test("saved log viewer renders public sections and omits private bot data", () =
     "Dutch game log 2026-01-01_01-02-03",
     "Exported: 2026-01-01_01-03-26",
     "Game version: 1.3.65",
+    "Game seed: 424242",
     "Winner: Ada",
     "Target: 100",
     "Rounds: 1",
@@ -141,6 +143,7 @@ test("saved log viewer renders public sections and omits private bot data", () =
   assert.match(html, /<dt>Game started<\/dt><dd>January 1, 2026 at 01:02:03<\/dd>/);
   assert.match(html, /<dt>Exported<\/dt><dd>January 1, 2026 at 01:03:26<\/dd>/);
   assert.match(html, /<dt>Game version<\/dt><dd>1\.3\.65<\/dd>/);
+  assert.match(html, /<dt>Game seed<\/dt><dd>424242<\/dd>/);
   assert.match(html, /<dt>Game duration<\/dt><dd>1 minute 23 seconds<\/dd>/);
   assert.match(html, /<dt>Winner<\/dt><dd>Ada<\/dd>/);
   assert.match(html, /<section class=saved-log-section aria-label="Points table">/);
