@@ -63,6 +63,8 @@ const uiAnimations = window.DutchClientUiAnimations.create({
 });
 const {
   wireAnimatedDrawers,
+  captureButtonTransitions = () => new Map(),
+  animateButtonTransitions = () => {},
   captureDrawerTransitions,
   animateDrawerTransitions,
   animateWaitingPlayerListChanges,
@@ -424,6 +426,7 @@ function bindActiveGameRejoin(missingPlayers = []) {
 }
 
 function render(state) {
+  const buttonTransitions = captureButtonTransitions();
   if (!state.joined && state.phase === 'playing') {
     const selectedTheme = window.DutchTheme.getStoredTheme(window);
     const gameStarted = gameStartedText(state.gameStartedAt);
@@ -490,10 +493,12 @@ function render(state) {
     }
     wireSoundSelect('occupiedSoundSelect');
     wireLanguageSelect('occupiedLanguageSelect');
+    animateButtonTransitions(buttonTransitions);
     return;
   }
   if (state.phase === 'waiting') renderWaiting(state);
   else renderGame(state);
+  animateButtonTransitions(buttonTransitions);
 }
 
 function renderGame(state) {
@@ -565,7 +570,8 @@ function renderStatus(state) {
   if (r.stage === 'roundEnd') {
     text = t('Round ended. Cards are revealed and points were counted.');
   } else if (r.stage === 'gameEnd') {
-    const gameLength = state.singleRound ? t('Single round') : t('{count} point', { count: state.gameTarget });
+    const roundLimit = Number(state.roundLimit) || (state.singleRound ? 1 : 0);
+    const gameLength = roundLimit === 1 ? t('Single round') : roundLimit === 5 ? t('Five rounds') : t('{count} point', { count: state.gameTarget });
     textHtml = t('Game ended. <strong>{winner} won the {length} game.</strong>', {
       winner: escapeHtml(r.winnerName || t('Unknown player')),
       length: escapeHtml(gameLength)
@@ -603,7 +609,9 @@ function renderStatus(state) {
   }
   const buttons = [
     `<button data-action="endGameForAll" ${finishActive ? 'disabled' : ''}>${escapeHtml(t('End game for all'))}</button>`,
-    `<button data-action="leave" ${finishActive ? 'disabled' : ''}>${escapeHtml(t('Leave game'))}</button>`,
+    state.leaveWouldEndGame && !finishActive
+      ? ''
+      : `<button data-action="leave" ${finishActive ? 'disabled' : ''}>${escapeHtml(t('Leave game'))}</button>`,
     `<button data-action="newGame" class="expected-action" ${finishActive ? '' : 'disabled'}>${escapeHtml(t('Finish'))}</button>`
   ].filter(Boolean).join('');
   return `
@@ -770,16 +778,17 @@ function stackPile(r) {
 function renderCardCell(card, ownerId, index, state, compact, isUser) {
   const r = state.round;
   const buttons = [];
-  const showingStartPeek = isUser && r.stage === "peek" && r.controls.canPeekStart;
+  const showingStartPeek = isUser && r.stage === "peek";
   const startPeekDisabled = !r.controls.canPeekStart || !!card.startPeeked;
-  if (showingStartPeek) {
-    buttons.push(`<button data-action="peekStart" class="expected-action" data-card-id="${card.id}" title="${escapeHtml(t('Peek'))}" ${startPeekDisabled ? "disabled" : ""}>${escapeHtml(t('Peek'))}</button>`);
-  }
   if (isUser) {
-    buttons.push(`<button data-action="swapDrawn" data-card-id="${card.id}" title="${escapeHtml(t('Swap'))}" ${r.controls.canSwapDrawn ? "" : "disabled"}>${escapeHtml(t('Swap'))}</button>`);
+    if (showingStartPeek) {
+      buttons.push(`<button data-action="peekStart" class="expected-action" data-card-id="${card.id}" title="${escapeHtml(t('Peek'))}" ${startPeekDisabled ? "disabled" : ""}>${escapeHtml(t('Peek'))}</button>`);
+    } else {
+      buttons.push(`<button data-action="swapDrawn" data-card-id="${card.id}" title="${escapeHtml(t('Swap'))}" ${r.controls.canSwapDrawn ? "" : "disabled"}>${escapeHtml(t('Swap'))}</button>`);
+    }
     buttons.push(`<button data-action="throwIn" data-card-id="${card.id}" title="${escapeHtml(t('Throw in'))}" ${r.controls.canThrowIn ? "" : "disabled"}>${escapeHtml(t('Throw in'))}</button>`);
   }
-  const specialAction = showingStartPeek ? "" : renderCardSpecialAction(card, ownerId, r);
+  const specialAction = renderCardSpecialAction(card, ownerId, r);
   if (specialAction) buttons.push(specialAction);
 
   const selected = r.special && r.special.selected && r.special.selected.includes(card.id);
@@ -929,10 +938,10 @@ function wireSoundSelect(id) {
   });
 }
 
-function inactivityTimeoutSettingHtml(state, id) {
+function inactivityTimeoutSettingHtml(state, id, advanced = false, expanded = false) {
   const minutes = state.inactivityTimeoutMinutes || 15;
   return `
-    <div class="setting-row">
+    <div class="setting-row${advanced ? ' advanced-setting' : ''}" ${advanced && !expanded ? 'hidden' : ''}>
       ${helpDisclosureHtml(id + 'Help', 'Inactive after', 'If nobody plays for this long, the game ends and the room is freed for new players. Choose a longer time if everyone plans to return.')}
       <select id="${id}" aria-label="${escapeHtml(t('Inactive after'))}">
         ${[15, 30, 60, 90].map((value) => `<option value="${value}" ${minutes === value ? 'selected' : ''}>${escapeHtml(t('{count} minutes', { count: value }))}</option>`).join('')}
@@ -950,12 +959,12 @@ function wireInactivityTimeoutSelect(id) {
   });
 }
 
-function botTimingSettingHtml(state, id) {
+function botTimingSettingHtml(state, id, advanced = false, expanded = false) {
   const percent = BOT_SPEED_OPTIONS.some((option) => option.value === Number(state.botTimingPercent))
     ? Number(state.botTimingPercent)
     : 50;
   return `
-    <div class="setting-row">
+    <div class="setting-row${advanced ? ' advanced-setting' : ''}" ${advanced && !expanded ? 'hidden' : ''}>
       ${helpDisclosureHtml(id + 'Help', 'Bot speed', 'Choose how quickly bots take their turns. The throw-in window always lasts 1.6 seconds and is not affected by bot speed. This setting is shared by everyone.')}
       <select id="${id}" aria-label="${escapeHtml(t('Bot speed'))}">
         ${BOT_SPEED_OPTIONS.map((option) => `<option value="${option.value}" ${percent === option.value ? 'selected' : ''}>${escapeHtml(t(option.label))}</option>`).join('')}
@@ -1141,7 +1150,7 @@ function renderPointsChart(state, currentPlayers) {
   const height = 180;
   const maxRound = Math.max(1, ...history.map((entry) => Number(entry.round) || 0));
   const maxTotal = Math.max(0, ...series.flatMap((item) => item.points.map((point) => point.total)));
-  const target = state.singleRound ? 0 : Number(state.gameTarget) || 0;
+  const target = state.roundLimit || state.singleRound ? 0 : Number(state.gameTarget) || 0;
   const { margin, plotWidth, yMax, x, y, coordinate, xTicks, yTicks } = pointsChartGeometry({
     width,
     height,
@@ -1245,6 +1254,6 @@ function shortInstructions() {
 
 function fullRules(state) {
   return language === 'en'
-    ? fullRulesHtml(state.gameTarget, state.singleRound)
-    : i18n.fullRulesHtml(language, state.gameTarget, state.singleRound);
+    ? fullRulesHtml(state.gameTarget, state.singleRound, state.roundLimit)
+    : i18n.fullRulesHtml(language, state.gameTarget, state.singleRound, state.roundLimit);
 }

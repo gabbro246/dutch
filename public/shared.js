@@ -289,10 +289,13 @@
   `;
   }
 
-  function fullRulesHtml(gameTarget, singleRound = false) {
-    const gameLengthText = singleRound
+  function fullRulesHtml(gameTarget, singleRound = false, roundLimit = null) {
+    const fixedRoundCount = Number(roundLimit) || (singleRound ? 1 : 0);
+    const gameLengthText = fixedRoundCount === 1
       ? 'In a single-round game, the game ends after the first round. The player with the fewest total points wins.'
-      : `The player with the most points in the previous round starts the next round. As soon as a player has more than ${gameTarget} points after scoring and halving, the game ends. The winner is the player with the fewest total points.`;
+      : fixedRoundCount === 5
+        ? 'In a five-round game, the game ends after the fifth round. The player with the fewest total points wins.'
+        : `The player with the most points in the previous round starts the next round. As soon as a player has more than ${gameTarget} points after scoring and halving, the game ends. The winner is the player with the fewest total points.`;
     return `
     <p>Dutch is a card game in which players try to collect as few points as possible. It is played with a normal deck of cards without jokers. With many players, two decks can be shuffled together.</p>
     <p>At the beginning, each player receives four cards face down. Then each player may look at exactly two of their own cards. These cards are then placed face down again. After every player has finished peeking, one card is turned up from the draw pile to start the face-up discard pile. The remaining cards form the face-down draw pile.</p>

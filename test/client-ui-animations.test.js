@@ -131,3 +131,67 @@ test('does not launch confetti for a round winner', () => {
 
   assert.equal(layers.length, 0);
 });
+
+function transitionButton(disabled) {
+  return {
+    id: '',
+    dataset: { action: 'endTurn' },
+    disabled,
+    closest: () => null,
+    animate(keyframes, options) {
+      this.animation = { keyframes, options };
+    }
+  };
+}
+
+function transitionStyle(disabled) {
+  return disabled
+    ? { opacity: '0.45', backgroundColor: 'rgb(255, 255, 255)', borderTopColor: 'rgb(154, 160, 166)', color: 'rgb(32, 33, 36)' }
+    : { opacity: '1', backgroundColor: 'rgb(66, 57, 200)', borderTopColor: 'rgb(66, 57, 200)', color: 'rgb(255, 255, 255)' };
+}
+
+test('animates button visuals in both disabled-state directions', () => {
+  for (const [beforeDisabled, afterDisabled] of [[true, false], [false, true]]) {
+    const { api } = harness();
+    const before = transitionButton(beforeDisabled);
+    before.visual = transitionStyle(beforeDisabled);
+    global.getComputedStyle = (button) => button.visual;
+    global.document.querySelectorAll = () => [before];
+    const transitions = api.captureButtonTransitions();
+
+    const after = transitionButton(afterDisabled);
+    after.visual = transitionStyle(afterDisabled);
+    global.document.querySelectorAll = () => [after];
+    api.animateButtonTransitions(transitions);
+
+    assert.deepEqual(after.animation.keyframes[0], {
+      opacity: before.visual.opacity,
+      backgroundColor: before.visual.backgroundColor,
+      borderColor: before.visual.borderTopColor,
+      color: before.visual.color
+    });
+    assert.deepEqual(after.animation.keyframes[1], {
+      opacity: after.visual.opacity,
+      backgroundColor: after.visual.backgroundColor,
+      borderColor: after.visual.borderTopColor,
+      color: after.visual.color
+    });
+    assert.equal(after.animation.options.duration, 180);
+  }
+});
+
+test('skips button state animations when reduced motion is requested', () => {
+  const { api } = harness({ reducedMotion: true });
+  const before = transitionButton(true);
+  before.visual = transitionStyle(true);
+  global.getComputedStyle = (button) => button.visual;
+  global.document.querySelectorAll = () => [before];
+  const transitions = api.captureButtonTransitions();
+
+  const after = transitionButton(false);
+  after.visual = transitionStyle(false);
+  global.document.querySelectorAll = () => [after];
+  api.animateButtonTransitions(transitions);
+
+  assert.equal(after.animation, undefined);
+});

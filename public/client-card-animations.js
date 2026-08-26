@@ -368,7 +368,7 @@
       if (deckCountElement && initialDeckCount !== null) deckCountElement.textContent = String(initialDeckCount);
 
       dealSequence.forEach(({ card, targetData }, dealIndex) => {
-        const move = animateCardMove(card.id, sourceData, targetData, travel, '', dealIndex * interval);
+        const move = animateCardMove(card.id, sourceData, targetData, travel, '', dealIndex * interval, true);
         const updateDeckCount = () => {
           completedDeals += 1;
           if (deckCountElement && initialDeckCount !== null) {
@@ -492,7 +492,7 @@
       return String(value).replace(/"/g, '\\"');
     }
     
-    function animateCardMove(cardId, sourceData, targetData, duration = 360, cloneHtml = '', delay = 0) {
+    function animateCardMove(cardId, sourceData, targetData, duration = 360, cloneHtml = '', delay = 0, hideDuringDelay = false) {
       const target = cardElement(cardId, targetData.locationKey) || elementAtRect(targetData.rect, targetData.locationKey);
       let source = sourceData.rect;
       const dest = targetData.rect;
@@ -531,10 +531,18 @@
       target.classList.add('anim-target-hidden');
       const scaleX = source.width / dest.width;
       const scaleY = source.height / dest.height;
-      const animation = clone.animate([
-        { transform: `translate(${source.left - dest.left}px, ${source.top - dest.top}px) scale(${scaleX}, ${scaleY})` },
-        { transform: 'translate(0, 0) scale(1, 1)' }
-      ], {
+      const sourceTransform = `translate(${source.left - dest.left}px, ${source.top - dest.top}px) scale(${scaleX}, ${scaleY})`;
+      const keyframes = hideDuringDelay && delay > 0
+        ? [
+            { transform: sourceTransform, opacity: 0, offset: 0 },
+            { transform: sourceTransform, opacity: 1, offset: 0.001 },
+            { transform: 'translate(0, 0) scale(1, 1)', opacity: 1, offset: 1 }
+          ]
+        : [
+            { transform: sourceTransform },
+            { transform: 'translate(0, 0) scale(1, 1)' }
+          ];
+      const animation = clone.animate(keyframes, {
         duration,
         delay,
         easing: 'linear',

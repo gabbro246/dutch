@@ -120,6 +120,10 @@ test('terminal helpers format game start, game end, settings, players, and score
 
   state.singleRound = true;
   assert.equal(runtime.terminalSettingsText(), 'two decks, single round');
+
+  state.singleRound = false;
+  state.roundLimit = 5;
+  assert.equal(runtime.terminalSettingsText(), 'two decks, five rounds');
 });
 
 test('hostAddresses and startup logging use external IPv4 addresses', () => {

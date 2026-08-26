@@ -94,6 +94,18 @@ test('finished game log labels a single-round game', () => {
   assert.match(text, /Target: Single round\nRounds: 1\n/);
 });
 
+test('finished game log labels a five-round game', () => {
+  const text = finishedGameLogText({
+    roundLimit: 5,
+    gameTarget: 100,
+    roundNumber: 5,
+    scoreHistory: [],
+    log: []
+  });
+
+  assert.match(text, /Target: Five rounds\nRounds: 5\n/);
+});
+
 test('log list summary ranks players by final score without winner text', () => {
   const text = finishedGameLogText({
     savedAt: new Date(2026, 0, 2, 3, 4, 5),

@@ -319,6 +319,45 @@ test('single-round game ends when its first round is scored', () => {
   assert.equal(calls.admin.at(-1).event, 'game_ended_single_round');
 });
 
+test('five-round game ends when its fifth round is scored', () => {
+  const state = freshState();
+  state.phase = 'playing';
+  state.roundLimit = 5;
+  state.players = [
+    player('ada', [card('a1', '7')]),
+    player('ben', [card('b1', '3')])
+  ];
+  state.roundNumber = 5;
+  state.round = {
+    stage: 'turn',
+    deck: [],
+    discard: [],
+    currentPlayerIndex: 0,
+    drawn: null,
+    turnComplete: true,
+    throwIn: { open: true },
+    specialQueue: [],
+    reveals: [],
+    pileHighlight: null,
+    handHighlights: [],
+    dutchCallerId: 'ada',
+    dutchQueue: [],
+    roundWinnerIds: [],
+    winnerId: null
+  };
+  const { lifecycle, calls, getState } = lifecycleFor(state);
+
+  lifecycle.advanceTurn();
+  calls.timeouts.at(-1).fn();
+
+  assert.equal(getState().round.stage, 'gameEnd');
+  assert.equal(getState().round.winnerId, 'ben');
+  assert.equal(calls.savedLogs, 1);
+  assert.deepEqual(calls.terminal.at(-1), { reason: 'five rounds completed', winner: 'BEN' });
+  assert.equal(calls.admin.at(-1).event, 'game_ended_fixed_rounds');
+  assert.equal(calls.admin.at(-1).data.target, 'five rounds');
+});
+
 test('normal turn rotation clears changed-card highlights for the incoming player', () => {
   const state = freshState();
   state.phase = 'playing';
@@ -355,9 +394,10 @@ test('normal turn rotation clears changed-card highlights for the incoming playe
   assert.deepEqual(calls.clearedHandHighlights, ['ben']);
 });
 
-test('reset to waiting replaces state and keeps connected players', () => {
+test('reset to waiting saves an unfinished log after a completed round', () => {
   const state = freshState();
   state.phase = 'playing';
+  state.scoreHistory = [{ round: 1, players: [] }];
   state.players = [
     player('ada', [card('a1')]),
     player('ben', [card('b1')], { connected: false }),
@@ -380,6 +420,19 @@ test('reset to waiting replaces state and keeps connected players', () => {
   assert.equal(calls.savedGameStates[0].winnerName, '');
   assert.equal(calls.savedGameStates[0].gameVersion, 'test-version');
   assert.deepEqual(calls.savedGameStates[0].latestLog, { text: 'table reset', kind: 'system' });
+});
+
+test('reset to waiting does not save an unfinished log before a round is completed', () => {
+  const state = freshState();
+  state.phase = 'playing';
+  state.players = [player('ada', [card('a1')]), player('ben', [card('b1')])];
+  state.round = { stage: 'turn' };
+  const { lifecycle, calls, getState } = lifecycleFor(state);
+
+  lifecycle.resetToWaiting(true, 'game cancelled by players');
+
+  assert.equal(getState().phase, 'waiting');
+  assert.equal(calls.savedLogs, 0);
 });
 
 test('resetting a finished game does not save its log twice', () => {

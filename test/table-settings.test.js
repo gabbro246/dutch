@@ -76,10 +76,16 @@ test('setGameTarget accepts point targets that no active player has exceeded', (
 
   settings.setGameTarget('single');
   assert.equal(state.singleRound, true);
+  assert.equal(state.roundLimit, 1);
   assert.equal(state.gameTarget, 100);
+
+  settings.setGameTarget('five');
+  assert.equal(state.singleRound, false);
+  assert.equal(state.roundLimit, 5);
 
   settings.setGameTarget('50');
   assert.equal(state.singleRound, false);
+  assert.equal(state.roundLimit, null);
   assert.equal(state.gameTarget, 50);
 
   settings.setGameTarget('200');
@@ -101,12 +107,22 @@ test('setGameTarget accepts point targets that no active player has exceeded', (
   state.round.stage = 'roundEnd';
   settings.setGameTarget('single');
   assert.equal(state.singleRound, false);
+  settings.setGameTarget('five');
+  assert.equal(state.roundLimit, 5);
 
   state.round = { stage: 'turn' };
   state.roundNumber = 2;
   settings.setGameTarget('single');
   assert.equal(state.singleRound, false);
 
+  state.roundNumber = 5;
+  state.round.stage = 'roundEnd';
+  settings.setGameTarget(100);
+  settings.setGameTarget('five');
+  assert.equal(state.roundLimit, null);
+
+  state.roundNumber = 2;
+  state.round.stage = 'turn';
   state.players = [player('a', { total: 50 })];
   settings.setGameTarget(50);
   assert.equal(state.gameTarget, 50);
@@ -179,6 +195,7 @@ test('shared setting changes are logged during a game with the actor and old val
   assert.equal(settings.setGameTarget(50, state.players[0]), true);
   assert.equal(settings.setGameTarget(50, state.players[0]), false);
   assert.equal(settings.setGameTarget('single', state.players[0]), true);
+  assert.equal(settings.setGameTarget('five', state.players[0]), true);
   assert.equal(settings.setInactivityTimeout(60, state.players[0]), true);
   assert.equal(settings.setBotTimingPercent(25, state.players[0]), true);
   assert.equal(settings.setBotTimingPercent(25, state.players[0]), false);
@@ -191,6 +208,10 @@ test('shared setting changes are logged during a game with the actor and old val
     },
     {
       text: 'Ada changed game length from 50 points to single round',
+      kind: 'system'
+    },
+    {
+      text: 'Ada changed game length from single round to five rounds',
       kind: 'system'
     },
     {

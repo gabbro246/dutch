@@ -204,7 +204,9 @@
     if (round.stage === 'roundEnd') {
       message = t(state, 'Round ended. Cards are revealed and points were counted.');
     } else if (round.stage === 'gameEnd') {
-      message = 'Game ended. ' + playerName(state, round.winnerId) + ' won the Single round game.';
+      const roundLimit = Number(state.roundLimit) || (state.singleRound ? 1 : 0);
+      const gameLength = roundLimit === 1 ? t(state, 'Single round') : roundLimit === 5 ? t(state, 'Five rounds') : t(state, '{count} point', { count: state.gameTarget });
+      message = 'Game ended. ' + playerName(state, round.winnerId) + ' won the ' + gameLength + ' game.';
     } else if (temporaryEvent) {
       message = temporaryEvent;
     } else if (round.stage === 'peek') {

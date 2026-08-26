@@ -177,6 +177,13 @@ select {
 }
 
 button { cursor: pointer; }
+button {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    opacity 180ms ease;
+}
 button:not(:disabled):hover { background: var(--control-hover-bg); }
 
 button.expected-action:not(:disabled) {
@@ -192,6 +199,10 @@ select:disabled,
 input:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button { transition: none; }
 }
 
 button:focus-visible,
@@ -481,6 +492,10 @@ button.help-disclosure-button[aria-expanded="true"] {
   gap: 10px;
   padding: 4px 0;
   border-bottom: 1px solid var(--line-border);
+}
+
+.waiting-player-list .player-line:last-of-type {
+  border-bottom: 0;
 }
 
 .player-line span {
@@ -1001,10 +1016,6 @@ button.help-disclosure-button[aria-expanded="true"] {
   --surface-shadow: 0 0 0 2px var(--dutch-ring), var(--panel-shadow);
 }
 
-:is(.player-field, .user-area).current.dutch-caller {
-  --surface-bg: linear-gradient(180deg, var(--dutch-bg) 0%, var(--current-bg) 100%);
-}
-
 :is(.player-field, .user-area).wrong-dutch-call {
   --surface-border: var(--wrong-dutch-border);
   --surface-bg: var(--wrong-dutch-bg);
@@ -1018,18 +1029,10 @@ button.help-disclosure-button[aria-expanded="true"] {
   color: var(--muted-color);
 }
 
-:is(.player-field, .user-area).current.final-turn-done {
-  --surface-bg: linear-gradient(180deg, var(--done-bg) 0%, var(--current-bg) 100%);
-}
-
 :is(.player-field, .user-area).round-winner {
   --surface-border: var(--winner-border);
   --surface-bg: var(--winner-bg);
   --surface-shadow: 0 0 0 2px var(--winner-ring), var(--panel-shadow);
-}
-
-:is(.player-field, .user-area).current.round-winner {
-  --surface-bg: linear-gradient(180deg, var(--winner-bg) 0%, var(--current-bg) 100%);
 }
 
 :is(.player-field, .user-area).game-winner,
@@ -1037,10 +1040,6 @@ button.help-disclosure-button[aria-expanded="true"] {
   --surface-border: var(--game-winner-border);
   --surface-bg: var(--game-winner-bg);
   --surface-shadow: 0 0 0 2px var(--game-winner-ring), var(--panel-shadow);
-}
-
-:is(.player-field, .user-area).current.game-winner {
-  --surface-bg: linear-gradient(180deg, var(--game-winner-bg) 0%, var(--current-bg) 100%);
 }
 
 .player-title { margin-bottom: 6px; }
@@ -1139,14 +1138,22 @@ button.help-disclosure-button[aria-expanded="true"] {
 /* Cards and piles */
 .deck-pile-area {
   display: grid;
-  grid-template-columns: repeat(3, 82px);
+  grid-template-columns: 90px 82px 90px;
   align-items: flex-start;
   justify-content: center;
   gap: 10px;
   margin-top: 16px;
 }
 
-.stack-area,
+.stack-area {
+  min-width: 0;
+  width: 90px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: center;
+}
+
 .drawn-area {
   min-width: 0;
   width: 82px;
@@ -1274,6 +1281,7 @@ button.help-disclosure-button[aria-expanded="true"] {
 
 .card-buttons button {
   width: 100%;
+  height: var(--control-height);
   white-space: nowrap;
 }
 

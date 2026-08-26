@@ -36,7 +36,7 @@
     const wireBotTimingSelect = deps.wireBotTimingSelect;
     const wireLanguageSelect = deps.wireLanguageSelect;
     const wireSoundSelect = deps.wireSoundSelect;
-    const waitingDrawerPreferences = { bots: false, players: false, guide: false, rules: false, settings: false };
+    const waitingDrawerPreferences = { bots: false, players: false, guide: false, rules: false, settings: false, settingsExpanded: false };
     let previousWaitingPlayerCount = 0;
     let selectedBotType = '';
 
@@ -83,6 +83,7 @@
       const guideOpen = waitingDrawerPreferences.guide ? 'open' : '';
       const rulesOpen = waitingDrawerPreferences.rules ? 'open' : '';
       const settingsOpen = waitingDrawerPreferences.settings ? 'open' : '';
+      const settingsExpanded = waitingDrawerPreferences.settingsExpanded;
       const noBotsLeftOption = availableBotTypes.length
         ? ''
         : '<option value="" selected disabled>' + escapeHtml(t('No bots left')) + '</option>';
@@ -118,7 +119,7 @@
             <div class="waiting-controls">
               <div class="row join-row">
                 <input id="nameInput" placeholder="${escapeHtml(t('Name'))}" maxlength="${PLAYER_NAME_MAX_LENGTH}" value="${joined && user ? escapeHtml(user.name) : ''}" ${joined ? 'disabled' : ''}>
-                <button id="joinBtn" disabled>${escapeHtml(t('Join'))}</button>
+                <button id="joinBtn" class="expected-action" disabled>${escapeHtml(t('Join'))}</button>
                 <button id="leaveBtn" ${joined ? '' : 'disabled'}>${escapeHtml(t('Leave'))}</button>
               </div>
               <details class="drawer waiting-drawer" data-waiting-drawer="bots" ${botsOpen}>
@@ -152,17 +153,18 @@
                 <summary>${escapeHtml(t('Settings'))}</summary>
                 <div class="drawer-content drawer-animation-content waiting-selectors">
                   <div class="setting-row">
-                    ${helpDisclosureHtml('waitingGameLengthHelp', 'Game length', 'Choose how long the game lasts: a double game ends when a player passes 200 points, a full game uses 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.')}
+                    ${helpDisclosureHtml('waitingGameLengthHelp', 'Game length', 'Choose how long the game lasts: play one or five rounds, or use a 50, 100, or 200-point target. The lowest total score wins.')}
                     <select id="gameTargetSelect" aria-label="${escapeHtml(t('Game length'))}">
-                      <option value="single" ${state.singleRound ? 'selected' : ''}>${escapeHtml(t('Single round'))}</option>
-                      <option value="50" ${!state.singleRound && state.gameTarget === 50 ? 'selected' : ''}>${escapeHtml(t('Short game, 50 points'))}</option>
-                      <option value="100" ${!state.singleRound && state.gameTarget === 100 ? 'selected' : ''}>${escapeHtml(t('Full game, 100 points'))}</option>
-                      <option value="200" ${!state.singleRound && state.gameTarget === 200 ? 'selected' : ''}>${escapeHtml(t('Double game, 200 points'))}</option>
+                      <option value="single" ${Number(state.roundLimit) === 1 || state.singleRound ? 'selected' : ''}>${escapeHtml(t('Single round'))}</option>
+                      <option value="five" ${Number(state.roundLimit) === 5 ? 'selected' : ''}>${escapeHtml(t('Five rounds'))}</option>
+                      <option value="50" ${!state.roundLimit && !state.singleRound && state.gameTarget === 50 ? 'selected' : ''}>${escapeHtml(t('Short game, 50 points'))}</option>
+                      <option value="100" ${!state.roundLimit && !state.singleRound && state.gameTarget === 100 ? 'selected' : ''}>${escapeHtml(t('Full game, 100 points'))}</option>
+                      <option value="200" ${!state.roundLimit && !state.singleRound && state.gameTarget === 200 ? 'selected' : ''}>${escapeHtml(t('Double game, 200 points'))}</option>
                     </select>
                   </div>
-                  ${inactivityTimeoutSettingHtml(state, 'inactivityTimeoutSelect')}
-                  ${botTimingSettingHtml(state, 'botTimingSelect')}
-                  <div class="setting-row">
+                  ${inactivityTimeoutSettingHtml(state, 'inactivityTimeoutSelect', true, settingsExpanded)}
+                  ${botTimingSettingHtml(state, 'botTimingSelect', true, settingsExpanded)}
+                  <div class="setting-row advanced-setting" ${settingsExpanded ? '' : 'hidden'}>
                     ${helpDisclosureHtml('deckAmountHelp', 'Deck amount', 'More decks make the game less predictable and add more special cards, though some may remain undealt. Two decks are required for more than four players.')}
                     <select id="deckSettingSelect" aria-label="${escapeHtml(t('Deck amount'))}">
                       <option value="one" ${state.deckSetting === 'one' ? 'selected' : ''} ${state.oneDeckDisabled ? 'disabled' : ''}>${escapeHtml(t('One deck'))}</option>
@@ -178,6 +180,9 @@
                   </div>
                   ${soundSettingHtml('soundSelect')}
                   ${languageSettingHtml('languageSelect')}
+                  <button type="button" class="log-toggle settings-toggle" id="waitingSettingsToggle" aria-expanded="${settingsExpanded}">
+                    ${escapeHtml(t(settingsExpanded ? 'Show less' : 'Show more'))}
+                  </button>
                 </div>
               </details>
             </div>
@@ -254,6 +259,13 @@
       }
       wireInactivityTimeoutSelect('inactivityTimeoutSelect');
       wireBotTimingSelect('botTimingSelect');
+      const waitingSettingsToggle = document.getElementById('waitingSettingsToggle');
+      if (waitingSettingsToggle) {
+        waitingSettingsToggle.addEventListener('click', () => {
+          waitingDrawerPreferences.settingsExpanded = !waitingDrawerPreferences.settingsExpanded;
+          renderWaiting(state);
+        });
+      }
       const themeSelect = document.getElementById('themeSelect');
       if (themeSelect) {
         themeSelect.addEventListener('change', () => {

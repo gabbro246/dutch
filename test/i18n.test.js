@@ -27,6 +27,7 @@ test('German translations interpolate dynamic UI text', () => {
   assert.equal(i18n.translate('de', 'Show help'), 'Hilfe anzeigen');
   assert.equal(i18n.translate('de', 'No bots left'), 'Keine Bots übrig');
   assert.equal(i18n.translate('de', 'Double game, 200 points'), 'Doppeltes Spiel, 200 Punkte');
+  assert.equal(i18n.translate('de', 'Five rounds'), 'Fünf Runden');
   assert.equal(i18n.translate('de', 'Sound effects'), 'Soundeffekte');
   assert.equal(i18n.translate('de', 'Bot speed'), 'Bot-Geschwindigkeit');
   assert.equal(
@@ -47,6 +48,7 @@ test('German rules and server-originated game text are localized', () => {
   assert.match(i18n.quickRulesHtml('de'), /Ziel:/);
   assert.match(i18n.quickRulesHtml('de'), /<span class="red-card-value">♥♦K=0<\/span>/);
   assert.match(i18n.fullRulesHtml('de', 100, false), /mehr als 100 Punkte/);
+  assert.match(i18n.fullRulesHtml('de', 100, false, 5), /fünften Runde/);
   assert.equal(i18n.translateGameText('de', 'Ada said Dutch'), 'Ada hat Dutch gesagt');
   assert.equal(
     i18n.translateGameText('de', 'Ada changed game length from 100 points to single round'),
@@ -55,6 +57,10 @@ test('German rules and server-originated game text are localized', () => {
   assert.equal(
     i18n.translateGameText('de', 'Ada changed game length from single round to 50 points'),
     'Ada hat die Spieldauer von einer Runde auf 50 Punkte geändert'
+  );
+  assert.equal(
+    i18n.translateGameText('de', 'Ada changed game length from single round to five rounds'),
+    'Ada hat die Spieldauer von einer Runde auf fünf Runden geändert'
   );
   assert.equal(
     i18n.translateGameText('de', 'Ben changed inactivity timeout from 15 to 90 minutes'),
@@ -89,6 +95,7 @@ test('Russian translations cover dynamic UI text and compact card controls', () 
   assert.equal(i18n.translate('de', 'Russian'), 'Russisch');
   assert.equal(i18n.translate('ru', 'No bots left'), 'Ботов не осталось');
   assert.equal(i18n.translate('ru', 'Sound effects'), 'Звуковые эффекты');
+  assert.equal(i18n.translate('ru', 'Five rounds'), 'Пять раундов');
   assert.equal(
     i18n.translate('ru', 'Round {number}', { number: 3 }),
     'Раунд 3'
@@ -103,6 +110,7 @@ test('Russian rules, bot descriptions, and game text are localized', () => {
   assert.match(i18n.quickRulesHtml('ru'), /Цель:/);
   assert.match(i18n.quickRulesHtml('ru'), /<span class="red-card-value">♥♦K=0<\/span>/);
   assert.match(i18n.fullRulesHtml('ru', 100, false), /больше 100 очков/);
+  assert.match(i18n.fullRulesHtml('ru', 100, false, 5), /пятого раунда/);
   const fallback = {
     summary: 'English summary',
     stats: [['Memory', 5], ['Pace', 4], ['Risk', 3], ['Pressure', 2], ['Discipline', 1]]

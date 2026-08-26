@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { createDutchServer } = require('../server.js');
 
-test('browser smoke covers drawers, reconnect, persistent regions, and card animation', { timeout: 20_000 }, async (t) => {
+test('browser smoke covers drawers, reconnect, persistent regions, and card animation', { timeout: 30_000 }, async (t) => {
   const runtime = createDutchServer({
     randomBetween: () => 20,
     config: {
@@ -32,8 +32,13 @@ test('browser smoke covers drawers, reconnect, persistent regions, and card anim
 
   await page.goto('http://127.0.0.1:' + port, { waitUntil: 'networkidle' });
   const waitingPlayersDrawer = page.locator('details[data-waiting-drawer="players"]');
+  const waitingGuideDrawer = page.locator('details[data-waiting-drawer="guide"]');
   assert.equal(await waitingPlayersDrawer.evaluate((element) => element.open), false, 'Players drawer should be closed while empty.');
+  assert.equal(await waitingPlayersDrawer.locator('.player-line').count(), 0, 'An empty players drawer should not render a player-row divider.');
+  assert.notEqual(await waitingGuideDrawer.evaluate((element) => getComputedStyle(element).borderTopWidth), '0px', 'The following drawer should provide the single divider while the players list is empty.');
   await page.locator('#nameInput').fill('Browser Ada');
+  assert.equal(await page.locator('#joinBtn').evaluate((button) => button.classList.contains('expected-action')), true, 'Join should use the active accent treatment once a name is valid.');
+  assert.equal(await page.locator('#joinBtn').isDisabled(), false, 'Join should become available once a name is valid.');
   await page.locator('#joinBtn').click();
   await page.locator('[data-waiting-player-id]').waitFor();
 
@@ -42,10 +47,11 @@ test('browser smoke covers drawers, reconnect, persistent regions, and card anim
   assert.deepEqual(firstWaitingDrawers, ['bots', 'players']);
   await waitingPlayersDrawer.locator(':scope > summary').click();
   await assertEventually(async () => !await waitingPlayersDrawer.evaluate((element) => element.open), 'Players drawer did not close.');
+  assert.equal(await waitingPlayersDrawer.locator('.player-line').last().evaluate((element) => getComputedStyle(element).borderBottomWidth), '0px', 'The final player row should not duplicate the following drawer divider while closed.');
   await waitingPlayersDrawer.locator(':scope > summary').click();
   await assertEventually(async () => waitingPlayersDrawer.evaluate((element) => element.open), 'Players drawer did not reopen.');
-
-  const waitingGuideDrawer = page.locator('details[data-waiting-drawer="guide"]');
+  assert.equal(await waitingPlayersDrawer.locator('.player-line').last().evaluate((element) => getComputedStyle(element).borderBottomWidth), '0px', 'The final player row should not duplicate the following drawer divider while open.');
+  assert.notEqual(await waitingGuideDrawer.evaluate((element) => getComputedStyle(element).borderTopWidth), '0px', 'The following drawer should retain the single players-list divider.');
   await waitingGuideDrawer.locator(':scope > summary').click();
   await assertEventually(async () => waitingGuideDrawer.evaluate((element) => element.open), 'Waiting-room guide drawer did not open.');
   assert.match(await waitingGuideDrawer.textContent(), /Goal:/);
@@ -88,6 +94,8 @@ test('browser smoke covers drawers, reconnect, persistent regions, and card anim
 
   await page.locator('#startBtn').click();
   await page.locator('[data-game-region="user"]').waitFor();
+  assert.equal(await page.locator('[data-action="endGameForAll"]').count(), 1, 'End game should remain available when leaving would end the table.');
+  assert.equal(await page.locator('[data-action="leave"]').count(), 0, 'Leave should be hidden when it would end the table anyway.');
   assert.equal(await page.locator('[data-action="peekStart"]:not([disabled])').count(), 0, 'Peek must stay locked while cards are being dealt.');
   await page.locator('.initial-deal-card').first().waitFor({ state: 'attached' });
   const dealtSequence = await page.locator('.initial-deal-card').evaluateAll((cards) => {
@@ -142,6 +150,37 @@ test('browser smoke covers drawers, reconnect, persistent regions, and card anim
       return originalAnimate.call(this, keyframes, options);
     };
   });
+  await page.locator('[data-action="peekStart"]:not([disabled])').first().waitFor();
+  const openingCardActions = await page.locator('[data-game-region="user"] .card-buttons').first().evaluate((row) => (
+    Array.from(row.querySelectorAll(':scope > button')).map((button) => ({
+      action: button.dataset.action || '',
+      disabled: button.disabled,
+      placeholder: button.classList.contains('special-action-placeholder')
+    }))
+  ));
+  assert.deepEqual(openingCardActions, [
+    { action: 'peekStart', disabled: false, placeholder: false },
+    { action: 'throwIn', disabled: true, placeholder: false },
+    { action: '', disabled: true, placeholder: true }
+  ], 'Peek should replace Swap without displacing the normal Throw in and special-action slots.');
+  assert.equal(await page.locator('[data-game-region="user"] [data-action="swapDrawn"]').count(), 0, 'Swap should stay hidden during the opening peek.');
+
+  const cardActionHeights = await page.locator('[data-game-region="user"] .card-buttons').first().evaluate((row) => {
+    const placeholder = row.querySelector('.special-action-placeholder');
+    const active = document.createElement('button');
+    active.innerHTML = '<span class="card-action-label"><span class="card-symbol">A</span> <span>add</span></span>';
+    active.style.position = 'absolute';
+    active.style.visibility = 'hidden';
+    row.appendChild(active);
+    const heights = {
+      placeholder: placeholder.getBoundingClientRect().height,
+      active: active.getBoundingClientRect().height
+    };
+    active.remove();
+    return heights;
+  });
+  assert.equal(cardActionHeights.active, cardActionHeights.placeholder, 'An active special action should not make the card-action row shift.');
+
   for (let count = 0; count < 2; count += 1) {
     await page.locator('[data-action="peekStart"]:not([disabled])').first().click();
   }
@@ -175,7 +214,7 @@ test('browser smoke covers drawers, reconnect, persistent regions, and card anim
       actionRightGap: actionsRect.right - lastButtonRect.right
     };
   });
-  assert.equal(statusActionLayout.buttonCount, 3);
+  assert.equal(statusActionLayout.buttonCount, 2);
   assert.ok(
     statusActionLayout.bottomInset >= 8 && statusActionLayout.bottomInset <= 10,
     'Status actions should stay at the bottom of the info panel.'

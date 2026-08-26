@@ -29,17 +29,20 @@
       const selectableTargets = new Set(Array.isArray(state.selectableGameTargets) ? state.selectableGameTargets.map(Number) : [50, 100, 200]);
       const canChangeTarget = state.canChangeGameTarget !== false;
       const canSelectSingleRound = state.canSelectSingleRound !== false;
+      const canSelectFiveRounds = state.canSelectFiveRounds !== false;
+      const roundLimit = Number(state.roundLimit) || (state.singleRound ? 1 : 0);
       const inactivityMinutes = [15, 30, 60, 90].includes(Number(state.inactivityTimeoutMinutes)) ? Number(state.inactivityTimeoutMinutes) : 15;
       const botTimingPercent = botSpeedOptions.some((item) => item.value === Number(state.botTimingPercent)) ? Number(state.botTimingPercent) : 50;
       const content = open
         ? '<div class="drawer-content waiting-selectors">' +
           '<div class="setting-row">' +
-            helpDisclosureHtml('inGameLengthHelp', 'Game length', 'Choose how long the game lasts: a double game ends when a player passes 200 points, a full game uses 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.') +
+            helpDisclosureHtml('inGameLengthHelp', 'Game length', 'Choose how long the game lasts: play one or five rounds, or use a 50, 100, or 200-point target. The lowest total score wins.') +
             '<select id="inGameTargetSelect" aria-label="' + escapeHtml(t('Game length')) + '" ' + (canChangeTarget ? '' : 'disabled') + '>' +
-              option('single', !!state.singleRound, 'Single round', !canSelectSingleRound) +
-              option(50, !state.singleRound && state.gameTarget === 50, 'Short game, 50 points', !selectableTargets.has(50)) +
-              option(100, !state.singleRound && state.gameTarget === 100, 'Full game, 100 points', !selectableTargets.has(100)) +
-              option(200, !state.singleRound && state.gameTarget === 200, 'Double game, 200 points', !selectableTargets.has(200)) +
+              option('single', roundLimit === 1, 'Single round', !canSelectSingleRound) +
+              option('five', roundLimit === 5, 'Five rounds', !canSelectFiveRounds) +
+              option(50, !roundLimit && state.gameTarget === 50, 'Short game, 50 points', !selectableTargets.has(50)) +
+              option(100, !roundLimit && state.gameTarget === 100, 'Full game, 100 points', !selectableTargets.has(100)) +
+              option(200, !roundLimit && state.gameTarget === 200, 'Double game, 200 points', !selectableTargets.has(200)) +
             '</select></div>' +
           '<div class="setting-row advanced-setting" ' + (expanded ? '' : 'hidden') + '>' +
             helpDisclosureHtml('gameInactivityTimeoutSelectHelp', 'Inactive after', 'If nobody plays for this long, the game ends and the room is freed for new players. Choose a longer time if everyone plans to return.') +

@@ -72,6 +72,7 @@
   }
 
   function render(fullPage = false) {
+    const buttonTransitions = uiAnimations.captureButtonTransitions();
     const settingsDrawer = app.querySelector('details[data-detail-key="settings"]');
     if (settingsDrawer) state.preferences.settingsOpen = settingsDrawer.open;
     if (fullPage || !app.querySelector(':scope > .main-layout')) {
@@ -86,6 +87,7 @@
       if (details.dataset.detailKey === 'settings') state.preferences.settingsOpen = open;
     });
     wireHelpDisclosures();
+    uiAnimations.animateButtonTransitions(buttonTransitions);
   }
 
   function preservePreferences(next) {
@@ -566,8 +568,9 @@
       return;
     }
     if (select.id === 'inGameTargetSelect') {
-      state.singleRound = select.value === 'single';
-      if (!state.singleRound) state.gameTarget = Number(select.value);
+      state.roundLimit = select.value === 'single' ? 1 : select.value === 'five' ? 5 : null;
+      state.singleRound = state.roundLimit === 1;
+      if (!state.roundLimit) state.gameTarget = Number(select.value);
       return;
     }
     if (select.id === 'gameInactivityTimeoutSelect') {

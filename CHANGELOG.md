@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.70
+- saved unfinished game logs only after at least one completed round
+- removed gradients from player highlights
+- added a Show more button to waiting-room settings
+- added a five-round game option alongside single-round and points games
+- animated buttons as they become available or unavailable
+- highlighted Join when a valid name is entered
+- kept card controls aligned when actions become available
+- showed Peek instead of Swap during the opening peek
+- hid Leave game when leaving would end the game anyway
+- removed the doubled line below the waiting-room player list
+- kept the deck border consistent during the opening deal
+- gave translated deck and pile labels more room before wrapping
+
 ## 1.3.69
 - showed the game seed in saved logs and the log viewer
 

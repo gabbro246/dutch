@@ -88,6 +88,25 @@ test('single-round scoring ends after one round and lowest total wins', () => {
   assert.equal(scoring.winnerName, 'BEN');
 });
 
+test('five-round scoring ends on the fifth round and ignores point targets', () => {
+  const earlyPlayers = [
+    player('ada', [card('10')], 196),
+    player('ben', [card('2')], 70)
+  ];
+
+  const early = applyRoundScoring(earlyPlayers, { gameTarget: 100, roundLimit: 5, roundNumber: 4 });
+  assert.equal(early.gameEnded, false);
+  assert.equal(early.winnerId, null);
+
+  const finalPlayers = [
+    player('ada', [card('9')], 20),
+    player('ben', [card('3')], 15)
+  ];
+  const final = applyRoundScoring(finalPlayers, { gameTarget: 100, roundLimit: 5, roundNumber: 5 });
+  assert.equal(final.gameEnded, true);
+  assert.equal(final.winnerId, 'ben');
+});
+
 test('highest previous round score starts the next round', () => {
   const players = [
     player('ada', [], 0, { roundPoints: 7 }),

@@ -86,10 +86,12 @@
       roundNumber: Number(options.roundNumber) || 1,
       botTimingPercent: 50,
       gameTarget: 100,
+      roundLimit: null,
       singleRound: false,
       selectableGameTargets: [50, 100, 200],
       canChangeGameTarget: true,
       canSelectSingleRound: true,
+      canSelectFiveRounds: true,
       inactivityTimeoutMinutes: 15,
       highlightChangedCards: true,
       preferences: {

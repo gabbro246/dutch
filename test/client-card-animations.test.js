@@ -157,6 +157,7 @@ test('initial deal stacks earlier cards above later cards at the deck', () => {
           remove() {},
           style: {},
           animate(keyframes, options) {
+            this.animationKeyframes = keyframes;
             this.animationOptions = options;
             const animation = { cancel() {} };
             moveAnimations.push(animation);
@@ -204,6 +205,9 @@ test('initial deal stacks earlier cards above later cards at the deck', () => {
 
   assert.deepEqual(appended.map((card) => Number(card.style.zIndex)), [10000, 9999, 9998]);
   assert.deepEqual(appended.map((card) => card.animationOptions.delay), [0, 120, 240]);
+  assert.equal(appended[0].animationKeyframes[0].opacity, undefined);
+  assert.deepEqual(appended.slice(1).map((card) => card.animationKeyframes[0].opacity), [0, 0]);
+  assert.deepEqual(appended.slice(1).map((card) => card.animationKeyframes[1].opacity), [1, 1]);
   assert.equal(duration, 480);
   assert.equal(deckCount.textContent, '52');
   moveAnimations[0].onfinish();

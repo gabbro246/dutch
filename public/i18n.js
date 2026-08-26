@@ -20,10 +20,10 @@
     'Started {time} ({elapsed})': 'Begonnen um {time} ({elapsed})', 'just now': 'gerade eben', '1 min ago': 'vor 1 Min.',
     '{count} min ago': 'vor {count} Min.', 'Players: {players}. {round}.': 'Spieler: {players}. {round}.',
     none: 'keine', 'Round {number}': 'Runde {number}', 'Round not started': 'Runde nicht begonnen',
-    'Game length': 'Spieldauer', 'Single round': 'Eine Runde', 'Short game, 50 points': 'Kurzes Spiel, 50 Punkte',
+    'Game length': 'Spieldauer', 'Single round': 'Eine Runde', 'Five rounds': 'Fünf Runden', 'Short game, 50 points': 'Kurzes Spiel, 50 Punkte',
     'Full game, 100 points': 'Volles Spiel, 100 Punkte',
     'Double game, 200 points': 'Doppeltes Spiel, 200 Punkte',
-    'Choose how long the game lasts: a double game ends when a player passes 200 points, a full game uses 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.': 'Wähle die Spieldauer: Ein doppeltes Spiel endet über 200 Punkten, ein volles über 100 Punkten, ein kurzes über 50 Punkten und ein Spiel mit einer Runde nach dieser Runde. Die niedrigste Punktzahl gewinnt.',
+    'Choose how long the game lasts: play one or five rounds, or use a 50, 100, or 200-point target. The lowest total score wins.': 'Wähle die Spieldauer: Spiele eine oder fünf Runden oder nutze ein Ziel von 50, 100 oder 200 Punkten. Die niedrigste Gesamtpunktzahl gewinnt.',
     'Deck amount': 'Anzahl Kartendecks', 'One deck': 'Ein Kartendeck', 'Two decks': 'Zwei Kartendecks',
     'More decks make the game less predictable and add more special cards, though some may remain undealt. Two decks are required for more than four players.': 'Mehr Kartendecks machen das Spiel unvorhersehbarer und bringen mehr Sonderkarten. Bei mehr als vier Spielern sind zwei Kartendecks erforderlich.',
     Appearance: 'Darstellung', 'Light mode': 'Heller Modus', 'Dark mode': 'Dunkler Modus',
@@ -84,9 +84,9 @@
     'Started {time} ({elapsed})': 'Начало: {time} ({elapsed})', 'just now': 'только что', '1 min ago': '1 мин. назад',
     '{count} min ago': '{count} мин. назад', 'Players: {players}. {round}.': 'Игроки: {players}. {round}.',
     none: 'нет', 'Round {number}': 'Раунд {number}', 'Round not started': 'Раунд не начат',
-    'Game length': 'Длина игры', 'Single round': 'Один раунд', 'Short game, 50 points': 'Короткая игра, 50 очков',
+    'Game length': 'Длина игры', 'Single round': 'Один раунд', 'Five rounds': 'Пять раундов', 'Short game, 50 points': 'Короткая игра, 50 очков',
     'Full game, 100 points': 'Полная игра, 100 очков', 'Double game, 200 points': 'Двойная игра, 200 очков',
-    'Choose how long the game lasts: a double game ends when a player passes 200 points, a full game uses 100 points, a short game uses 50 points, and a single round ends after one round with the lowest score winning.': 'Выберите длину игры: двойная заканчивается, когда игрок набирает больше 200 очков, полная — больше 100, короткая — больше 50, а игра из одного раунда заканчивается после первого раунда. Побеждает игрок с наименьшим счётом.',
+    'Choose how long the game lasts: play one or five rounds, or use a 50, 100, or 200-point target. The lowest total score wins.': 'Выберите длину игры: один или пять раундов либо цель в 50, 100 или 200 очков. Побеждает игрок с наименьшим общим счётом.',
     'Deck amount': 'Количество колод', 'One deck': 'Одна колода', 'Two decks': 'Две колоды',
     'More decks make the game less predictable and add more special cards, though some may remain undealt. Two decks are required for more than four players.': 'Дополнительная колода делает игру менее предсказуемой и добавляет особые карты, хотя некоторые карты могут остаться неразданными. Для игры более чем вчетвером нужны две колоды.',
     Appearance: 'Оформление', 'Light mode': 'Светлая тема', 'Dark mode': 'Тёмная тема',
@@ -178,12 +178,15 @@
     if (locale !== 'de') return '';
     return '<p><strong>Ziel:</strong> So wenige Punkte wie möglich.</p><p><strong>Start:</strong> Jeder erhält 4 verdeckte Karten und darf 2 davon ansehen. Die erste Ablagekarte wird erst aufgedeckt, nachdem alle fertig sind.</p><p><strong>Zug:</strong> Ziehe eine Karte. Tausche sie gegen eine eigene Karte oder lege sie wieder ab.</p><p><strong>Einwerfen:</strong> Passende Karten dürfen sofort eingeworfen werden, außer die oberste Karte wurde selbst eingeworfen. Bei einem falschen Einwurf gibt es eine Strafkarte.</p><p><strong>Punkte:</strong> Zahlenkarten zählen ihren Wert. A=1, J=11, Q=12, <span class="red-card-value">♥♦K=0</span>, ♣♠K=13.</p><p><strong>Sonderkarten:</strong> Mit A darf jemandem eine Karte gegeben werden. Mit Q darf eine Karte angesehen werden. Mit J dürfen zwei Karten getauscht werden.</p><p>Wer glaubt, höchstens 5 Punkte zu haben, darf <strong>Dutch</strong> sagen. Danach erhält jeder andere einen letzten Zug. Dann wird aufgedeckt und gezählt.</p>';
   }
-  function fullRulesHtml(language, gameTarget, singleRound) {
+  function fullRulesHtml(language, gameTarget, singleRound, roundLimit) {
     const locale = normalizeLanguage(language);
+    const fixedRoundCount = Number(roundLimit) || (singleRound ? 1 : 0);
     if (locale === 'ru') {
-      const ending = singleRound
+      const ending = fixedRoundCount === 1
         ? 'В игре из одного раунда партия заканчивается после первого раунда. Побеждает игрок с наименьшим общим счётом.'
-        : 'Следующий раунд начинает игрок, набравший больше всего очков в предыдущем. Когда после подсчёта и возможного деления счёта пополам у кого-либо оказывается больше ' + gameTarget + ' очков, игра заканчивается. Побеждает игрок с наименьшим общим счётом.';
+        : fixedRoundCount === 5
+          ? 'В игре из пяти раундов партия заканчивается после пятого раунда. Побеждает игрок с наименьшим общим счётом.'
+          : 'Следующий раунд начинает игрок, набравший больше всего очков в предыдущем. Когда после подсчёта и возможного деления счёта пополам у кого-либо оказывается больше ' + gameTarget + ' очков, игра заканчивается. Побеждает игрок с наименьшим общим счётом.';
       return '<p>Dutch — карточная игра, в которой все стараются набрать как можно меньше очков. Используется обычная колода без джокеров. Для большого числа игроков можно смешать две колоды.</p>' +
         '<p>В начале каждый получает четыре закрытые карты. Затем каждый игрок смотрит ровно две свои карты и снова кладёт их рубашкой вверх. Когда все закончат, одна карта из колоды открывается и начинает стопку сброса. Остальные карты образуют закрытую колоду.</p>' +
         '<p>Игроки ходят по очереди и берут карту из колоды или стопки сброса. Карту из сброса нужно обменять на одну из своих. Карту из колоды можно обменять на свою или сразу положить в сброс лицом вверх. Заменённая собственная карта кладётся в сброс лицом вверх.</p>' +
@@ -196,9 +199,11 @@
         '<p>После каждого раунда очки прибавляются к общему счёту. Если счёт игрока становится ровно 50, 100 или 200 очков, он делится пополам. ' + ending + '</p>';
     }
     if (locale !== 'de') return '';
-    const ending = singleRound
+    const ending = fixedRoundCount === 1
       ? 'Bei einem Spiel mit nur einer Runde endet das Spiel nach der ersten Runde. Wer insgesamt die wenigsten Punkte hat, gewinnt.'
-      : 'Wer in der vorigen Runde die meisten Punkte hatte, beginnt die nächste. Sobald jemand nach Wertung und Halbierung mehr als ' + gameTarget + ' Punkte hat, endet das Spiel. Wer insgesamt die wenigsten Punkte hat, gewinnt.';
+      : fixedRoundCount === 5
+        ? 'Bei einem Spiel mit fünf Runden endet das Spiel nach der fünften Runde. Wer insgesamt die wenigsten Punkte hat, gewinnt.'
+        : 'Wer in der vorigen Runde die meisten Punkte hatte, beginnt die nächste. Sobald jemand nach Wertung und Halbierung mehr als ' + gameTarget + ' Punkte hat, endet das Spiel. Wer insgesamt die wenigsten Punkte hat, gewinnt.';
     return '<p>Dutch ist ein Kartenspiel, bei dem alle versuchen, so wenige Punkte wie möglich zu sammeln. Gespielt wird mit einem normalen Kartendeck ohne Joker. Bei vielen Spielern können zwei Kartendecks zusammengemischt werden.</p>' +
       '<p>Zu Beginn erhält jeder vier verdeckte Karten. Danach darf jeder genau zwei eigene Karten ansehen und legt sie wieder verdeckt ab. Wenn alle fertig sind, wird eine Karte vom Zugstapel aufgedeckt und eröffnet den Ablagestapel. Die übrigen Karten bilden den verdeckten Zugstapel.</p>' +
       '<p>Es wird der Reihe nach gespielt. Wer am Zug ist, zieht entweder vom Zug- oder Ablagestapel. Eine Karte vom Ablagestapel muss gegen eine eigene Karte getauscht werden. Eine Karte vom Zugstapel darf gegen eine eigene getauscht oder direkt offen abgelegt werden. Eine ersetzte eigene Karte kommt offen auf den Ablagestapel.</p>' +
@@ -223,10 +228,12 @@
       'That bot is already in the player list.': 'Этот бот уже есть в списке игроков.'
     };
     if (exact[value]) return exact[value];
-    const gameLengthChange = value.match(/^(.+) changed game length from (single round|\d+ points) to (single round|\d+ points)$/i);
+    const gameLengthChange = value.match(/^(.+) changed game length from (single round|five rounds|\d+ points) to (single round|five rounds|\d+ points)$/i);
     if (gameLengthChange) {
       const localizedLength = function localizedLength(length) {
-        return length.toLowerCase() === 'single round' ? 'один раунд' : length.replace(/ points$/i, ' очков');
+        if (length.toLowerCase() === 'single round') return 'один раунд';
+        if (length.toLowerCase() === 'five rounds') return 'пять раундов';
+        return length.replace(/ points$/i, ' очков');
       };
       return gameLengthChange[1] + ' меняет длину игры: ' + localizedLength(gameLengthChange[2]) + ' → ' + localizedLength(gameLengthChange[3]);
     }
@@ -281,10 +288,11 @@
     const value = String(input || '');
     const exact = { 'game started': 'Spiel begonnen', 'all active players finished peeking': 'Alle aktiven Spieler haben ihre Startkarten angesehen', 'discard pile reshuffled into draw pile': 'Der Ablagestapel wurde zum Zugstapel gemischt', 'A game is already active. Join after the game ends.': de['A game is already active. Join after the game ends.'], 'Bots can only be added in the waiting room.': 'Bots können nur im Warteraum hinzugefügt werden.', 'Unknown bot type.': 'Unbekannter Bot-Typ.', 'The player list is full.': 'Die Spielerliste ist voll.', 'That bot is already in the player list.': 'Dieser Bot ist bereits in der Spielerliste.' };
     if (exact[value]) return exact[value];
-    const gameLengthChange = value.match(/^(.+) changed game length from (single round|\d+ points) to (single round|\d+ points)$/i);
+    const gameLengthChange = value.match(/^(.+) changed game length from (single round|five rounds|\d+ points) to (single round|five rounds|\d+ points)$/i);
     if (gameLengthChange) {
       const localizedLength = function localizedLength(length, dative) {
         if (length.toLowerCase() === 'single round') return dative ? 'einer Runde' : 'eine Runde';
+        if (length.toLowerCase() === 'five rounds') return dative ? 'fünf Runden' : 'fünf Runden';
         return length.replace(/ points$/i, dative ? ' Punkten' : ' Punkte');
       };
       return gameLengthChange[1] + ' hat die Spieldauer von ' + localizedLength(gameLengthChange[2], true) + ' auf ' + localizedLength(gameLengthChange[3], false) + ' geändert';

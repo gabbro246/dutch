@@ -32,6 +32,71 @@
       return String(value).replace(/"/g, '\\"');
     }
 
+    function buttonTransitionKey(button) {
+      if (button.id) return 'id:' + button.id;
+      const action = button.dataset.action || button.dataset.systemAction;
+      if (!action) return '';
+      const context = button.closest('[data-player-panel-id], [data-game-region], details[data-detail-key]');
+      const contextKey = context
+        ? (context.dataset.playerPanelId || context.dataset.gameRegion || context.dataset.detailKey || '')
+        : '';
+      return [
+        contextKey,
+        button.dataset.action || '',
+        button.dataset.systemAction || '',
+        button.dataset.playerId || '',
+        button.dataset.cardId || '',
+        button.dataset.specialType || '',
+        button.dataset.direction || ''
+      ].join('|');
+    }
+
+    function buttonVisualState(button) {
+      const style = window.getComputedStyle(button);
+      return {
+        disabled: button.disabled,
+        opacity: style.opacity,
+        backgroundColor: style.backgroundColor,
+        borderColor: style.borderTopColor,
+        color: style.color
+      };
+    }
+
+    function captureButtonTransitions(scope = document) {
+      const transitions = new Map();
+      scope.querySelectorAll('button').forEach((button) => {
+        const key = buttonTransitionKey(button);
+        if (key) transitions.set(key, buttonVisualState(button));
+      });
+      return transitions;
+    }
+
+    function animateButtonTransitions(transitions, scope = document) {
+      if (!transitions.size || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      scope.querySelectorAll('button').forEach((button) => {
+        const previous = transitions.get(buttonTransitionKey(button));
+        if (!previous || previous.disabled === button.disabled || typeof button.animate !== 'function') return;
+        const current = buttonVisualState(button);
+        button.animate([
+          {
+            opacity: previous.opacity,
+            backgroundColor: previous.backgroundColor,
+            borderColor: previous.borderColor,
+            color: previous.color
+          },
+          {
+            opacity: current.opacity,
+            backgroundColor: current.backgroundColor,
+            borderColor: current.borderColor,
+            color: current.color
+          }
+        ], {
+          duration: 180,
+          easing: button.disabled ? 'cubic-bezier(0.4, 0, 1, 1)' : 'cubic-bezier(0.2, 0.8, 0.2, 1)'
+        });
+      });
+    }
+
     function wireAnimatedDrawers(scope, onChange) {
       scope.querySelectorAll("details.drawer").forEach((details) => {
         const summary = details.querySelector(":scope > summary");
@@ -313,6 +378,8 @@
 
     return {
       wireAnimatedDrawers,
+      captureButtonTransitions,
+      animateButtonTransitions,
       captureDrawerTransitions,
       animateDrawerTransitions,
       animateWaitingPlayerListChanges,

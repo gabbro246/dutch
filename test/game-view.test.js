@@ -65,6 +65,32 @@ test('public card hides card details unless visible', () => {
   });
 });
 
+test('marks when the viewer leaving would end the playable game', () => {
+  const state = {
+    phase: 'playing',
+    deckSetting: 'one',
+    gameTarget: 100,
+    singleRound: false,
+    players: [player('ada', []), player('ben', [])],
+    log: [],
+    roundNumber: 1,
+    scoreHistory: [],
+    gameStartedAt: 0,
+    waitingMessage: '',
+    round: null
+  };
+
+  assert.equal(viewFor(state).buildView('ada').leaveWouldEndGame, true);
+
+  state.players.push(player('watcher', [], { isSpectator: true }));
+  assert.equal(viewFor(state).buildView('watcher').leaveWouldEndGame, false);
+  assert.equal(viewFor(state).buildView('ada').leaveWouldEndGame, true);
+
+  state.players[2].isSpectator = false;
+  state.players[2].isBot = true;
+  assert.equal(viewFor(state).buildView('ada').leaveWouldEndGame, false);
+});
+
 test('live views bound log payloads while initial views include complete history', () => {
   const log = Array.from({ length: LIVE_LOG_WINDOW + 5 }, (_, index) => ({ id: index + 1 }));
   const scoreHistory = Array.from({ length: LIVE_SCORE_HISTORY_WINDOW + 3 }, (_, index) => ({ round: index + 1 }));
@@ -157,6 +183,8 @@ test('build view reveals only cards visible to the viewer', () => {
   assert.equal(view.highlightChangedCards, true);
   assert.equal(view.canChangeGameTarget, true);
   assert.equal(view.canSelectSingleRound, true);
+  assert.equal(view.canSelectFiveRounds, true);
+  assert.equal(view.roundLimit, null);
   assert.equal(view.singleRound, false);
   assert.equal(Object.hasOwn(view, 'botDiagnostics'), false);
   assert.equal(Object.hasOwn(view, 'replayArchive'), false);
@@ -201,12 +229,18 @@ test('build view reveals only cards visible to the viewer', () => {
 
   state.round.stage = 'roundEnd';
   assert.equal(viewFor(state).buildView('ada').canSelectSingleRound, false);
+  assert.equal(viewFor(state).buildView('ada').canSelectFiveRounds, true);
   state.round.stage = 'gameEnd';
   assert.equal(viewFor(state).buildView('ada').canChangeGameTarget, false);
   assert.deepEqual(viewFor(state).buildView('ada').selectableGameTargets, []);
   state.round.stage = 'turn';
   state.roundNumber = 2;
   assert.equal(viewFor(state).buildView('ada').canSelectSingleRound, false);
+  state.roundNumber = 5;
+  assert.equal(viewFor(state).buildView('ada').canSelectFiveRounds, true);
+  state.round.stage = 'roundEnd';
+  assert.equal(viewFor(state).buildView('ada').canSelectFiveRounds, false);
+  state.round.stage = 'turn';
   state.roundNumber = 1;
 
   const observerView = viewFor(state).buildView('ben');
