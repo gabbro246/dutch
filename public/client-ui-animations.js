@@ -92,7 +92,7 @@
           }
         ], {
           duration: 180,
-          easing: button.disabled ? 'cubic-bezier(0.4, 0, 1, 1)' : 'cubic-bezier(0.2, 0.8, 0.2, 1)'
+          easing: 'ease-in-out'
         });
       });
     }
@@ -113,7 +113,6 @@
           targetOpen = animation ? !targetOpen : !details.open;
           if (typeof onChange === "function") onChange(details, targetOpen);
           if (targetOpen && details.dataset.lazyContent === 'true') {
-            details.open = true;
             const state = getLastState();
             if (state) render(state);
             return;
@@ -142,7 +141,7 @@
             { height: `${endHeight}px`, opacity: targetOpen ? 1 : 0 }
           ], {
             duration: 220,
-            easing: targetOpen ? "cubic-bezier(0.2, 0.8, 0.2, 1)" : "cubic-bezier(0.4, 0, 1, 1)"
+            easing: "ease-in-out"
           });
           animation = currentAnimation;
     
@@ -191,7 +190,7 @@
           { height: `${endHeight}px`, opacity: targetOpen ? 1 : 0 }
         ], {
           duration: 220,
-          easing: targetOpen ? 'cubic-bezier(0.2, 0.8, 0.2, 1)' : 'cubic-bezier(0.4, 0, 1, 1)'
+          easing: 'ease-in-out'
         });
     
         animation.onfinish = () => {
@@ -206,8 +205,6 @@
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
       const previousIds = new Set((previousState.players || []).map((player) => player.id));
       const currentIds = new Set((state.players || []).map((player) => player.id));
-      const enterEasing = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
-      const exitEasing = 'cubic-bezier(0.8, 0, 0.8, 0.2)';
       const isRemoving = (previousState.players || []).some((player) => !currentIds.has(player.id));
       (state.players || []).forEach((player) => {
         const selector = '[data-waiting-player-id="' + cssEscape(player.id) + '"]';
@@ -226,7 +223,7 @@
             { transform: 'translate(0, 0)' }
           ], {
             duration: 280,
-            easing: isRemoving ? exitEasing : enterEasing
+            easing: 'ease-in-out'
           });
           return;
         }
@@ -238,7 +235,7 @@
           { height: String(height) + 'px', paddingTop: '4px', paddingBottom: '4px', opacity: 1, transform: 'translateY(0)' }
         ], {
           duration: 280,
-          easing: enterEasing
+          easing: 'ease-in-out'
         });
         const finish = () => row.style.removeProperty('overflow');
         animation.onfinish = finish;
@@ -269,7 +266,7 @@
           { height: '0px', paddingTop: '0px', paddingBottom: '0px', opacity: 0, transform: 'translateY(-8px)' }
         ], {
           duration: 280,
-          easing: exitEasing,
+          easing: 'ease-in-out',
           fill: 'forwards'
         });
         animation.onfinish = () => ghost.remove();
@@ -347,11 +344,11 @@
         animations.push(piece.animate([
           { transform: 'translate(0, 0) rotate(' + String(startRotation) + 'deg)', opacity: 0 },
           { transform: 'translate(' + String(spreadX * 0.12) + 'px, ' + String(-driftY * 0.18) + 'px) rotate(' + String(startRotation + 90) + 'deg)', opacity: 1, offset: 0.053 },
-          { transform: 'translate(' + String(spreadX) + 'px, ' + String(-driftY) + 'px) rotate(' + String(endRotation) + 'deg)', opacity: 1, offset: 0.24, easing: 'linear' },
+          { transform: 'translate(' + String(spreadX) + 'px, ' + String(-driftY) + 'px) rotate(' + String(endRotation) + 'deg)', opacity: 1, offset: 0.24, easing: 'ease-in-out' },
           { transform: 'translate(' + String(spreadX * 1.1) + 'px, ' + String(-driftY + rise * 0.45) + 'px) rotate(' + String(endRotation + 180) + 'deg)', opacity: 0 }
         ], {
           duration,
-          easing: 'cubic-bezier(0.18, 0.7, 0.3, 1)',
+          easing: 'ease-in-out',
           fill: 'forwards'
         }));
       }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.71
+- made animations ease smoothly in and out
+- fixed some drawers appearing instantly instead of opening smoothly
+
 ## 1.3.70
 - saved unfinished game logs only after at least one completed round
 - removed gradients from player highlights

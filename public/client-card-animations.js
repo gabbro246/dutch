@@ -332,7 +332,7 @@
           { transform: selectedTransform }
         ], {
           duration: 180,
-          easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+          easing: 'ease-in-out',
           fill: 'both'
         });
         animation.onfinish = () => animation.cancel();
@@ -438,7 +438,7 @@
         ], {
           duration: 340,
           delay: index * 55,
-          easing: 'cubic-bezier(0.35, 0, 0.25, 1)',
+          easing: 'ease-in-out',
           fill: 'forwards'
         });
         reshuffle.animations.add(animation);
@@ -462,7 +462,6 @@
         if (!widthChanged && !heightChanged) return;
     
         element.style.overflow = "hidden";
-        const growing = player.cards.length > previousCount;
         const offsetX = previousPanel.left - currentPanel.left;
         const offsetY = previousPanel.top - currentPanel.top;
         const scaleX = previousPanel.width / currentPanel.width;
@@ -479,7 +478,7 @@
           }
         ], {
           duration: 220,
-          easing: growing ? "cubic-bezier(0.2, 0.8, 0.2, 1)" : "cubic-bezier(0.4, 0, 1, 1)"
+          easing: "ease-in-out"
         });
         const cleanUp = () => element.style.removeProperty("overflow");
         animation.onfinish = cleanUp;
@@ -545,7 +544,7 @@
       const animation = clone.animate(keyframes, {
         duration,
         delay,
-        easing: 'linear',
+        easing: 'ease-in-out',
         fill: 'both'
       });
       const move = { cardId, locationKey: targetData.locationKey, clone, animation };
@@ -648,7 +647,7 @@
       const animation = face.animate([
         rectFrame(fromRect),
         rectFrame(toRect)
-      ], { duration, easing: "linear", fill: "forwards" });
+      ], { duration, easing: "ease-in-out", fill: "forwards" });
       move.animation = animation;
       try {
         await animation.finished;
@@ -716,7 +715,7 @@
         if (!await playWrongThrowPhase(move, backFace, [
           { transform: "scaleX(1)" },
           { transform: "scaleX(0)" }
-        ], { duration: 130, easing: "linear" })) return;
+        ], { duration: 130, easing: "ease-in-out" })) return;
         backFace.remove();
         move.clones.delete(backFace);
     
@@ -730,7 +729,7 @@
         if (!await playWrongThrowPhase(move, frontFace, [
           { transform: "scaleX(0)" },
           { transform: "scaleX(1)" }
-        ], { duration: 130, easing: "linear" })) return;
+        ], { duration: 130, easing: "ease-in-out" })) return;
     
         if (!await playWrongThrowRectPhase(move, frontFace, sourceData.rect, pileData.rect, 320)) return;
     
@@ -754,7 +753,7 @@
         if (!await playWrongThrowPhase(move, frontFace, [
           { transform: "scaleX(1)" },
           { transform: "scaleX(0)" }
-        ], { duration: 130, easing: "linear" })) return;
+        ], { duration: 130, easing: "ease-in-out" })) return;
         frontFace.remove();
         move.clones.delete(frontFace);
     
@@ -764,7 +763,7 @@
           returnedCard.animate([
             { transform: "scaleX(0)" },
             { transform: "scaleX(1)" }
-          ], { duration: 130, easing: "linear" });
+          ], { duration: 130, easing: "ease-in-out" });
         }
         finishWrongThrow(move);
       } catch (error) {
@@ -862,7 +861,7 @@
       if (!previousFace || !rect.width || !rect.height) {
         if (previousFace) previousFace.remove();
         if (onMidpoint) onMidpoint({ reducedMotion: true });
-        el.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: halfDuration, delay, easing: "linear", fill: "backwards" });
+        el.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: halfDuration, delay, easing: "ease-in-out", fill: "backwards" });
         return;
       }
     
@@ -907,7 +906,7 @@
           { transform: "scaleX(1)" }
         ], {
           duration: halfDuration,
-          easing: "linear"
+          easing: "ease-in-out"
         });
         turn.animation = nextAnimation;
         nextAnimation.onfinish = () => finishFaceTurn(turn);
@@ -921,7 +920,7 @@
       ], {
         duration: halfDuration,
         delay,
-        easing: "linear"
+        easing: "ease-in-out"
       });
       turn.animation = previousAnimation;
       previousAnimation.onfinish = revealNextFace;

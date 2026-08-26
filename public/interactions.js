@@ -22,7 +22,7 @@
   });
   const uiAnimations = window.DutchClientUiAnimations.create({
     getLastState: () => state,
-    render: () => render(false)
+    render: () => render(false, false)
   });
 
   function schedule(callback, delay) {
@@ -71,10 +71,11 @@
     });
   }
 
-  function render(fullPage = false) {
+  function render(fullPage = false, captureDrawerState = true) {
     const buttonTransitions = uiAnimations.captureButtonTransitions();
     const settingsDrawer = app.querySelector('details[data-detail-key="settings"]');
-    if (settingsDrawer) state.preferences.settingsOpen = settingsDrawer.open;
+    const drawerTransitions = uiAnimations.captureDrawerTransitions();
+    if (captureDrawerState && settingsDrawer) state.preferences.settingsOpen = settingsDrawer.open;
     if (fullPage || !app.querySelector(':scope > .main-layout')) {
       app.innerHTML = view.renderPage(state);
     } else {
@@ -86,6 +87,7 @@
     uiAnimations.wireAnimatedDrawers(document, (details, open) => {
       if (details.dataset.detailKey === 'settings') state.preferences.settingsOpen = open;
     });
+    uiAnimations.animateDrawerTransitions(drawerTransitions);
     wireHelpDisclosures();
     uiAnimations.animateButtonTransitions(buttonTransitions);
   }
