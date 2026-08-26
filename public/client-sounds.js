@@ -38,6 +38,7 @@
     discard: 'sounds/card-discard.mp3' + assetQuery,
     peek: 'sounds/card-peek.mp3' + assetQuery,
     remove: 'sounds/card-remove.mp3' + assetQuery,
+    shuffle: 'sounds/card-shuffle.mp3' + assetQuery,
     turn: 'sounds/turn-begin.mp3' + assetQuery
   };
 
@@ -74,6 +75,16 @@
     const events = [];
 
     if (sameRound) {
+      const previousReshuffleToken = Number(previousRound.reshuffleToken) || 0;
+      const reshuffleToken = Number(round.reshuffleToken) || 0;
+      if (reshuffleToken && reshuffleToken !== previousReshuffleToken) {
+        events.push({
+          name: 'shuffle',
+          volume: 1,
+          eventId: [state.gameStartedAt, state.roundNumber, 'shuffle', reshuffleToken].join(':')
+        });
+      }
+
       const previousDrawnId = previousRound.drawn && previousRound.drawn.card && previousRound.drawn.card.id;
       const drawnId = round.drawn && round.drawn.card && round.drawn.card.id;
       if (drawnId && drawnId !== previousDrawnId) {

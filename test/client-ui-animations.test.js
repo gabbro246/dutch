@@ -157,8 +157,8 @@ test('launches one local 40-piece burst when the game winner first appears', () 
     assert.ok(piece.animation.options.duration >= 3540 && piece.animation.options.duration <= 4500);
     assert.equal(piece.animation.keyframes.at(-1).opacity, 0);
     assert.equal(piece.animation.keyframes.length, 4, 'the fall should be one uninterrupted segment');
-    assert.equal(piece.animation.keyframes[2].easing, 'ease-in-out');
-    assert.equal(piece.animation.options.easing, 'ease-in-out');
+    assert.equal(piece.animation.keyframes[2].easing, 'linear');
+    assert.equal(piece.animation.options.easing, 'cubic-bezier(0.18, 0.7, 0.3, 1)');
   }
 
   api.animateWinnerConfetti(winner, winner);

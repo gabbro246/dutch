@@ -6,3 +6,4 @@
 | card-peek.mp3 | OxidVideos | Placing playing card | https://pixabay.com/sound-effects/film-special-effects-placing-playing-card-522514/ |
 | card-add.mp3 | floraphonic | Casual Click Pop UI 8 | https://pixabay.com/sound-effects/film-special-effects-casual-click-pop-ui-8-262125/ |
 | card-remove.mp3 | floraphonic | Casual Click Pop UI 2 | https://pixabay.com/sound-effects/film-special-effects-casual-click-pop-ui-2-262119/ |
+| card-shuffle.mp3 | OxidVideos | Shuffling Deck of Cards | https://pixabay.com/sound-effects/film-special-effects-shuffling-deck-of-cards-522518/ |

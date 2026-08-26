@@ -134,7 +134,7 @@ test('browser audio preload waits for idle time', () => {
   idleCalls[0].callback();
 
   assert.equal(contextCount, 1);
-  assert.equal(fetched.length, 6);
+  assert.equal(fetched.length, 7);
 });
 
 test('playing before idle time loads only the requested sound immediately', async () => {
@@ -179,6 +179,22 @@ test('game sounds do not play outside a joined game page', () => {
 
   assert.deepEqual(soundEventsForTransition(before, occupiedDraw), []);
   assert.deepEqual(soundEventsForTransition(state({ phase: 'waiting' }), waitingDraw), []);
+});
+
+test('reshuffling the discard pile plays the shuffle sound once', () => {
+  const before = state({ round: { needsReshuffle: true, reshuffleToken: 2 } });
+  const reshuffled = state({ round: { needsReshuffle: false, reshuffleToken: 3 } });
+
+  assert.deepEqual(soundEventsForTransition(before, reshuffled), [{
+    name: 'shuffle',
+    volume: 1,
+    eventId: '10:1:shuffle:3'
+  }]);
+  assert.deepEqual(soundEventsForTransition(reshuffled, reshuffled), []);
+  assert.deepEqual(soundEventsForTransition(
+    state({ roundNumber: 1, round: { reshuffleToken: 3 } }),
+    state({ roundNumber: 2, round: { reshuffleToken: 0 } })
+  ), []);
 });
 
 test('draw and discard sounds use full local volume and quieter remote volume', () => {

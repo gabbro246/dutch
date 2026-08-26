@@ -1,7 +1,11 @@
 # Changelog
 
+## 1.3.72
+- reverted to previous confetti animation
+- added a shuffle sound when rebuilding the draw deck
+
 ## 1.3.71
-- made animations ease smoothly in and out
+- made card and interface animations ease smoothly in and out
 - fixed some drawers appearing instantly instead of opening smoothly
 
 ## 1.3.70

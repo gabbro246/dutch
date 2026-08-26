@@ -344,11 +344,11 @@
         animations.push(piece.animate([
           { transform: 'translate(0, 0) rotate(' + String(startRotation) + 'deg)', opacity: 0 },
           { transform: 'translate(' + String(spreadX * 0.12) + 'px, ' + String(-driftY * 0.18) + 'px) rotate(' + String(startRotation + 90) + 'deg)', opacity: 1, offset: 0.053 },
-          { transform: 'translate(' + String(spreadX) + 'px, ' + String(-driftY) + 'px) rotate(' + String(endRotation) + 'deg)', opacity: 1, offset: 0.24, easing: 'ease-in-out' },
+          { transform: 'translate(' + String(spreadX) + 'px, ' + String(-driftY) + 'px) rotate(' + String(endRotation) + 'deg)', opacity: 1, offset: 0.24, easing: 'linear' },
           { transform: 'translate(' + String(spreadX * 1.1) + 'px, ' + String(-driftY + rise * 0.45) + 'px) rotate(' + String(endRotation + 180) + 'deg)', opacity: 0 }
         ], {
           duration,
-          easing: 'ease-in-out',
+          easing: 'cubic-bezier(0.18, 0.7, 0.3, 1)',
           fill: 'forwards'
         }));
       }
