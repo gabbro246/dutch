@@ -1,9 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  resolveBotStrategyRelease,
   resolveRoswellStrategyRelease,
+  parseVersionedBotSpec,
   simulateGame,
   runTournament,
+  runVersionedBotTournament,
   runVersionedRoswellTournament
 } = require('../lib/bot-simulation.js');
 
@@ -113,4 +116,71 @@ test('tournament summary reports game, round, Dutch, throw-in, and latency metri
   assert.ok(roswell.averageDecisionLatencyMs >= 0);
   assert.ok(roswell.maxDecisionLatencyMs < 250);
   assert.ok(Number.isFinite(roswell.averageFinalGameScore));
+});
+
+test('all four Beta bots finish a complete game with lightweight decisions', () => {
+  const result = simulateGame({
+    seed: 27,
+    policies: ['roswell-beta', 'athena-beta', 'norman-beta', 'dory-beta'],
+    gameTarget: 50,
+    maxRounds: 5,
+    maxTurnsPerRound: 80
+  });
+
+  assert.equal(result.truncated, false);
+  for (const metrics of Object.values(result.metrics)) {
+    assert.ok(metrics.decisionCount > 0);
+    assert.ok(metrics.maxDecisionTimeMs < 250);
+  }
+});
+
+test('bot version specs resolve to real stored strategy snapshots', () => {
+  assert.equal(resolveBotStrategyRelease('roswell', '1.3.74'), '1.3.68');
+  assert.equal(resolveBotStrategyRelease('norman', '1.3.66'), '1.3.65');
+  assert.equal(resolveBotStrategyRelease('norman-beta', '1.3.74'), '1.3.74');
+  assert.equal(resolveBotStrategyRelease('norman-beta', '1.3.76'), '1.3.75');
+  assert.deepEqual(parseVersionedBotSpec('Norman-Beta@1.3.74'), {
+    spec: 'norman-beta@1.3.74',
+    botType: 'norman-beta',
+    requestedGameVersion: '1.3.74',
+    strategyRelease: '1.3.74',
+    decisionSystem: 'simple'
+  });
+  assert.throws(
+    () => parseVersionedBotSpec('norman-beta@1.3.73'),
+    /No norman-beta strategy snapshot/
+  );
+});
+
+test('mixed bot-version tournament rotates seats and reports both snapshots', () => {
+  const result = runVersionedBotTournament({
+    competitors: ['roswell@1.3.68', 'norman-beta@1.3.74'],
+    seeds: [43],
+    gameTarget: 50,
+    maxRounds: 2,
+    maxTurnsPerRound: 40
+  });
+
+  assert.equal(result.games.length, 2);
+  assert.deepEqual(
+    result.games.map((game) => game.players.map((player) => player.policy)),
+    [
+      ['roswell@1.3.68', 'norman-beta@1.3.74'],
+      ['norman-beta@1.3.74', 'roswell@1.3.68']
+    ]
+  );
+  assert.equal(result.comparison.totalGames, 2);
+  assert.equal(result.comparison.gamesPerSeat, 1);
+  assert.equal(result.comparison.gamesPerCompetitor, 2);
+  assert.equal(result.comparison.competitors['roswell@1.3.68'].strategyRelease, '1.3.68');
+  assert.equal(result.comparison.competitors['norman-beta@1.3.74'].strategyRelease, '1.3.74');
+  assert.equal(result.summary['roswell@1.3.68'].games, 2);
+  assert.equal(result.summary['norman-beta@1.3.74'].games, 2);
+  assert.throws(
+    () => runVersionedBotTournament({
+      competitors: ['roswell@1.3.68', 'norman-beta@1.3.74'],
+      totalGames: 3
+    }),
+    /even whole number/
+  );
 });

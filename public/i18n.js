@@ -165,7 +165,8 @@
   }
   function localizedBotPersonality(language, type, fallback) {
     const botTranslations = { de: germanBots, ru: russianBots }[normalizeLanguage(language)];
-    const item = botTranslations && botTranslations[type];
+    const baseType = String(type || '').replace(/-beta$/, '');
+    const item = botTranslations && (botTranslations[type] || botTranslations[baseType]);
     if (!item || !fallback) return fallback;
     return Object.assign({}, fallback, { summary: item[0], stats: fallback.stats.map(function map(stat, index) { return [item[1][index], stat[1]]; }) });
   }

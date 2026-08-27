@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createDutchServer } = require('../server.js');
+const { BOT_TYPES } = require('../public/shared.js');
 
 test('browser smoke covers drawers, reconnect, persistent regions, and card animation', { timeout: 30_000 }, async (t) => {
   const runtime = createDutchServer({
@@ -65,7 +66,7 @@ test('browser smoke covers drawers, reconnect, persistent regions, and card anim
   await botsDrawer.locator(':scope > summary').click();
   await assertEventually(async () => botsDrawer.evaluate((element) => element.open), 'Bots drawer did not open.');
   const botTypeSelect = page.locator('#botTypeSelect');
-  const botTypes = ['dory', 'norman', 'athena', 'roswell'];
+  const botTypes = BOT_TYPES;
   assert.deepEqual(await botTypeSelect.locator('option').evaluateAll((options) => options.map((option) => option.value)), botTypes);
   const initiallySelectedBot = await botTypeSelect.inputValue();
   assert.ok(botTypes.includes(initiallySelectedBot), 'An available bot should be selected by default.');
@@ -347,7 +348,7 @@ test('bot selector keeps a random available bot selected until none remain', { t
   await botsDrawer.locator(':scope > summary').click();
   const botTypeSelect = page.locator('#botTypeSelect');
   const addBotButton = page.locator('#addBotBtn');
-  const botTypes = ['dory', 'norman', 'athena', 'roswell'];
+  const botTypes = BOT_TYPES;
   const selectedBots = [];
 
   for (let botCount = 1; botCount <= botTypes.length; botCount += 1) {

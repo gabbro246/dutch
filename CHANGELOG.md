@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.76
+- added tournaments between different bots from stored game versions
+- balanced version tournaments across both player positions
+
+## 1.3.75
+- made Beta bots plan a couple of turns ahead without heavy simulations
+- improved Beta throw-ins, Dutch calls, and longer-term score-halving choices
+
+## 1.3.74
+- added four new Beta bots that use quicker predefined decisions
+- gave the Beta bots distinct memory, card-counting, and score-halving behavior
+
 ## 1.3.73
 - fixed game buttons sometimes missing presses while the screen was updating
 

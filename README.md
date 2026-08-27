@@ -52,6 +52,12 @@ If a player’s total reaches exactly **50**, **100**, or **200** points, that t
 **Game Length** A game may last one round, five rounds, use the short 50-point target, the full 100-point target, or the double 200-point target. A fixed-round mode may only be selected before that many rounds have been completed.
 In a fixed-round game, the player with the lowest total score wins after the selected number of rounds. In a points game, the player who scored the most points in the previous round starts the next round. The game ends when a player exceeds the selected target after all scoring and score-halving rules have been applied. The player with the lowest total score wins.
 
+## Bot Version Tournaments
+
+Run a tournament between two stored bot versions with a command such as `npm run tournament:bots -- 100 roswell@1.3.68 norman-beta@1.3.74`. The number is the total number of games. Half use each seat order with the same randomized hands, and replay logs are saved under `game-logs`.
+
+Use the original bot identifiers `roswell`, `athena`, `norman`, and `dory`, or the corresponding `-beta` identifiers. Original-bot snapshots are available from 1.3.64 through the latest legacy strategy change in 1.3.68. Beta snapshots start at 1.3.74; requesting a later game version reuses the latest snapshot at or before that version.
+
 ## Compare Roswell Versions
 
 Run `npm run benchmark:roswell-versions -- 100` to compare the two most recent releases in which Roswell's strategy changed. The number is the amount of randomized complete games per seat order, so this example runs 200 games in total. Both strategies play each seat, and the command reports their average results and saves the replay logs under `game-logs`.

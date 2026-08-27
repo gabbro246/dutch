@@ -19,6 +19,14 @@ test('halving totals include the double-game threshold', () => {
   assert.equal(shared.isHalvingTotal(150), false);
 });
 
+test('shared bot roster includes four emoji-free Beta bots', () => {
+  assert.equal(shared.BOT_TYPES.length, 8);
+  const betaTypes = shared.BOT_TYPES.filter((type) => type.endsWith('-beta'));
+  assert.deepEqual(betaTypes, ['dory-beta', 'norman-beta', 'athena-beta', 'roswell-beta']);
+  assert.ok(betaTypes.every((type) => shared.BOT_LABELS[type].endsWith('(Beta)')));
+  assert.ok(betaTypes.every((type) => !shared.isEmojiGrapheme(shared.BOT_LABELS[type])));
+});
+
 test('short player names preserve emoji and abbreviate long names', () => {
   assert.equal(shared.shortPlayerName('🦉 Athena'), '🦉');
   assert.equal(shared.shortPlayerName('Gabriel'), 'Gabr.');

@@ -15,7 +15,7 @@ function card(rank = '8', suit = 'hearts') {
 }
 
 test('bot profiles use character names as canonical identifiers', () => {
-  assert.deepEqual(Object.keys(BOT_PROFILES), ['athena', 'roswell', 'norman', 'dory']);
+  assert.deepEqual(Object.keys(BOT_PROFILES), ['athena', 'roswell', 'norman', 'dory', 'roswell-beta', 'athena-beta', 'norman-beta', 'dory-beta']);
 });
 
 test('public memory cards keep only gameplay-visible card details', () => {

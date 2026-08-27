@@ -17,11 +17,20 @@
     Object.freeze({ value: 100, label: 'Human-like' })
   ]);
 
+  const BOT_TYPES = Object.freeze([
+    'dory', 'norman', 'athena', 'roswell',
+    'dory-beta', 'norman-beta', 'athena-beta', 'roswell-beta'
+  ]);
+
   const BOT_LABELS = {
     athena: '🦉 Athena',
     roswell: '👽 Roswell',
     norman: '🐑 Norman',
-    dory: '🐠 Dory'
+    dory: '🐠 Dory',
+    'roswell-beta': 'Roswell (Beta)',
+    'athena-beta': 'Athena (Beta)',
+    'norman-beta': 'Norman (Beta)',
+    'dory-beta': 'Dory (Beta)'
   };
 
   const BOT_PERSONALITIES = {
@@ -64,6 +73,22 @@
         ['Pressure', 3],
         ['Discipline', 2]
       ]
+    },
+    'roswell-beta': {
+      summary: 'Uses fast table rules, perfect memory, card counting, and exact-score tactics.',
+      stats: [['Memory', 10], ['Tempo', 10], ['Risk', 5], ['Pressure', 9], ['Discipline', 10]]
+    },
+    'athena-beta': {
+      summary: 'Uses fast table rules, careful card tracking, and exact-score tactics.',
+      stats: [['Memory', 9], ['Tempo', 9], ['Risk', 4], ['Pressure', 7], ['Discipline', 9]]
+    },
+    'norman-beta': {
+      summary: 'Uses fast table rules with balanced choices and moderately reliable memory.',
+      stats: [['Memory', 6], ['Tempo', 8], ['Risk', 5], ['Pressure', 5], ['Discipline', 6]]
+    },
+    'dory-beta': {
+      summary: 'Uses fast table rules with optimistic guesses and quickly fading memory.',
+      stats: [['Memory', 3], ['Tempo', 8], ['Risk', 8], ['Pressure', 3], ['Discipline', 3]]
     }
   };
 
@@ -318,6 +343,7 @@
     SPECIAL_RANKS,
     RED_SUITS,
     BOT_SPEED_OPTIONS,
+    BOT_TYPES,
     HALVING_TOTALS,
     BOT_LABELS,
     BOT_PERSONALITIES,

@@ -12,6 +12,7 @@
     const escapeHtml = deps.escapeHtml;
     const i18n = deps.i18n;
     const BOT_LABELS = deps.botLabels;
+    const BOT_TYPES = deps.botTypes || Object.keys(BOT_LABELS);
     const BOT_PERSONALITIES = deps.botPersonalities;
     const PLAYER_NAME_MAX_LENGTH = deps.playerNameMaxLength;
     const GAME_DESCRIPTION = deps.gameDescription;
@@ -67,7 +68,7 @@
     
     function renderWaiting(state) {
       const selectedTheme = window.DutchTheme.getStoredTheme(window);
-      const botTypes = ['dory', 'norman', 'athena', 'roswell'];
+      const botTypes = BOT_TYPES;
       const usedBotTypes = new Set(state.players.filter((p) => p.isBot).map((p) => p.botType));
       const availableBotTypes = botTypes.filter((type) => !usedBotTypes.has(type));
       if (!availableBotTypes.includes(selectedBotType)) {
