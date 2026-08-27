@@ -258,7 +258,29 @@ test('browser smoke covers drawers, reconnect, persistent regions, and card anim
   assert.match(await guideDrawer.textContent(), /Goal:/);
 
   const takeDeck = page.locator('[data-action="takeDeck"]:not([disabled])');
-  await takeDeck.click();
+  const replacedDuringPress = await takeDeck.evaluate((button) => {
+    const rect = button.getBoundingClientRect();
+    const pointer = {
+      bubbles: true,
+      pointerId: 73,
+      pointerType: 'mouse',
+      isPrimary: true,
+      button: 0,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2
+    };
+    button.dispatchEvent(new PointerEvent('pointerdown', pointer));
+    const state = eval('lastState');
+    const rerender = eval('render');
+    rerender({
+      ...state,
+      round: { ...state.round, deckCount: state.round.deckCount + 1 }
+    });
+    const replaced = !button.isConnected;
+    document.dispatchEvent(new PointerEvent('pointerup', pointer));
+    return replaced;
+  });
+  assert.equal(replacedDuringPress, true, 'The regression setup should replace the pressed deck button.');
   await page.locator('.moving-card').first().waitFor({ state: 'attached', timeout: 2000 });
   assert.equal(await page.locator('.moving-card').count() > 0, true, 'Deck draw should create a moving card overlay.');
 

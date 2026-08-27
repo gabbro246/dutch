@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.73
+- fixed game buttons sometimes missing presses while the screen was updating
+
 ## 1.3.72
 - reverted to previous confetti animation
 - added a shuffle sound when rebuilding the draw deck
