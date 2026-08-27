@@ -139,6 +139,7 @@ test('bot version specs resolve to real stored strategy snapshots', () => {
   assert.equal(resolveBotStrategyRelease('norman', '1.3.66'), '1.3.65');
   assert.equal(resolveBotStrategyRelease('norman-beta', '1.3.74'), '1.3.74');
   assert.equal(resolveBotStrategyRelease('norman-beta', '1.3.76'), '1.3.75');
+  assert.equal(resolveBotStrategyRelease('norman-beta', '1.3.77'), '1.3.77');
   assert.deepEqual(parseVersionedBotSpec('Norman-Beta@1.3.74'), {
     spec: 'norman-beta@1.3.74',
     botType: 'norman-beta',

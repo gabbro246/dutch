@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.77
+- made Beta bots always replace unknown cards, even after a bad draw
+- gave Beta bots simpler rules for pile cards, Dutch, and score halving
+
 ## 1.3.76
 - added tournaments between different bots from stored game versions
 - balanced version tournaments across both player positions

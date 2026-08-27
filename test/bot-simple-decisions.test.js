@@ -75,7 +75,7 @@ function harness(options = {}) {
 }
 
 test('Beta profiles use predefined pile and replacement rules without the legacy evaluator', () => {
-  const setup = harness();
+  const setup = harness({ pileCard: card('A') });
   assert.equal(setup.decisions.shouldBotTakePile(setup.bot), true);
   assert.equal(setup.decisions.botBestSwapTarget(setup.bot, card('A')).index, 0);
 
@@ -83,23 +83,21 @@ test('Beta profiles use predefined pile and replacement rules without the legacy
   assert.equal(setup.decisions.shouldBotTakePile(setup.bot), false);
 });
 
-test('Beta bots replace unknown cards first and discard cards that improve nothing', () => {
-  const setup = harness({
+test('Beta bots always replace unknown cards first, even with a bad draw', () => {
+  const options = {
     botMemory: [unknownMemory('unknown', 0), cardMemory(card('2'), 'own peek', 1, 'known', 0)]
-  });
+  };
+  const current = harness(options);
 
-  assert.equal(setup.decisions.botDeckCardDecision(setup.bot, card('9')).swapTarget.index, 0);
-
-  setup.bot.botMemory.slots.bot[0] = cardMemory(card('3'), 'own peek', 1, 'known', 0);
-  setup.bot.botMemory.slots.bot[0].ownerId = setup.bot.id;
-  assert.equal(setup.decisions.botDeckCardDecision(setup.bot, card('9')).swapTarget, null);
+  assert.equal(current.decisions.botDeckCardDecision(current.bot, card('9')).swapTarget.index, 0);
+  assert.equal(current.decisions.botDeckCardDecision(current.bot, card('4')).swapTarget.index, 0);
 });
 
-test('Beta bots replace a remembered Queen before an unknown card', () => {
+test('Beta bots replace an unknown card before a remembered Queen', () => {
   const setup = harness({
     botMemory: [unknownMemory('unknown', 0), cardMemory(card('Q'), 'own peek', 1, 'known', 0)]
   });
-  assert.equal(setup.decisions.botBestSwapTarget(setup.bot, card('4')).index, 1);
+  assert.equal(setup.decisions.botBestSwapTarget(setup.bot, card('4')).index, 0);
 });
 
 test('Beta special cards target unknown cards and the most dangerous opponent', () => {
@@ -199,14 +197,60 @@ test('Beta recall can create a persistent false memory and later forget it below
   assert.ok(forgotten.confidence < 0.5);
 });
 
-test('Beta bots take pile cards over five only when they advance halving', () => {
-  const ordinary = harness({
+test('Beta pile fives require the rest of the known hand to be worth zero', () => {
+  const knownHighCard = harness({
+    botCards: [card('10'), card('2')],
+    pileCard: card('5')
+  });
+  assert.equal(knownHighCard.decisions.shouldBotTakePile(knownHighCard.bot), false);
+
+  const weakUnknown = harness({
+    botCards: [card('10'), card('2')],
+    botMemory: [unknownMemory('unknown', 0), cardMemory(card('2'), 'own peek', 1, 'known', 0)],
+    pileCard: card('5')
+  });
+  assert.equal(weakUnknown.decisions.shouldBotTakePile(weakUnknown.bot), false);
+
+  const completesDutch = harness({
+    botCards: [card('10'), card('K', 'hearts')],
+    pileCard: card('5')
+  });
+  assert.equal(completesDutch.decisions.shouldBotTakePile(completesDutch.bot), true);
+});
+
+test('Beta bots keep strongly beneficial fours but reject marginal visible improvements', () => {
+  const strong = harness({ botCards: [card('9'), card('2')], pileCard: card('4') });
+  const marginal = harness({ botCards: [card('6'), card('2')], pileCard: card('4') });
+
+  assert.equal(strong.decisions.shouldBotTakePile(strong.bot), true);
+  assert.equal(marginal.decisions.shouldBotTakePile(marginal.bot), false);
+});
+
+test('Beta bots put drawn Queens and Jacks into unknown slots before using their abilities', () => {
+  const setup = harness({
+    botMemory: [unknownMemory('unknown', 0), cardMemory(card('2'), 'own peek', 1, 'known', 0)]
+  });
+
+  assert.equal(setup.decisions.botDeckCardDecision(setup.bot, card('Q')).swapTarget.index, 0);
+  assert.equal(setup.decisions.botDeckCardDecision(setup.bot, card('J')).swapTarget.index, 0);
+});
+
+test('Beta bots take high pile cards only for immediate exact halving', () => {
+  const exact = harness({
     botType: 'roswell-beta',
     botTotal: 38,
     botCards: [card('4'), card('4')],
     pileCard: card('8')
   });
-  assert.equal(ordinary.decisions.shouldBotTakePile(ordinary.bot), true);
+  assert.equal(exact.decisions.shouldBotTakePile(exact.bot), true);
+
+  const progressOnly = harness({
+    botType: 'roswell-beta',
+    botTotal: 38,
+    botCards: [card('4'), card('10')],
+    pileCard: card('9')
+  });
+  assert.equal(progressOnly.decisions.shouldBotTakePile(progressOnly.bot), false);
 
   const noHalving = harness({
     botType: 'roswell-beta',
