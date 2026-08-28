@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.3.78
+- stopped Beta bots repeatedly retrying a card after seeing that it was a wrong throw-in
+
 ## 1.3.77
 - made Beta bots always replace unknown cards, even after a bad draw
 - gave Beta bots simpler rules for pile cards, Dutch, and score halving

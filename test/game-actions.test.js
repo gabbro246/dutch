@@ -284,6 +284,13 @@ test('throw-in handles valid and wrong cards', () => {
   assert.equal(calls.logs.length, 0);
   assert.equal(calls.scheduled.at(-1).ms, 1500);
   assert.deepEqual(calls.cardHighlights.at(-1), { cardId: 'a2', kind: 'wrong-throw', ms: 2200, options: { playerId: 'ada' } });
+  assert.deepEqual(calls.rememberedAll.at(-1), {
+    ownerId: 'ada',
+    index: 0,
+    card: state.players[0].cards[0],
+    source: 'wrong throw-in reveal',
+    confidence: 1
+  });
 
   calls.scheduled.at(-1).fn();
   assert.equal(state.round.pendingWrongThrowPenalties, 0);
