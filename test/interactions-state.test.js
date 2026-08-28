@@ -171,7 +171,7 @@ test('settings drawer reuses all real-game controls', () => {
 
   assert.match(html, /popovertarget="gameBotTimingSelectHelp"[^>]*>Bot speed<\/button>/);
   assert.match(html, /<option value="0"[^>]*>Instant<\/option>/);
-  assert.match(html, /<option value="50"[^>]*selected[^>]*>Medium<\/option>/);
+  assert.match(html, /<option value="50"[^>]*selected[^>]*>Normal<\/option>/);
   assert.match(html, /<option value="five"[^>]*>Five rounds<\/option>/);
   assert.match(html, /<option value="100"[^>]*>Human-like<\/option>/);
 

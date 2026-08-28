@@ -11,9 +11,7 @@
   const RED_SUITS = ['hearts', 'diamonds'];
   const BOT_SPEED_OPTIONS = Object.freeze([
     Object.freeze({ value: 0, label: 'Instant' }),
-    Object.freeze({ value: 25, label: 'Fast' }),
-    Object.freeze({ value: 50, label: 'Medium' }),
-    Object.freeze({ value: 75, label: 'Slow' }),
+    Object.freeze({ value: 50, label: 'Normal' }),
     Object.freeze({ value: 100, label: 'Human-like' })
   ]);
 

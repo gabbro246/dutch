@@ -73,6 +73,7 @@
 
   function render(fullPage = false, captureDrawerState = true) {
     const buttonTransitions = uiAnimations.captureButtonTransitions();
+    const showMoreTransitions = uiAnimations.captureShowMoreTransitions();
     const settingsDrawer = app.querySelector('details[data-detail-key="settings"]');
     const drawerTransitions = uiAnimations.captureDrawerTransitions();
     if (captureDrawerState && settingsDrawer) state.preferences.settingsOpen = settingsDrawer.open;
@@ -90,6 +91,7 @@
     uiAnimations.animateDrawerTransitions(drawerTransitions);
     wireHelpDisclosures();
     uiAnimations.animateButtonTransitions(buttonTransitions);
+    uiAnimations.animateShowMoreTransitions(showMoreTransitions);
   }
 
   function preservePreferences(next) {

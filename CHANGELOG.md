@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.79
+- animated Show more and Show less in settings and game logs
+- simplified Bot speed to Instant, Normal, and Human-like
+- showed each round's score change beside the total in the points table
+
 ## 1.3.78
 - stopped Beta bots repeatedly retrying a card after seeing that it was a wrong throw-in
 

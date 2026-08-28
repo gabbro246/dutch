@@ -33,6 +33,8 @@
     const emit = deps.emit;
     const wireHelpDisclosures = deps.wireHelpDisclosures;
     const wireAnimatedDrawers = deps.wireAnimatedDrawers;
+    const captureShowMoreTransitions = deps.captureShowMoreTransitions || (() => new Map());
+    const animateShowMoreTransitions = deps.animateShowMoreTransitions || (() => {});
     const wireInactivityTimeoutSelect = deps.wireInactivityTimeoutSelect;
     const wireBotTimingSelect = deps.wireBotTimingSelect;
     const wireLanguageSelect = deps.wireLanguageSelect;
@@ -263,8 +265,10 @@
       const waitingSettingsToggle = document.getElementById('waitingSettingsToggle');
       if (waitingSettingsToggle) {
         waitingSettingsToggle.addEventListener('click', () => {
+          const transitions = captureShowMoreTransitions(document);
           waitingDrawerPreferences.settingsExpanded = !waitingDrawerPreferences.settingsExpanded;
           renderWaiting(state);
+          animateShowMoreTransitions(transitions, document);
         });
       }
       const themeSelect = document.getElementById('themeSelect');

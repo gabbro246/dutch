@@ -142,9 +142,7 @@ test('bot runner schedules and performs the start peek', () => {
 test('bot thinking delays follow every shared timing percentage', () => {
   const expectedDelays = new Map([
     [0, 0],
-    [25, 313],
     [50, 625],
-    [75, 938],
     [100, 1250]
   ]);
 

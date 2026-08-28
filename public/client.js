@@ -68,6 +68,8 @@ const {
   animateButtonTransitions = () => {},
   captureDrawerTransitions,
   animateDrawerTransitions,
+  captureShowMoreTransitions = () => new Map(),
+  animateShowMoreTransitions = () => {},
   animateWaitingPlayerListChanges,
   animateWinnerConfetti,
   captureRightPanelScroll,
@@ -133,6 +135,8 @@ const { renderWaiting } = window.DutchClientWaiting.create({
   emit,
   wireHelpDisclosures,
   wireAnimatedDrawers,
+  captureShowMoreTransitions,
+  animateShowMoreTransitions,
   wireInactivityTimeoutSelect,
   wireBotTimingSelect,
   wireLanguageSelect,
@@ -429,6 +433,7 @@ function bindActiveGameRejoin(missingPlayers = []) {
 
 function render(state) {
   const buttonTransitions = captureButtonTransitions();
+  const showMoreTransitions = captureShowMoreTransitions();
   if (!state.joined && state.phase === 'playing') {
     const selectedTheme = window.DutchTheme.getStoredTheme(window);
     const gameStarted = gameStartedText(state.gameStartedAt);
@@ -496,11 +501,13 @@ function render(state) {
     wireSoundSelect('occupiedSoundSelect');
     wireLanguageSelect('occupiedLanguageSelect');
     animateButtonTransitions(buttonTransitions);
+    animateShowMoreTransitions(showMoreTransitions);
     return;
   }
   if (state.phase === 'waiting') renderWaiting(state);
   else renderGame(state);
   animateButtonTransitions(buttonTransitions);
+  animateShowMoreTransitions(showMoreTransitions);
 }
 
 function renderGame(state) {
@@ -1229,12 +1236,18 @@ function pointsTable(state) {
   });
   const players = Array.from(playerMap.values());
   const winnerId = state.round.stage === 'gameEnd' ? state.round.winnerId : '';
+  const previousTotals = new Map();
   const historyRows = history.map((entry) => {
     const cells = players.map((p) => {
       const item = entry.players.find((h) => h.id === p.id);
       const winnerClass = winnerId && p.id === winnerId ? ' winner-points' : '';
       const colorIndex = pointColorIndex(state, p.id);
-      return `<td class="player-points${winnerClass}" style="--series-color: var(--chart-color-${colorIndex})">${item ? item.total : ""}</td>`;
+      if (!item) return `<td class="player-points${winnerClass}" style="--series-color: var(--chart-color-${colorIndex})"></td>`;
+      const previousTotal = previousTotals.get(p.id) || 0;
+      const change = item.total - previousTotal;
+      previousTotals.set(p.id, item.total);
+      const signedChange = change >= 0 ? `+${change}` : String(change);
+      return `<td class="player-points${winnerClass}" style="--series-color: var(--chart-color-${colorIndex})">${item.total} <span class="points-change">${signedChange}</span></td>`;
     }).join("");
     return `<tr><th>${escapeHtml(t('Round {number}', { number: entry.round }))}</th>${cells}</tr>`;
   }).join("");

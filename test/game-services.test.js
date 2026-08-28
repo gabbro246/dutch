@@ -99,7 +99,7 @@ test('registered sockets can join and update waiting-room settings', () => {
     assert.equal(services.getState().players.length, 1);
     assert.equal(services.getState().players[0].id, 'ada-token');
     assert.equal(services.getState().players[0].name, 'Ada');
-    socket.handlers.setBotTimingPercent(25);
+    socket.handlers.setBotTimingPercent(100);
     assert.equal(socket.emitted.some((event) => event.event === 'state'), true);
 
     socket.handlers.setGameTarget(50);
@@ -109,7 +109,7 @@ test('registered sockets can join and update waiting-room settings', () => {
 
     assert.equal(services.getState().gameTarget, 50);
     assert.equal(services.getState().inactivityTimeoutMinutes, 90);
-    assert.equal(services.getState().botTimingPercent, 25);
+    assert.equal(services.getState().botTimingPercent, 100);
     assert.equal(services.getState().deckSetting, 'two');
     assert.equal(services.getState().highlightChangedCards, true);
 
@@ -178,26 +178,26 @@ test('changed-card highlighting is a shared in-game setting', () => {
 
     ada.handlers.setGameTarget(50);
     ben.handlers.setInactivityTimeout(90);
-    ada.handlers.setBotTimingPercent(75);
+    ada.handlers.setBotTimingPercent(100);
     ben.handlers.setHighlightChangedCards('false');
 
     assert.equal(services.getState().phase, 'playing');
     assert.equal(services.getState().gameTarget, 50);
     assert.equal(services.getState().inactivityTimeoutMinutes, 90);
-    assert.equal(services.getState().botTimingPercent, 75);
+    assert.equal(services.getState().botTimingPercent, 100);
     assert.equal(services.getState().highlightChangedCards, false);
     assert.deepEqual(
       services.getState().log.slice(0, 4).map((entry) => [entry.text, entry.kind]),
       [
         ['Ben turned changed-card highlighting off', 'system'],
-        ['Ada changed bot speed from Medium to Slow', 'system'],
+        ['Ada changed bot speed from Normal to Human-like', 'system'],
         ['Ben changed inactivity timeout from 15 to 90 minutes', 'system'],
         ['Ada changed game length from 100 points to 50 points', 'system']
       ]
     );
     const latestAdaState = ada.emitted.filter((event) => event.event === 'state').at(-1).payload;
     assert.equal(latestAdaState.highlightChangedCards, false);
-    assert.equal(latestAdaState.botTimingPercent, 75);
+    assert.equal(latestAdaState.botTimingPercent, 100);
   } finally {
     services.close();
   }

@@ -200,6 +200,51 @@
       });
     }
     
+    function captureShowMoreTransitions(scope = document) {
+      const transitions = new Map();
+      const regions = [
+        ["log", "details[data-detail-key=\"log\"] > .drawer-animation-content"],
+        ["settings", "details[data-detail-key=\"settings\"] > .drawer-animation-content"],
+        ["waiting-settings", "details[data-waiting-drawer=\"settings\"] > .drawer-animation-content"]
+      ];
+      regions.forEach(([key, selector]) => {
+        const element = scope.querySelector(selector);
+        if (element) transitions.set(key, element.getBoundingClientRect().height);
+      });
+      return transitions;
+    }
+
+    function animateShowMoreTransitions(transitions, scope = document) {
+      if (!transitions.size || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const regions = [
+        ["log", "details[data-detail-key=\"log\"] > .drawer-animation-content"],
+        ["settings", "details[data-detail-key=\"settings\"] > .drawer-animation-content"],
+        ["waiting-settings", "details[data-waiting-drawer=\"settings\"] > .drawer-animation-content"]
+      ];
+      regions.forEach(([key, selector]) => {
+        const element = scope.querySelector(selector);
+        const startHeight = transitions.get(key);
+        if (!element || !element.animate || !Number.isFinite(startHeight)) return;
+        const endHeight = element.getBoundingClientRect().height;
+        if (Math.abs(startHeight - endHeight) < 1) return;
+        element.style.overflow = "hidden";
+        const expanding = endHeight > startHeight;
+        const animation = element.animate([
+          { height: startHeight + "px" },
+          { height: endHeight + "px" }
+        ], { duration: 220, easing: "ease-in-out" });
+        if (expanding) {
+          element.querySelectorAll(".advanced-setting, .log li:nth-child(n+9)").forEach((item) => {
+            if (!item.animate) return;
+            item.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: "ease-in-out" });
+          });
+        }
+        const finish = () => element.removeAttribute("style");
+        animation.onfinish = finish;
+        animation.oncancel = finish;
+      });
+    }
+
     function animateWaitingPlayerListChanges(previousState, state, before, after) {
       if (previousState.phase !== 'waiting' || !Element.prototype.animate) return;
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -379,6 +424,8 @@
       animateButtonTransitions,
       captureDrawerTransitions,
       animateDrawerTransitions,
+      captureShowMoreTransitions,
+      animateShowMoreTransitions,
       animateWaitingPlayerListChanges,
       animateWinnerConfetti,
       captureRightPanelScroll,
