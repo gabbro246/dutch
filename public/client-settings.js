@@ -50,7 +50,7 @@
               [15, 30, 60, 90].map((value) => option(value, inactivityMinutes === value, t('{count} minutes', { count: value }))).join('') +
             '</select></div>' +
           '<div class="setting-row advanced-setting" ' + (expanded ? '' : 'hidden') + '>' +
-            helpDisclosureHtml('gameBotTimingSelectHelp', 'Bot speed', 'Choose how quickly bots take their turns. The throw-in window always lasts 1.6 seconds and is not affected by bot speed. This setting is shared by everyone.') +
+            helpDisclosureHtml('gameBotTimingSelectHelp', 'Bot speed', 'Choose how quickly bots take their turns. The throw-in window always lasts 1.0 seconds and is not affected by bot speed. This setting is shared by everyone.') +
             '<select id="gameBotTimingSelect" aria-label="' + escapeHtml(t('Bot speed')) + '">' +
               botSpeedOptions.map((item) => option(item.value, botTimingPercent === item.value, item.label)).join('') +
             '</select></div>' +

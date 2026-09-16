@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.3.84
+- shortened the throw-in time to one second
+- removed older bot versions from the opponents you can add
+
+## 1.3.83
+- made the stronger Beta bot team the default choice and kept the earlier team available as Legacy bots
+- gave the default bot names their character emojis, and clearly marked the older alternatives as Legacy
+- showed tournament progress, speed, remaining time, and completed seat order
+- made bot tournaments use multiple CPU cores, with a choice of worker count
+- made Beta bots balance point reduction against cards the opponent could throw in or take from the pile
+- stopped Beta bots planning Dutch calls or Ace moves after an opponent says Dutch
+
+## 1.3.82
+- made Beta bots plan future throws, useful peeks, and opponents’ next turns
+- improved how Beta bots weigh pile cards and chances to disrupt an opponent’s score halving
+- kept earlier bots available for comparison and expanded tournament results
+
+## 1.3.81
+- gave Beta bots the same strategy in every game length
+- made Beta bots plan toward knowing a low-scoring hand and use Queen-and-throw combinations
+- preserved older Beta bots and added round wins, final scores, and learning results to comparisons
+
+## 1.3.80
+- improved Beta bots' combinations, special actions, and Dutch decisions in longer games
+- made Beta bots account for humans getting the first chance to throw in
+- stopped pointless card exchanges and kept decisions quick with large hands
+- kept the previous strategy for single-round games and comparison tournaments
+- improved tournament fairness and added score-halving results
+
 ## 1.3.79
 - animated Show more and Show less in settings and game logs
 - simplified Bot speed to Instant, Normal, and Human-like

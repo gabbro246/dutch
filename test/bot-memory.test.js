@@ -200,3 +200,26 @@ test('botMemoryEntry and effectiveMemory use the current bot tick', () => {
   assert.equal(effective.card, null);
   assert.equal(memory.botMemoryEntry(bot, 'missing', 0).state, 'unknown');
 });
+
+test('public knowledge status never exposes a privately peeked or retained face', () => {
+  const a = player('a', [card('a1','2')], {isBot:true,botType:'roswell-beta'});
+  const b = player('b', [card('b1','9')], {isBot:true,botType:'roswell-beta'});
+  const state = {roundNumber:1,round:{strategyTick:0},players:[a,b]};
+  const m = memoryFor(state);m.syncBotMemories();
+  m.rememberSlotForBot(a,'a',0,a.cards[0],'own peek',1);
+  assert.equal(b.botMemory.slots.a[0].ownerHasSeen,true);
+  assert.equal(b.botMemory.slots.a[0].card,null);
+  m.rememberSlotForBot(a,'b',0,b.cards[0],'Queen peek',1);
+  assert.notEqual(a.botMemory.slots.b[0].ownerHasSeen,true);
+  assert.equal(a.botMemory.slots.b[0].card.rank,'9');
+  m.forgetSlotForAllBots('a',0,'deck swap',a.cards[0]);
+  assert.equal(b.botMemory.slots.a[0].replacedKnown,true);
+  assert.equal(b.botMemory.slots.a[0].replacedPoints,2);
+  assert.equal(b.botMemory.slots.a[0].ownerHasSeen,true);
+  assert.equal(b.botMemory.slots.a[0].card,null);
+  m.moveSlotMemoryForAllBots('a',0,'b',0,'Jack swap');
+  assert.equal(b.botMemory.slots.b[0].ownerHasSeen,false);
+  m.observeDecisionForAllBots('a','queen-target',{targetId:'a',index:0});
+  assert.equal(b.botMemory.slots.a[0].ownerHasSeen,true);
+  assert.equal(b.botMemory.slots.a[0].card,null);
+});

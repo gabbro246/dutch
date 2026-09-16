@@ -9,6 +9,10 @@ const {
   runVersionedBotTournament,
   runVersionedRoswellTournament
 } = require('../lib/bot-simulation.js');
+const {
+  normalizedJobCount,
+  runTournamentInWorkers
+} = require('../lib/bot-tournament-runner.js');
 
 function stableResult(result) {
   return {
@@ -139,8 +143,13 @@ test('bot version specs resolve to real stored strategy snapshots', () => {
   assert.equal(resolveBotStrategyRelease('norman', '1.3.66'), '1.3.65');
   assert.equal(resolveBotStrategyRelease('norman-beta', '1.3.74'), '1.3.74');
   assert.equal(resolveBotStrategyRelease('norman-beta', '1.3.76'), '1.3.75');
-  assert.equal(resolveBotStrategyRelease('norman-beta', '1.3.77'), '1.3.77');
-  assert.equal(resolveBotStrategyRelease('norman-beta', '1.3.78'), '1.3.78');
+  assert.equal(resolveBotStrategyRelease('norman-beta', '1.3.77'), '1.3.79');
+  assert.equal(resolveBotStrategyRelease('norman-beta', '1.3.78'), '1.3.79');
+  assert.equal(resolveBotStrategyRelease('norman-beta', '1.3.79'), '1.3.79');
+  assert.equal(resolveBotStrategyRelease('norman-beta', '1.3.80'), '1.3.80');
+  assert.equal(resolveBotStrategyRelease('norman-beta', '1.3.81'), '1.3.81');
+  assert.equal(resolveBotStrategyRelease('norman-beta', '1.3.82'), '1.3.82');
+  assert.throws(() => runVersionedBotTournament({ competitors: ['roswell-beta@1.3.77', 'roswell-beta@1.3.78'], totalGames: 2 }), /same.*snapshot/);
   assert.deepEqual(parseVersionedBotSpec('Norman-Beta@1.3.74'), {
     spec: 'norman-beta@1.3.74',
     botType: 'norman-beta',
@@ -185,4 +194,40 @@ test('mixed bot-version tournament rotates seats and reports both snapshots', ()
     }),
     /even whole number/
   );
+});
+
+test('parallel tournaments preserve seeded game results and stable result order', async () => {
+  const options = {
+    seeds: [31, 32],
+    lineups: [
+      ['roswell-beta@1.3.78', 'norman-beta@1.3.77'],
+      ['norman-beta@1.3.77', 'roswell-beta@1.3.78']
+    ],
+    gameTarget: 50,
+    maxRounds: 2,
+    maxTurnsPerRound: 40
+  };
+  const sequential = runTournament(options);
+  const completed = [];
+  const parallel = await runTournamentInWorkers({
+    ...options,
+    jobs: 2,
+    onGameComplete(game, gameNumber, lineup) {
+      completed.push({ gameNumber, lineup, winnerPolicy: game.winnerPolicy });
+    }
+  });
+
+  assert.deepEqual(parallel.games.map(stableResult), sequential.games.map(stableResult));
+  assert.deepEqual(completed.map((entry) => entry.gameNumber).sort((a, b) => a - b), [1, 2, 3, 4]);
+  assert.deepEqual(
+    completed.map((entry) => entry.lineup.join(':')).sort(),
+    options.lineups.flatMap((lineup) => [lineup.join(':'), lineup.join(':')]).sort()
+  );
+});
+
+test('parallel tournament worker counts are validated and capped by game count', () => {
+  assert.equal(normalizedJobCount(8, 3), 3);
+  assert.equal(normalizedJobCount(1, 3), 1);
+  assert.throws(() => normalizedJobCount(0, 3), /whole number/);
+  assert.throws(() => normalizedJobCount(1.5, 3), /whole number/);
 });

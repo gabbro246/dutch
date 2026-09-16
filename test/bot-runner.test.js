@@ -122,6 +122,32 @@ function createHarness(overrides = {}) {
   return { runner, state, bot, calls };
 }
 
+for (const roundLimit of [0, 1, 5]) test(`Beta can secure Dutch before an optional special with round limit ${roundLimit}`, () => {
+  let called = 0;
+  let usedAce = 0;
+  const { runner, bot, calls } = createHarness({
+    state: { roundLimit, round: { stage: 'special', turnComplete: true, specialQueue: [{ type: 'A', actorId: 'bot' }], throwIn: null } },
+    deps: { canPlayerSayDutch: () => true, botShouldCallDutch: () => true, callDutchForPlayer: () => { called += 1; }, botAceTarget: () => { usedAce += 1; return null; } }
+  });
+  bot.botType = 'roswell-beta';
+  runner.scheduleBotAutomation();
+  calls.timers[0].fn();
+  assert.equal(called, 1);
+  assert.equal(usedAce, 0);
+});
+
+test('Beta cannot interrupt a Jack selection to call Dutch', () => {
+  let called = 0;
+  const { runner, bot, calls } = createHarness({
+    state: { round: { stage: 'special', turnComplete: true, specialQueue: [{ type: 'J', actorId: 'bot', selected: ['b1'] }], throwIn: null } },
+    deps: { isJackSwapSelectionActive: () => true, canPlayerSayDutch: () => true, botShouldCallDutch: () => true, callDutchForPlayer: () => { called += 1; } }
+  });
+  bot.botType = 'roswell-beta';
+  runner.scheduleBotAutomation();
+  assert.equal(called, 0);
+  assert.equal(calls.timers.length, 0);
+});
+
 test('bot runner schedules and performs the start peek', () => {
   const { runner, bot, calls } = createHarness();
 
@@ -314,14 +340,14 @@ test('post-draw action waits only for movement and the remaining human throw-in 
         cardMotionUntil: 1360,
         drawn: { playerId: 'bot', source: 'deck', card: card('drawn-low', '2') },
         turnComplete: false,
-        throwIn: { open: true, token: 'window', rank: '5', humanUntil: 2600 }
+        throwIn: { open: true, token: 'window', rank: '5', humanUntil: 2000 }
       }
     }
   });
 
   runner.scheduleBotAutomation();
 
-  assert.equal(calls.timers[0].delay, 1600);
+  assert.equal(calls.timers[0].delay, 1000);
 });
 
 test('completed bot turns keep the scaled thinking pause when it exceeds movement', () => {
@@ -354,7 +380,7 @@ test('bot throw-ins cannot execute before the human throw-in window ends', () =>
         specialQueue: [],
         drawn: null,
         turnComplete: true,
-        throwIn: { open: true, token: 'window', rank: '5', humanUntil: 2600 }
+        throwIn: { open: true, token: 'window', rank: '5', humanUntil: 2000 }
       }
     },
     deps: {
@@ -366,7 +392,7 @@ test('bot throw-ins cannot execute before the human throw-in window ends', () =>
 
   runner.scheduleBotAutomation();
 
-  const throwTimer = calls.timers.find((timer) => timer.delay === 1600);
+  const throwTimer = calls.timers.find((timer) => timer.delay === 1000);
   assert.ok(throwTimer);
 });
 

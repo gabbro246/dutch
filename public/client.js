@@ -974,7 +974,7 @@ function botTimingSettingHtml(state, id, advanced = false, expanded = false) {
     : 50;
   return `
     <div class="setting-row${advanced ? ' advanced-setting' : ''}" ${advanced && !expanded ? 'hidden' : ''}>
-      ${helpDisclosureHtml(id + 'Help', 'Bot speed', 'Choose how quickly bots take their turns. The throw-in window always lasts 1.6 seconds and is not affected by bot speed. This setting is shared by everyone.')}
+      ${helpDisclosureHtml(id + 'Help', 'Bot speed', 'Choose how quickly bots take their turns. The throw-in window always lasts 1.0 seconds and is not affected by bot speed. This setting is shared by everyone.')}
       <select id="${id}" aria-label="${escapeHtml(t('Bot speed'))}">
         ${BOT_SPEED_OPTIONS.map((option) => `<option value="${option.value}" ${percent === option.value ? 'selected' : ''}>${escapeHtml(t(option.label))}</option>`).join('')}
       </select>

@@ -15,20 +15,17 @@
     Object.freeze({ value: 100, label: 'Human-like' })
   ]);
 
-  const BOT_TYPES = Object.freeze([
-    'dory', 'norman', 'athena', 'roswell',
-    'dory-beta', 'norman-beta', 'athena-beta', 'roswell-beta'
-  ]);
+  const BOT_TYPES = Object.freeze(['dory-beta', 'norman-beta', 'athena-beta', 'roswell-beta']);
 
   const BOT_LABELS = {
-    athena: '🦉 Athena',
-    roswell: '👽 Roswell',
-    norman: '🐑 Norman',
-    dory: '🐠 Dory',
-    'roswell-beta': 'Roswell (Beta)',
-    'athena-beta': 'Athena (Beta)',
-    'norman-beta': 'Norman (Beta)',
-    'dory-beta': 'Dory (Beta)'
+    athena: 'Athena (Legacy)',
+    roswell: 'Roswell (Legacy)',
+    norman: 'Norman (Legacy)',
+    dory: 'Dory (Legacy)',
+    'roswell-beta': '👽 Roswell',
+    'athena-beta': '🦉 Athena',
+    'norman-beta': '🐑 Norman',
+    'dory-beta': '🐠 Dory'
   };
 
   const BOT_PERSONALITIES = {

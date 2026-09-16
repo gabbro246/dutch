@@ -54,9 +54,27 @@ In a fixed-round game, the player with the lowest total score wins after the sel
 
 ## Bot Version Tournaments
 
-Run a tournament between two stored bot versions with a command such as `npm run tournament:bots -- 100 roswell@1.3.68 norman-beta@1.3.74`. The number is the total number of games. Half use each seat order with the same randomized hands, and replay logs are saved under `game-logs`.
+Run a tournament between two stored bot versions with a command such as `npm run tournament:bots -- 100 roswell@1.3.68 norman-beta@1.3.74`. The number is the total number of games. Half use each seat order with the same randomized hands, and replay logs are saved under `game-logs`. Tournament progress, speed, and estimated remaining time are shown while it runs.
+
+Tournaments automatically use up to eight CPU workers while leaving at least one logical CPU available. Use `--jobs 4` to choose a specific number, `--jobs 1` to run sequentially, or `--jobs auto` to select the automatic default explicitly. Multi-worker decision times include CPU contention, so use `--jobs 1` when comparing decision latency.
 
 Use the original bot identifiers `roswell`, `athena`, `norman`, and `dory`, or the corresponding `-beta` identifiers. Original-bot snapshots are available from 1.3.64 through the latest legacy strategy change in 1.3.68. Beta snapshots start at 1.3.74; requesting a later game version reuses the latest snapshot at or before that version.
+
+Beta 1.3.81 uses the same knowledge-first strategy in single-round, five-round and points games. It values progress toward a fully known hand of five or fewer, including Queen reveals and matching throws. Accumulated scores and a real game-ending opportunity still matter. See [the implemented rules](docs/beta-strategy-1.3.81.md). Beta 1.3.79 and 1.3.80 are frozen for comparisons; only the historical 1.3.80 snapshot retains its original single-round fallback. The older 1.3.77 and 1.3.78 beta labels are compatibility aliases for that captured baseline, because their original independent snapshots were not stored. Comparing those aliases with each other is rejected.
+
+### Compare the new Beta strategy
+
+Run `npm run benchmark:beta-strategy -- --suite core --games 400 --seed 50001` to compare new Roswell Beta against the original Beta 1.3.79, previous update 1.3.80, and legacy Roswell 1.3.67. Each matchup rotates both seats. The seed controls independently shuffled round deals; decision randomness does not change the next round's deal.
+
+Other suites are `characters` (Athena, Norman, Dory before/after), `older` (older Roswell strategies), and `field` (four-player tables before/after). The default `all` runs every suite. Choose a multiple of four for `--games`, and optionally choose an output folder with `--output`.
+
+Use `--case original-beta` or `--case previous-beta` for one Beta comparison. To run just the slower legacy comparison, use `--suite core --case legacy-1.3.67 --games 80 --seed 77001`.
+
+Use `--rounds 1` or `--rounds 5` to compare fixed-round games as well as the default 100-point games. Safety limits default to 250 rounds and 300 turns per round; adjust them with `--max-rounds` and `--max-turns`.
+
+The report includes complete-game results, confidence intervals grouped by shuffled seed, replay logs, forced endings, round wins, final scores, learning speed, score-halving savings, ordinary Dutch success, and decision times. Round-win credit is split equally when players tie for the lowest round score (after Dutch scoring, before total-score halving). Learning times are conditional on reaching the milestone; the report also gives the fraction of rounds that reach it. Forced or truncated games are reported separately. The `completePairs` result excludes every seat order for any seed with an unfinished or forced game; this filtered result is descriptive, because those seeds are not a random omission. Legacy deliberate-failure counts are inferred from above-five calls landing exactly on a halving total.
+
+The tournament uses sampled bot reaction order instead of fixed-seat throw-in priority. It settles a throw before the original special, preserves both special actions, and can check a newly learned match after a special. This is a simplified bot-only action schedule; it does not reproduce every animation/timer interleaving or measure human reactions. Live games retain their 1.6-second human throw-in window.
 
 ## Compare Roswell Versions
 

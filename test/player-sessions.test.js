@@ -45,8 +45,9 @@ function sessionsFor(state) {
     playerNameMaxLength: 24,
     spectatorTriggerName: 'spectator',
     botProfiles: {
-      athena: { name: 'Athena' },
-      norman: { name: 'Norman' }
+      'athena-beta': { name: '🦉 Athena' },
+      'norman-beta': { name: '🐑 Norman' },
+      athena: { name: 'Athena' }
     },
     gameView: {
       buildView: (userId) => ({ user: userId })
@@ -161,14 +162,17 @@ test('waiting-room actions remove, move, and add players', () => {
   assert.equal(sessions.moveWaitingPlayer('ben', 'up'), true);
   assert.deepEqual(state.players.map((item) => item.id), ['ben', 'ada']);
 
-  const botResult = sessions.addBotPlayer('athena');
+  const botResult = sessions.addBotPlayer('athena-beta');
   assert.equal(botResult.ok, true);
-  assert.equal(state.players.at(-1).id, 'bot-athena');
+  assert.equal(state.players.at(-1).id, 'bot-athena-beta');
   assert.equal(state.players.at(-1).isBot, true);
+
+  const legacyBotResult = sessions.addBotPlayer('athena');
+  assert.deepEqual(legacyBotResult, { ok: false, message: 'Unknown bot type.' });
   assert.equal(typeof state.players.at(-1).joinedAt, 'number');
 
   assert.equal(sessions.removeWaitingPlayer('ada', 'left'), true);
-  assert.deepEqual(state.players.map((item) => item.id), ['ben', 'bot-athena']);
+  assert.deepEqual(state.players.map((item) => item.id), ['ben', 'bot-athena-beta']);
   assert.equal(calls.logs.at(-1).text, 'Ada left');
   assert.ok(calls.clamps >= 2);
 });
