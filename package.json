@@ -1,7 +1,8 @@
 {
   "name": "dutch-card-game",
-  "version": "1.3.84",
+  "version": "1.3.85",
   "description": "Simple local multiplayer Dutch card game",
+  "license": "MIT",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

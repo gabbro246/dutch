@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.85
+- Added the Dutch icon to browser tabs.
+- Simplified the README to focus on installing and playing the game.
+- Added the MIT license.
+
 ## 1.3.84
 - shortened the throw-in time to one second
 - removed older bot versions from the opponents you can add
