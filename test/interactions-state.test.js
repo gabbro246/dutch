@@ -7,10 +7,10 @@ function actionButtons(html, action) {
   return html.match(new RegExp('<button[^>]*data-action="' + action + '"[^>]*>', 'g')) || [];
 }
 
-test('interaction lab starts with User plus two other players and four hidden cards each', () => {
+test('interaction lab starts with You plus two other players and four hidden cards each', () => {
   const state = stateModel.createInitialState({ random: () => 0 });
 
-  assert.deepEqual(state.round.players.map((player) => player.name), ['User', 'Player 2', 'Player 3']);
+  assert.deepEqual(state.round.players.map((player) => player.name), ['You', 'Player 2', 'Player 3']);
   assert.deepEqual(state.round.players.map((player) => player.cards.length), [4, 4, 4]);
   assert.ok(state.round.players.every((player) => player.cards.every((card) => card.back)));
   assert.equal(state.user, 'user');
@@ -191,7 +191,7 @@ test('status panel contains only messages used by the real game', () => {
   let html = render.renderPage(state);
   let statusInfo = html.slice(html.indexOf('class="status-info"'), html.indexOf('class="status-actions"'));
   const statusActions = html.slice(html.indexOf('class="status-actions"'), html.indexOf('</div></div></div></div>', html.indexOf('class="status-actions"')));
-  assert.match(statusInfo, /User&#039;s move\./);
+  assert.match(statusInfo, /Your move\./);
   assert.doesNotMatch(statusInfo, /interaction|Ready|randomized/i);
   assert.doesNotMatch(statusActions, /data-system-action="next-player"/);
   assert.match(html, /data-system-action="next-player" >Next player<\/button>/);

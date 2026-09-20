@@ -197,7 +197,9 @@
   function renderStatus(state) {
     const round = state.round;
     const currentName = playerName(state, round.currentPlayerId);
-    let message = t(state, "{name}'s move.", { name: currentName });
+    let message = round.currentPlayerId === state.user
+      ? t(state, 'Your move.')
+      : t(state, "{name}'s move.", { name: currentName });
     const temporaryEvent = round.wrongThrowIn
       ? t(state, '{name} made a wrong throw-in and gets a penalty card.', { name: playerName(state, round.wrongThrowIn.playerId) })
       : (round.infoEvent && round.infoEvent.text ? i18n.translateGameText(language(state), round.infoEvent.text) + '.' : '');

@@ -8,7 +8,7 @@
   else root.DutchInteractionState = api;
 })(typeof window !== 'undefined' ? window : globalThis, function createInteractionState(shared) {
   const PLAYER_DEFINITIONS = Object.freeze([
-    { id: 'user', name: 'User' },
+    { id: 'user', name: 'You' },
     { id: 'player-2', name: 'Player 2' },
     { id: 'player-3', name: 'Player 3' }
   ]);

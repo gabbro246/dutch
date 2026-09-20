@@ -104,7 +104,7 @@
         `;
         return `
           <div class="player-line" data-waiting-player-id="${escapeHtml(p.id)}">
-            <span>${index + 1}. ${playerNameHtml(state, p)}${p.isBot ? ' <span class="bot-badge">' + escapeHtml(t('bot')) + '</span>' : ''}${p.isSpectator ? ' <span class="spectator-badge">' + escapeHtml(t('spectator')) + '</span>' : ''}${isUser ? ' <span class="user-badge">' + escapeHtml(t('user')) + '</span>' : ''} ${p.connected ? '' : '(' + escapeHtml(t('missing')) + ')'}</span>
+            <span>${index + 1}. ${playerNameHtml(state, p)}${p.isBot ? ' <span class="bot-badge">' + escapeHtml(t('bot')) + '</span>' : ''}${p.isSpectator ? ' <span class="spectator-badge">' + escapeHtml(t('spectator')) + '</span>' : ''}${isUser ? ' <span class="user-badge">' + escapeHtml(t('you')) + '</span>' : ''} ${p.connected ? '' : '(' + escapeHtml(t('missing')) + ')'}</span>
             ${moveControls}
           </div>
         `;

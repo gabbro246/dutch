@@ -1,6 +1,7 @@
 # Changelog
 
-## 1.3.85
+## 1.3.86
+- Changed the player-list badge to say “You” instead of “User”.
 - Added the Dutch icon to browser tabs.
 - Simplified the README to focus on installing and playing the game.
 - Added the MIT license.
