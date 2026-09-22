@@ -1,4 +1,9 @@
 # Dutch! 🂡
+
+<p align="center">
+  <img src="public/favicon.png" alt="Dutch icon" width="160">
+</p>
+
 A card game where players try to finish with the lowest score by remembering, swapping, and revealing cards.
 This project provides a minimal local multiplayer version that you can play in a browser against other players or bots.
 
